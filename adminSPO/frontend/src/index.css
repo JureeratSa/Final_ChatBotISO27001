@@ -1,0 +1,265 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased transition-colors duration-300;
+  }
+
+  html:not(.dark) body {
+    @apply bg-slate-50 text-tuh-navy;
+  }
+
+  html.dark body {
+    @apply bg-[#100220] text-white;
+  }
+}
+
+/* Custom Gradients from User Image Palette */
+.bg-tuh-gradient-1 {
+  background: linear-gradient(135deg, #FF7BB0 0%, #FF7540 100%);
+}
+
+.bg-tuh-gradient-2 {
+  background: linear-gradient(135deg, #8B5CF6 0%, #FF4D80 50%, #FF7540 100%);
+}
+
+.bg-tuh-gradient-3 {
+  background: linear-gradient(135deg, #FF7540 0%, #8B5CF6 100%);
+}
+
+.bg-tuh-gradient-4 {
+  background: linear-gradient(180deg, #8B5CF6 0%, #321154 50%, #100220 100%);
+}
+
+/* Text Gradients */
+.text-tuh-gradient {
+  background-image: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-tuh-gradient-light {
+  background-image: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+.dark .text-tuh-gradient {
+  background-image: linear-gradient(135deg, #8B5CF6 0%, #FF4D80 50%, #FF7540 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-tuh-gradient-pink-coral {
+  background: linear-gradient(135deg, #FF7BB0 0%, #FF7540 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Premium Glassmorphism and Cards */
+.tuh-sidebar-active {
+  background-color: #f9bdbb;
+  color: #000000;
+  @apply font-semibold border-l-4 border-tuh-coral shadow-inner;
+}
+
+.dark .tuh-sidebar-active {
+  background-color: #4a148c;
+  color: #ffffff;
+  @apply font-semibold border-l-4 border-tuh-rose shadow-inner shadow-black/30;
+}
+
+.tuh-sidebar-inactive {
+  @apply hover:bg-tuh-pink/10 text-tuh-indigo/80 dark:text-slate-300 hover:text-tuh-navy dark:hover:text-white;
+}
+
+/* Custom scrollbars matching the color theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1B2062;
+  border-radius: 9999px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #6700A3;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #FF5A57;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #E02F75;
+}
+
+/* Keyframes & Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(15px, -25px) scale(1.05);
+  }
+}
+
+@keyframes floatSlower {
+  0%, 100% {
+    transform: translate(0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate(-25px, 15px) scale(0.95);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-float-slow {
+  animation: floatSlow 8s ease-in-out infinite;
+}
+
+.animate-float-slower {
+  animation: floatSlower 12s ease-in-out infinite;
+}
+
+.tuh-resizable-sidebar {
+  width: var(--sidebar-width) !important;
+  min-width: var(--sidebar-width) !important;
+  max-width: var(--sidebar-width) !important;
+}
+
+/* ==========================================
+   DARK MODE ENHANCEMENTS FOR LEGIBILITY & CONTRAST
+   ========================================== */
+html.dark body {
+  background-color: #0a0314 !important; /* Deep cosmic dark background */
+  color: #f8fafc !important;
+}
+
+html.dark .dark\:bg-tuh-indigo\/90 {
+  background-color: #0e061c !important; /* Sidebar darker than main area */
+  border-right-color: #2b174b !important;
+}
+
+html.dark .dark\:bg-tuh-indigo\/40 {
+  background-color: #2c0548 !important; /* Lighter solid background for main cards */
+  border-color: #351d56 !important;
+}
+
+html.dark .dark\:bg-tuh-indigo\/25 {
+  background-color: #12071f !important; /* Secondary card background */
+  border-color: #2b1746 !important;
+}
+
+html.dark .dark\:bg-tuh-indigo\/20 {
+  background-color: #140822 !important;
+  border-color: #2e194c !important;
+}
+
+html.dark .dark\:bg-\[\#100220\]\/40 {
+  background-color: #12071f !important;
+  border-color: #2d194b !important;
+}
+
+html.dark .dark\:bg-\[\#100220\]\/45 {
+  background-color: #140824 !important;
+  border-color: #361f5b !important;
+}
+
+html.dark .dark\:bg-tuh-navy\/30,
+html.dark .dark\:bg-tuh-navy\/40 {
+  background-color: #0e061c !important;
+}
+
+html.dark .dark\:border-tuh-purple\/20 {
+  border-color: #351d56 !important;
+}
+
+html.dark .dark\:border-tuh-purple\/15 {
+  border-color: #2b1746 !important;
+}
+
+html.dark .dark\:border-tuh-purple\/25 {
+  border-color: #381f5c !important;
+}
+
+html.dark .dark\:border-tuh-purple\/35 {
+  border-color: #4a2c78 !important;
+}
+
+/* Text visibility enhancements in Dark Mode */
+html.dark .text-slate-300 {
+  color: #cbd5e1 !important; /* Slate 300 */
+}
+
+html.dark .text-slate-400 {
+  color: #a1a1aa !important; /* Zinc 400 (brighter gray) */
+}
+
+html.dark .text-slate-500 {
+  color: #cbd5e1 !important; /* Slate 300 for visible captions */
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-700 {
+  color: #e2e8f0 !important; /* Slate 200 */
+}
+
+html.dark .text-slate-800 {
+  color: #ffffff !important; /* Pure white for primary headings */
+}
+
+html.dark .dark\:hover\:border-tuh-purple\/50:hover {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.15) !important;
+}
+
+html.dark .hover\:border-tuh-rose\/40:hover {
+  border-color: #ff4d80 !important;
+  box-shadow: 0 0 15px rgba(255, 77, 128, 0.15) !important;
+}
+
+/* Subtle transitions for cards */
+html.dark .dark\:bg-tuh-indigo\/40,
+html.dark .dark\:bg-tuh-indigo\/25 {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

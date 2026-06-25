@@ -1,0 +1,43 @@
+# Dependency directories
+node_modules/
+node-v20.12.2-win-x64/
+
+# Build outputs
+dist/
+build/
+
+# Local databases and runtime data
+user/backend/db/*.json
+!user/backend/db/db_settings.json  # Keep default setting schema but ignore active runtime data changes
+
+# Uploaded documents
+uploads/
+*.pdf
+
+# Vector database index files (FAISS/BM25 output)
+index_db/
+
+# Environments and credentials
+.env
+.env.local
+.env.*.local
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Log files
+*.log
+
+# Editor configurations
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
