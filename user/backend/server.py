@@ -157,9 +157,9 @@ def init_databases():
             "gemini_api_key": gemini_api_key or "",
             "model_name": "gemini-2.5-flash" if gemini_api_key else "qwen2.5:3b",
             "temperature": 0.2,
-            "max_tokens": 400,
+            "max_tokens": 1000,
             "top_k": 3,
-            "system_prompt": "คุณคือ TUH Chatbot AI ปัญญาประดิษฐ์ช่วยเหลือตอบคำถามของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ จงตอบคำถามผู้ใช้โดยอ้างอิงข้อมูลจากบริบท (Context) ที่กำหนดให้อย่างกระชับ สั้น ตรงประเด็นที่สุด (ความยาวไม่ควรเกิน 5 บรรทัด หรือสรุปย่อเป็นข้อย่อยกระชับ) ห้ามอธิบายยืดเยื้อหรือทวนเนื้อความในบริบทซ้ำโดยไม่จำเป็น หากเรื่องใดไม่มีข้อมูลในบริบท ให้ระบุสั้นๆ อย่างสุภาพว่าไม่พบข้อมูล และต้องตอบกลับเป็นภาษาไทย ห้ามตอบคำถามจากคนที่พิมพ์คำหยาบเข้ามา เช่น กู ไอเหี้ย ไอสัตว์ มึง",
+            "system_prompt": "คุณคือ TUH Chatbot AI ปัญญาประดิษฐ์ช่วยเหลือตอบคำถามของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ จงตอบคำถามผู้ใช้โดยอ้างอิงจากข้อมูลที่กำหนดให้อย่างเป็นธรรมชาติและตรงประเด็นที่สุด (ความยาวไม่เกิน 3-4 บรรทัด หรือสรุปเป็นข้อสั้นๆ) ห้ามพูดหรืออ้างอิงถึงคำว่า 'จากบริบทที่กำหนดให้', 'จากเอกสารที่แนบไว้', 'จากไฟล์' หรือคำอื่นใดที่สื่อถึงแหล่งข้อมูลหรือเบื้องหลังการป้อนข้อมูลโดยเด็ดขาด ให้ตอบเสมือนว่าคุณมีความรู้เรื่องนั้นอยู่แล้วโดยตรง หากไม่พบข้อมูล ให้แจ้งผู้ใช้อย่างสุภาพว่าไม่พบข้อมูล และต้องตอบกลับเป็นภาษาไทย ห้ามตอบคำถามจากคนที่พิมพ์คำหยาบเข้ามา เช่น กู ไอ้เหี้ย ไอ้สัตว์ มึง",
             "welcome_message": "สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** ยินดีให้บริการครับ 😊\n\nท่านต้องการสอบถามข้อมูลด้านใด สามารถพิมพ์สอบถามหรือกดเลือกคำถามยอดนิยมด้านล่างนี้ได้เลยครับ",
             "predefined_faqs": default_faqs
         }
@@ -317,9 +317,9 @@ def generate_response_ai(query, results, config, history=[]):
             context_parts.append(f"เนื้อหาหลัก (จาก {source} หน้า {page}):\n{content}")
         context = "\n---\n".join(context_parts)
 
-    system_prompt = config.get("system_prompt", "คุณคือ TUH Chatbot AI...")
+    system_prompt = config.get("system_prompt", "คุณคือ TUH Chatbot AI ปัญญาประดิษฐ์ช่วยเหลือตอบคำถามของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ จงตอบคำถามผู้ใช้โดยอ้างอิงจากข้อมูลที่กำหนดให้อย่างเป็นธรรมชาติและตรงประเด็นที่สุด (ความยาวไม่เกิน 3-4 บรรทัด หรือสรุปเป็นข้อสั้นๆ) ห้ามพูดหรืออ้างอิงถึงคำว่า 'จากบริบทที่กำหนดให้', 'จากเอกสารที่แนบไว้', 'จากไฟล์' หรือคำอื่นใดที่สื่อถึงแหล่งข้อมูลหรือเบื้องหลังการป้อนข้อมูลโดยเด็ดขาด ให้ตอบเสมือนว่าคุณมีความรู้เรื่องนั้นอยู่แล้วโดยตรง หากไม่พบข้อมูล ให้แจ้งผู้ใช้อย่างสุภาพว่าไม่พบข้อมูล และต้องตอบกลับเป็นภาษาไทย ห้ามตอบคำถามจากคนที่พิมพ์คำหยาบเข้ามา เช่น กู ไอ้เหี้ย ไอ้สัตว์ มึง")
     temp = float(config.get("temperature", 0.2))
-    max_tokens = int(config.get("max_tokens", 400))
+    max_tokens = int(config.get("max_tokens", 1000))
     api_key = config.get("gemini_api_key") or gemini_api_key
     model_name = config.get("model_name", "deepseek/deepseek-v4-flash")
 
@@ -364,8 +364,12 @@ def generate_response_ai(query, results, config, history=[]):
     if ans is None or ans.strip() == "":
         ans = "ไม่ได้รับคำตอบจากระบบปัญญาประดิษฐ์ (โมเดลส่งกลับข้อความว่าง)\n\n" + get_fallback_vector_answer(results)
 
+    # เช็คว่าเป็นการแจ้งเตือนเรื่องคำหยาบหรือปฏิเสธเพราะคำสุภาพหรือไม่
+    has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
+    is_profanity_warning = has_profanity_in_history or (ans and any(k in ans for k in ["คำหยาบ", "ไม่สุภาพ", "คำสุภาพ", "ใช้คำสุภาพ"]))
+
     # ใส่เครดิตหน้าเอกสารประกอบด้านล่างคำตอบ
-    if results and not ans.startswith(" **(เซิร์ฟเวอร์"):
+    if results and not ans.startswith(" **(เซิร์ฟเวอร์") and not is_profanity_warning:
         citations = []
         for res in results:
             source = res["metadata"].get("source", "เอกสารสวัสดิการโรงพยาบาล")
@@ -535,12 +539,19 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             model_name = config.get("model_name", "deepseek/deepseek-v4-flash")
             model_tag = f"OpenRouter ({model_name})"
             
+            # เช็คว่าคำตอบเป็นคำเตือนคำหยาบหรือไม่ เพื่อเคลียร์ผลลัพธ์และป้องกันการดึงเอกสารอ้างอิง
+            has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
+            is_profanity_warning = has_profanity_in_history or any(k in answer for k in ["คำหยาบ", "ไม่สุภาพ", "คำสุภาพ", "ใช้คำสุภาพ"])
+            
+            if is_profanity_warning:
+                results = []
+                
             chunk_ids = [res['chunk_id'] for res in results if 'chunk_id' in res]
             log_bot_response(query_str, answer, chunk_ids, response_time, model_tag)
 
             # คัดกรองถ้าหาความรู้ไม่พ้น
             is_unanswered = len(results) == 0 or any(k in answer for k in ["ไม่พบข้อมูล", "ขออภัย", "ไม่มีข้อมูล", "ไม่สามารถตอบได้"])
-            if is_unanswered:
+            if is_unanswered and not is_profanity_warning:
                 log_unanswered_query(query_str)
                 
             self._send_json({"answer": answer, "results": results})
@@ -572,6 +583,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             docs = load_db(DB_DOCUMENTS_PATH, [])
             feedback = load_db(DB_FEEDBACK_PATH, [])
             unanswered = load_db(DB_UNANSWERED_PATH, [])
+            config = load_db(DB_SETTINGS_PATH, {})
             
             total_docs = len(docs)
             active_docs = sum(1 for d in docs if d.get("status") == "Active")
@@ -588,7 +600,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 "likes": likes,
                 "dislikes": dislikes,
                 "pending_unanswered": pending_unanswered,
-                "recent_comments": comments[-5:]
+                "recent_comments": comments[-5:],
+                "last_build_duration": config.get("last_build_duration")
             })
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
@@ -797,8 +810,25 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         try:
             data = self._get_json_payload()
             config = load_db(DB_SETTINGS_PATH, {})
+            
+            old_tech = config.get("embedding_tech")
+            new_tech = data.get("embedding_tech")
+            
             config.update(data)
             save_db(DB_SETTINGS_PATH, config)
+            
+            if new_tech and new_tech != old_tech:
+                print(f"Embedding technology changed from {old_tech} to {new_tech}. Reloading retriever...")
+                global retriever
+                try:
+                    from Admin.emb import HybridRetriever
+                    new_retriever = HybridRetriever()
+                    new_retriever.load()
+                    retriever = new_retriever
+                    print("Vector database indices re-loaded in memory successfully after setting change!")
+                except Exception as err:
+                    print(f"Failed to reload hybrid retriever in memory: {err}")
+                    
             self._send_json({"success": True})
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
