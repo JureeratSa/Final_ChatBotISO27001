@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import dog from './dog.png';
 
+const API_URL = `http://${window.location.hostname}:8000`;
+
 function App() {
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -51,7 +53,8 @@ function App() {
     system_prompt: '',
     welcome_message: '',
     custom_faqs: [],
-    predefined_faqs: []
+    predefined_faqs: [],
+    embedding_tech: 'local_faiss'
   });
 
   // UI States
@@ -130,35 +133,35 @@ function App() {
 
   // API Call Helpers
   const fetchStats = () => {
-    fetch('http://localhost:8000/api/admin/stats')
+    fetch(API_URL + '/api/admin/stats')
       .then(r => r.json())
       .then(data => setStats(data))
       .catch(err => console.error("Error fetching stats:", err));
   };
 
   const fetchDocuments = () => {
-    fetch('http://localhost:8000/api/admin/documents')
+    fetch(API_URL + '/api/admin/documents')
       .then(r => r.json())
       .then(data => setDocuments(data))
       .catch(err => console.error("Error fetching documents:", err));
   };
 
   const fetchFeedback = () => {
-    fetch('http://localhost:8000/api/admin/feedback')
+    fetch(API_URL + '/api/admin/feedback')
       .then(r => r.json())
       .then(data => setFeedback(data))
       .catch(err => console.error("Error fetching feedback:", err));
   };
 
   const fetchUnanswered = () => {
-    fetch('http://localhost:8000/api/admin/unanswered')
+    fetch(API_URL + '/api/admin/unanswered')
       .then(r => r.json())
       .then(data => setUnanswered(data))
       .catch(err => console.error("Error fetching unanswered:", err));
   };
 
   const fetchSettings = () => {
-    fetch('http://localhost:8000/api/admin/settings')
+    fetch(API_URL + '/api/admin/settings')
       .then(r => r.json())
       .then(data => {
         // Initialize default empty array for custom_faqs and predefined_faqs if not present
@@ -207,7 +210,7 @@ function App() {
 
   const fetchHistory = () => {
     setLoadingHistory(true);
-    fetch('http://localhost:8000/api/admin/history')
+    fetch(API_URL + '/api/admin/history')
       .then(r => r.json())
       .then(data => {
         const sortedData = (data || []).reverse();
@@ -223,7 +226,7 @@ function App() {
     const now = new Date();
     const diffTime = now - logDate;
     const diffDays = diffTime / (1000 * 60 * 60 * 24);
-    if (historyPeriod === 'daily') return diffDays <= 1;
+    if (historyPeriod === 'daily') return logDate.toDateString() === now.toDateString();
     if (historyPeriod === 'weekly') return diffDays <= 7;
     if (historyPeriod === 'monthly') return diffDays <= 30;
     if (historyPeriod === 'yearly') return diffDays <= 365;
@@ -238,7 +241,7 @@ function App() {
     if (period === 'daily') {
       filtered = feedback.filter(fb => {
         const d = parseTimestamp(fb.timestamp);
-        return (now - d) <= (24 * 60 * 60 * 1000);
+        return d.toDateString() === now.toDateString();
       });
       for (let i = 0; i < 24; i += 2) {
         const label = `${String(i).padStart(2, '0')}:00 - ${String(i + 2).padStart(2, '0')}:00`;
@@ -395,7 +398,7 @@ function App() {
     setLoginLoading(true);
     setLoginError('');
 
-    fetch('http://localhost:8000/api/admin/login', {
+    fetch(API_URL + '/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
@@ -443,7 +446,7 @@ function App() {
 
   const handleToggleDocStatus = (filename, currentStatus) => {
     const newActive = currentStatus !== 'Active';
-    fetch('http://localhost:8000/api/admin/documents/toggle', {
+    fetch(API_URL + '/api/admin/documents/toggle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename, active: newActive })
@@ -464,7 +467,7 @@ function App() {
   const handleDeleteDoc = (filename) => {
     if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเอกสาร "${filename}"? ข้อมูลใน Vector Index ของเอกสารนี้จะถูกนำออกทั้งหมด`)) return;
 
-    fetch('http://localhost:8000/api/admin/documents/delete', {
+    fetch(API_URL + '/api/admin/documents/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename })
@@ -498,7 +501,7 @@ function App() {
       .filter(p => p !== '' && !isNaN(p))
       .map(p => parseInt(p, 10));
 
-    fetch('http://localhost:8000/api/admin/documents/update_exclude', {
+    fetch(API_URL + '/api/admin/documents/update_exclude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -523,7 +526,7 @@ function App() {
 
   const handleSaveSettings = (e) => {
     e.preventDefault();
-    fetch('http://localhost:8000/api/admin/settings', {
+    fetch(API_URL + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
@@ -541,7 +544,7 @@ function App() {
   };
 
   const handleResolveUnanswered = (id, newStatus = "Resolved") => {
-    fetch('http://localhost:8000/api/admin/unanswered/resolve', {
+    fetch(API_URL + '/api/admin/unanswered/resolve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status: newStatus })
@@ -579,7 +582,7 @@ function App() {
     const updatedFaqs = [...(settings.custom_faqs || []), newFaq];
     const updatedSettings = { ...settings, custom_faqs: updatedFaqs };
 
-    fetch('http://localhost:8000/api/admin/settings', {
+    fetch(API_URL + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings)
@@ -606,7 +609,7 @@ function App() {
     const updatedFaqs = settings.custom_faqs.filter(f => f.id !== faqId);
     const updatedSettings = { ...settings, custom_faqs: updatedFaqs };
 
-    fetch('http://localhost:8000/api/admin/settings', {
+    fetch(API_URL + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings)
@@ -651,7 +654,7 @@ function App() {
       predefined_faqs: updatedPredefinedFaqs
     };
 
-    fetch('http://localhost:8000/api/admin/settings', {
+    fetch(API_URL + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings)
@@ -672,7 +675,7 @@ function App() {
 
   // PDF File Upload Handler
   const uploadFile = (file) => {
-    if (!file.name.toLowerCase().endswith('.pdf')) {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
       showError("ระบบสนับสนุนการอัปโหลดไฟล์นามสกุล .pdf เท่านั้น");
       return;
     }
@@ -686,7 +689,7 @@ function App() {
       setUploadProgress(40);
       const arrayBuffer = reader.result;
 
-      fetch('http://localhost:8000/api/admin/documents/upload', {
+      fetch(API_URL + '/api/admin/documents/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/pdf',
@@ -942,6 +945,14 @@ function App() {
           >
             <i className="fa-solid fa-user-gear text-sm"></i>
             <span>โปรไฟล์แอดมิน</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'settings' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+          >
+            <i className="fa-solid fa-sliders text-sm"></i>
+            <span>ตั้งค่าระบบ AI</span>
           </button>
         </nav>
 
@@ -1211,8 +1222,13 @@ function App() {
 
               {/* Documents Table */}
               <div className="bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
-                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20">
+                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-table text-tuh-rose"></i> แฟ้มเอกสารทั้งหมด</h3>
+                  {stats.last_build_duration !== undefined && stats.last_build_duration !== null && (
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/20 px-3.5 py-1.5 rounded-full border border-slate-200/50 dark:border-tuh-purple/10">
+                      ⏱️ สกัดเวกเตอร์ล่าสุดเสร็จสิ้นใน {stats.last_build_duration.toFixed(2)} วินาที
+                    </span>
+                  )}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1842,43 +1858,6 @@ function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-bold mb-2">Google Gemini / OpenRouter API Key</label>
-                    <div className="relative">
-                      <input
-                        type={showGeminiKey ? "text" : "password"}
-                        placeholder="ใส่คีย์ Gemini API หรือ OpenRouter (sk-or-...)"
-                        value={settings.gemini_api_key}
-                        onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 pl-4 pr-12 focus:outline-none focus:border-tuh-rose transition font-semibold text-slate-800 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowGeminiKey(!showGeminiKey)}
-                        className="absolute right-4 top-3.5 text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-350 transition-colors focus:outline-none cursor-pointer"
-                      >
-                        <i className={`fa-solid ${showGeminiKey ? 'fa-eye' : 'fa-eye-slash'}`}></i>
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">คีย์จะถูกบันทึกอย่างปลอดภัย รองรับคีย์ Google Gemini API หรือ OpenRouter (sk-or-v1-...)</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold mb-2">โมเดลประมวลผลคำตอบ (Model Name)</label>
-                    <select
-                      value={settings.model_name}
-                      onChange={(e) => setSettings({ ...settings, model_name: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold"
-                    >
-                      <option value="gemini-2.5-flash">Google Gemini 2.5 Flash (ผ่านคลาวด์/OpenRouter - แนะนำ)</option>
-                      <option value="qwen2.5:3b">Ollama Qwen 2.5 3B (โมเดลท้องถิ่น - แนะนำสำหรับภาษาไทย)</option>
-                      <option value="llama3:8b">Ollama Llama 3 8B (โมเดลท้องถิ่น Meta)</option>
-                      <option value="llama3.1:8b">Ollama Llama 3.1 8B (โมเดลท้องถิ่น Meta)</option>
-                      <option value="gemma2:2b">Ollama Gemma 2 2B (โมเดลท้องถิ่น Google เล็ก)</option>
-                      <option value="gemma2:9b">Ollama Gemma 2 9B (โมเดลท้องถิ่น Google กลาง)</option>
-                    </select>
-                  </div>
-
-                  <div>
                     <label className="block text-sm font-bold mb-2">ค่าความสุ่มคำตอบ (Temperature): {settings.temperature}</label>
                     <input
                       type="range"
@@ -1909,6 +1888,33 @@ function App() {
                     <div className="flex justify-between text-xs text-slate-400 font-bold mt-1">
                       <span>1 Chunk (ดึงกระชับที่สุด)</span>
                       <span>6 Chunks (ดึงข้อมูลได้ละเอียดครอบคลุม)</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-2">ความยาวผลลัพธ์คำตอบสูงสุด (Max Tokens): {settings.max_tokens} Tokens</label>
+                    <input
+                      type="range"
+                      min="200"
+                      max="4000"
+                      step="100"
+                      value={settings.max_tokens || 400}
+                      onChange={(e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) })}
+                      className="w-full accent-tuh-rose cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-slate-400 font-bold mt-1">
+                      <span>200 (คำตอบสั้นและเร็ว)</span>
+                      <span>4000 (คำตอบยาวละเอียด)</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-2">เทคโนโลยีการทำ Embedding (Embedding Technology)</label>
+                    <div className="w-full bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 font-semibold text-slate-500 dark:text-slate-400 select-none">
+                      Local FAISS & BM25 Hybrid Search (รันบนเครื่อง)
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-semibold mt-1">
+                      ระบบประมวลผลและค้นหาข้อมูลแบบไฮบริด (FAISS & BM25) เพื่อความเร็วสูงสุดและไม่ต้องพึ่งพาคลาวด์
                     </div>
                   </div>
                 </div>

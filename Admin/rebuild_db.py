@@ -208,16 +208,32 @@ def chunk_document_text(full_text, filename, start_chunk_id=1):
 # เรียกทุก def มาใช้งาน
 
 def rebuild():
+    import time
+    start_time = time.perf_counter()
+    
+    # 1. โหลดการตั้งค่าระบบ AI
+    db_settings_path = os.path.join(root_dir, "user", "backend", "db", "db_settings.json")
+    config = {}
+    if os.path.exists(db_settings_path):
+        try:
+            with open(db_settings_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception:
+            pass
+            
+    tech = config.get("embedding_tech", "local_faiss")
+    api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+    
     uploads_dir = os.path.join(root_dir, "uploads")
+    cache_dir = os.path.join(uploads_dir, "cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    
     if not os.path.exists(uploads_dir):
         print(f"Uploads directory not found: {uploads_dir}")
         return
         
     pdf_files = [f for f in os.listdir(uploads_dir) if f.lower().endswith(".pdf")]
-    print(f"Found {len(pdf_files)} PDF documents to index.")
-
-    all_chunks = []
-    current_chunk_id = 1
+    print(f"Found {len(pdf_files)} PDF documents on disk.")
     
     db_docs_path = os.path.join(root_dir, "user", "backend", "db", "db_documents.json")
     if os.path.exists(db_docs_path):
@@ -226,82 +242,306 @@ def rebuild():
     else:
         docs_db = []
         
-    active_filenames = {d["filename"] for d in docs_db if d.get("status", "Active") == "Active"}
+    active_filenames = {d["filename"] for d in docs_db if d.get("status", "Active") in ["Active", "Processing"]}
     if not docs_db:
+        # ถ้าไม่มีข้อมูลเปิดใช้งาน ให้สแกนทำทั้งหมด
         active_filenames = set(pdf_files)
+        
+    combined_docs_data = []
+    model = None
     
     for pdf in pdf_files:
         if pdf not in active_filenames:
             print(f"Skipping Inactive document: {pdf}")
             continue
             
-        print(f"Processing document: {pdf}")
         pdf_path = os.path.join(uploads_dir, pdf)
+        if not os.path.exists(pdf_path):
+            continue
+            
+        # ดึงสถิติของไฟล์
+        stat_info = os.stat(pdf_path)
+        file_size = stat_info.st_size
+        file_mtime = int(stat_info.st_mtime)
         
-        # ดึงเลขหน้าที่ยกเว้นไม่เบิก/ไม่นำเข้า
+        # ดึงการละเว้นหน้า
         doc_record = next((d for d in docs_db if d["filename"] == pdf), {})
         exclude_pages = doc_record.get("exclude_pages", [])
-        print(f"  Excluded pages config: {exclude_pages}")
         
-        default_filename = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
-        default_md_path = os.path.join(root_dir, "sample_cleaned.md")
+        # สร้างชื่อไฟล์ cache (กรองชื่อพิเศษให้ปลอดภัย)
+        safe_name = re.sub(r'[^\w\u0e00-\u0e7f\.\-]', '_', pdf)
+        cache_file = os.path.join(cache_dir, f"{safe_name}_{tech}.json")
         
-        is_default_and_unchanged = (pdf == default_filename and os.path.exists(default_md_path))
+        use_cache = False
+        cached_data = None
         
-        # แกะเนื้อหาข้อความ
-        if is_default_and_unchanged:
-            print("Loading pre-cleaned markdown for default document...")
-            with open(default_md_path, "r", encoding="utf-8") as f:
-                raw_md = f.read()
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                if (cached_data.get("file_size") == file_size and 
+                    cached_data.get("file_mtime") == file_mtime and 
+                    cached_data.get("exclude_pages") == exclude_pages and
+                    cached_data.get("embedding_tech") == tech):
+                    use_cache = True
+            except Exception as e:
+                print(f"  Error reading cache file {cache_file}: {e}")
                 
-            pages_blocks = re.split(r'(# Page \d+\n)', raw_md)
-            reconstructed_blocks = []
-            current_page_num = 1
-            
-            if pages_blocks[0].strip():
-                reconstructed_blocks.append(pages_blocks[0])
-                
-            for idx in range(1, len(pages_blocks), 2):
-                marker = pages_blocks[idx]
-                content = pages_blocks[idx+1] if idx+1 < len(pages_blocks) else ""
-                
-                page_match = re.search(r'# Page (\d+)', marker)
-                p_num = int(page_match.group(1)) if page_match else current_page_num
-                
-                if p_num not in exclude_pages:
-                    reconstructed_blocks.append(marker + content)
-                else:
-                    print(f"  (Skipping pre-cleaned page {p_num})")
-                current_page_num = p_num + 1
-                
-            full_text = "".join(reconstructed_blocks)
+        if use_cache and cached_data is not None:
+            print(f"-> ใช้ข้อมูลและเวกเตอร์จาก Cache: {pdf} ({len(cached_data['chunks'])} chunks)")
+            combined_docs_data.append({
+                "chunks": cached_data["chunks"],
+                "embeddings": cached_data["embeddings"]
+            })
+            chunking_duration = cached_data.get("chunking_duration", 0.0)
+            embedding_duration = cached_data.get("embedding_duration", 0.0)
         else:
-            pages = extract_text_from_pdf(pdf_path)
-            text_blocks = []
-            for i, page_text in enumerate(pages):
-                page_num = i + 1
-                if page_num in exclude_pages:
-                    print(f"  (Skipping page {page_num})")
-                    continue
-                text_blocks.append(f"# Page {page_num}\n{page_text}")
-            full_text = "\n\n".join(text_blocks)
+            print(f"-> คำนวณเวกเตอร์และสกัดคำใหม่สำหรับ: {pdf}")
             
-        # หั่น Chunks
-        chunks, next_chunk_id = chunk_document_text(full_text, pdf, start_chunk_id=current_chunk_id)
-        all_chunks.extend(chunks)
-        current_chunk_id = next_chunk_id
-        
-    print(f"Generated a total of {len(all_chunks)} chunks.")
-    chunks_output_path = os.path.join(root_dir, "sample_chunks.json")
-    with open(chunks_output_path, "w", encoding="utf-8") as f:
-        json.dump(all_chunks, f, ensure_ascii=False, indent=2)
-    print(f"Saved combined chunks to: {chunks_output_path}")
+            default_filename = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
+            default_md_path = os.path.join(root_dir, "sample_cleaned.md")
+            is_default_and_unchanged = (pdf == default_filename and os.path.exists(default_md_path))
+            
+            chunk_start = time.perf_counter()
+            if is_default_and_unchanged:
+                print("  Loading pre-cleaned markdown for default document...")
+                with open(default_md_path, "r", encoding="utf-8") as f:
+                    raw_md = f.read()
+                    
+                pages_blocks = re.split(r'(# Page \d+\n)', raw_md)
+                reconstructed_blocks = []
+                current_page_num = 1
+                
+                if pages_blocks[0].strip():
+                    reconstructed_blocks.append(pages_blocks[0])
+                    
+                for idx in range(1, len(pages_blocks), 2):
+                    marker = pages_blocks[idx]
+                    content = pages_blocks[idx+1] if idx+1 < len(pages_blocks) else ""
+                    
+                    page_match = re.search(r'# Page (\d+)', marker)
+                    p_num = int(page_match.group(1)) if page_match else current_page_num
+                    
+                    if p_num not in exclude_pages:
+                        reconstructed_blocks.append(marker + content)
+                    else:
+                        print(f"    (Skipping pre-cleaned page {p_num})")
+                    current_page_num = p_num + 1
+                    
+                full_text = "".join(reconstructed_blocks)
+            else:
+                pages = extract_text_from_pdf(pdf_path)
+                text_blocks = []
+                for i, page_text in enumerate(pages):
+                    page_num = i + 1
+                    if page_num in exclude_pages:
+                        print(f"    (Skipping page {page_num})")
+                        continue
+                    text_blocks.append(f"# Page {page_num}\n{page_text}")
+                full_text = "\n\n".join(text_blocks)
+                
+            chunks, _ = chunk_document_text(full_text, pdf, start_chunk_id=1)
+            chunking_duration = time.perf_counter() - chunk_start
+            
+            if not chunks:
+                print(f"  Warning: No chunks generated for {pdf}")
+                continue
+                
+            texts = [c["content"] for c in chunks]
+            embeddings_list = []
+            
+            if tech == "cloud_gemini":
+                if not api_key:
+                    raise ValueError("ไม่พบ Gemini API Key ในระบบหลังบ้าน กรุณากรอก API Key ในหน้าแอดมินก่อนใช้งาน Cloud Gemini")
+                
+                emb_start = time.perf_counter()
+                batch_size = 100
+                for i in range(0, len(texts), batch_size):
+                    batch_texts = texts[i:i+batch_size]
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key={api_key}"
+                    requests_payload = []
+                    for t in batch_texts:
+                        requests_payload.append({
+                            "model": "models/text-embedding-004",
+                            "content": {"parts": [{"text": t}]}
+                        })
+                    import urllib.request
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps({"requests": requests_payload}).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(req, timeout=30) as resp:
+                        res_data = json.loads(resp.read().decode("utf-8"))
+                        batch_embs = [item["values"] for item in res_data["embeddings"]]
+                        embeddings_list.extend(batch_embs)
+                embedding_duration = time.perf_counter() - emb_start
+            else:
+                # local_faiss หรือ local_chroma
+                if model is None:
+                    print("กำลังโหลดโมเดล BAAI/bge-m3 SentenceTransformer เข้าสู่ RAM...")
+                    from sentence_transformers import SentenceTransformer
+                    model = SentenceTransformer("BAAI/bge-m3")
+                emb_start = time.perf_counter()
+                embeddings_np = model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
+                embeddings_list = embeddings_np.tolist()
+                embedding_duration = time.perf_counter() - emb_start
+                
+            # บันทึกลง Cache
+            cache_data = {
+                "filename": pdf,
+                "file_size": file_size,
+                "file_mtime": file_mtime,
+                "exclude_pages": exclude_pages,
+                "embedding_tech": tech,
+                "chunks": chunks,
+                "embeddings": embeddings_list,
+                "chunking_duration": chunking_duration,
+                "embedding_duration": embedding_duration
+            }
+            try:
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                print(f"  💾 บันทึก Cache ลงไฟล์เรียบร้อย: {os.path.basename(cache_file)}")
+            except Exception as e:
+                print(f"  Error writing cache file: {e}")
+                
+            combined_docs_data.append({
+                "chunks": chunks,
+                "embeddings": embeddings_list
+            })
+
+        # อัปเดตข้อมูลระยะเวลาลงใน docs_db
+        for d in docs_db:
+            if d["filename"] == pdf:
+                d["chunking_duration"] = round(chunking_duration, 4)
+                d["embedding_duration"] = round(embedding_duration, 4)
+
+    # บันทึกข้อมูลที่อัปเดตระยะเวลาลงใน db_documents.json
+    try:
+        with open(db_docs_path, "w", encoding="utf-8") as f:
+            json.dump(docs_db, f, ensure_ascii=False, indent=2)
+        print("💾 บันทึกเวลาสกัดคำและเวกเตอร์ลงใน db_documents.json เรียบร้อยแล้ว")
+    except Exception as e:
+        print(f"Error saving durations to db_documents.json: {e}")
+            
+    # รวบรวมข้อมูลทั้งหมด
+    all_chunks = []
+    all_embeddings_list = []
+    chunk_id_counter = 1
     
-    # emb Vector / BM25
-    print("Starting vector embedding indexing...")
-    from Admin.emb import build_indices
-    build_indices()
-    print("Vector database indices rebuilt successfully")
+    for doc in combined_docs_data:
+        for chunk, embedding in zip(doc["chunks"], doc["embeddings"]):
+            new_chunk = chunk.copy()
+            new_chunk["chunk_id"] = chunk_id_counter
+            all_chunks.append(new_chunk)
+            all_embeddings_list.append(embedding)
+            chunk_id_counter += 1
+            
+    print(f"รวมข้อมูล chunks สำเร็จ: ทั้งหมด {len(all_chunks)} chunks")
+    
+    # 2. จัดเก็บเวกเตอร์
+    index_dir = os.path.join(root_dir, "index_db")
+    os.makedirs(index_dir, exist_ok=True)
+    
+    if len(all_chunks) > 0:
+        import numpy as np
+        embeddings_np = np.array(all_embeddings_list, dtype=np.float32)
+        
+        if tech == "local_chroma":
+            try:
+                import chromadb
+            except ImportError:
+                print("กำลังติดตั้ง chromadb...")
+                import subprocess
+                subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
+                import chromadb
+                
+            chroma_dir = os.path.join(index_dir, "chroma_db")
+            chroma_client = chromadb.PersistentClient(path=chroma_dir)
+            try:
+                chroma_client.delete_collection("tuh_collection")
+            except Exception:
+                pass
+            collection = chroma_client.create_collection("tuh_collection")
+            
+            ids = [str(c["chunk_id"]) for c in all_chunks]
+            texts = [c["content"] for c in all_chunks]
+            metadatas = [c["metadata"] for c in all_chunks]
+            
+            collection.add(
+                ids=ids,
+                embeddings=embeddings_np.tolist(),
+                metadatas=metadatas,
+                documents=texts
+            )
+            print(f"บันทึก Chroma DB สำเร็จ (รวม {len(ids)} รายการ)")
+            
+        else:
+            # FAISS (local_faiss หรือ cloud_gemini)
+            import faiss
+            faiss.normalize_L2(embeddings_np)
+            dimension = embeddings_np.shape[1]
+            faiss_index = faiss.IndexFlatIP(dimension)
+            faiss_index.add(embeddings_np)
+            
+            faiss_index_path = os.path.join(index_dir, "faiss.index")
+            faiss_meta_path = os.path.join(index_dir, "faiss_metadata.json")
+            
+            faiss.write_index(faiss_index, faiss_index_path)
+            with open(faiss_meta_path, "w", encoding="utf-8") as f:
+                json.dump(all_chunks, f, ensure_ascii=False, indent=2)
+            print(f"บันทึก FAISS Index สำเร็จ (รวม {len(all_chunks)} รายการ)")
+            
+        # 3. บันทึก sample_chunks.json
+        chunks_output_path = os.path.join(root_dir, "sample_chunks.json")
+        with open(chunks_output_path, "w", encoding="utf-8") as f:
+            json.dump(all_chunks, f, ensure_ascii=False, indent=2)
+            
+        # 4. บันทึก BM25
+        print("กำลังสร้างดัชนีคำสำคัญ BM25 (ด้วย PyThaiNLP)...")
+        from pythainlp.tokenize import word_tokenize
+        from rank_bm25 import BM25Okapi
+        import pickle
+        
+        texts = [c["content"] for c in all_chunks]
+        tokenized_corpus = [word_tokenize(text, keep_whitespace=False) for text in texts]
+        bm25 = BM25Okapi(tokenized_corpus)
+        
+        bm25_path = os.path.join(index_dir, "bm25.pkl")
+        bm25_data = {
+            "bm25_index": bm25,
+            "chunks": all_chunks
+        }
+        with open(bm25_path, "wb") as f:
+            pickle.dump(bm25_data, f)
+        print("บันทึกดัชนี BM25 สำเร็จ")
+    else:
+        print("คำเตือน: ไม่มี chunks ที่จะทำการดรรชนีเวกเตอร์")
+        
+    # 5. คำนวณเวลาประมวลผลทั้งหมดและบันทึก
+    duration = time.perf_counter() - start_time
+    print(f"🎉 จัดทำดัชนี RAG เสร็จสิ้นในเวลา {duration:.4f} วินาที")
+    
+    # โหลด settings และบันทึก last_build_duration
+    if os.path.exists(db_settings_path):
+        try:
+            with open(db_settings_path, "r", encoding="utf-8") as f:
+                current_settings = json.load(f)
+        except Exception:
+            current_settings = {}
+    else:
+        current_settings = {}
+        
+    current_settings["last_build_duration"] = duration
+    os.makedirs(os.path.dirname(db_settings_path), exist_ok=True)
+    try:
+        with open(db_settings_path, "w", encoding="utf-8") as f:
+            json.dump(current_settings, f, ensure_ascii=False, indent=2)
+        print("บันทึกเวลาการสร้างดัชนีลงใน db_settings.json เรียบร้อย")
+    except Exception as e:
+        print(f"ไม่สามารถบันทึกเวลาลงในไฟล์ได้: {e}")
 
 if __name__ == "__main__":
     rebuild()
