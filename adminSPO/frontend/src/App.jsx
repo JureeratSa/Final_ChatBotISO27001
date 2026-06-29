@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import dog from './dog.png';
+import dog from './dog.png'; // Rebuild trigger
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
@@ -78,6 +78,25 @@ function App() {
   const [showEditDocModal, setShowEditDocModal] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [excludePagesInput, setExcludePagesInput] = useState('');
+  
+  // Pre-upload document options
+  const [selectedFileForUpload, setSelectedFileForUpload] = useState(null);
+  const [preExcludePages, setPreExcludePages] = useState('');
+  const [showPreUploadModal, setShowPreUploadModal] = useState(false);
+  // Pipeline states
+  const [previewContent, setPreviewContent] = useState('');
+  const [previewChunks, setPreviewChunks] = useState([]);
+  const [previewFilename, setPreviewFilename] = useState('');
+  const [previewModalType, setPreviewModalType] = useState(null); // 'raw' | 'cleaned' | 'chunks'
+  const [approvingFilename, setApprovingFilename] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [savingContent, setSavingContent] = useState(false);
+  const [originalChunks, setOriginalChunks] = useState([]);
+  const [selectedChunkIds, setSelectedChunkIds] = useState(new Set());
+  const [expandedChunk, setExpandedChunk] = useState(null);
+  const [docSearchQuery, setDocSearchQuery] = useState('');
+  const [docSortField, setDocSortField] = useState('upload_date'); // default by upload date
+  const [docSortOrder, setDocSortOrder] = useState('desc'); // default desc (newest first)
 
   // Bot Response History States
   const [history, setHistory] = useState([]);
@@ -146,6 +165,166 @@ function App() {
       .catch(err => console.error("Error fetching documents:", err));
   };
 
+  const handleSort = (field) => {
+    if (docSortField === field) {
+      setDocSortOrder(docSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setDocSortField(field);
+      setDocSortOrder('desc');
+    }
+  };
+
+  const handleApproveStep = (filename, currentStatus) => {
+    setApprovingFilename(filename);
+    fetch(API_URL + '/api/admin/documents/approve', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ filename, current_status: currentStatus })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("อนุมัติขั้นตอนล้มเหลว");
+        return res.json();
+      })
+      .then(data => {
+        showSuccess("อนุมัติขั้นตอนสำเร็จแล้ว!");
+        setApprovingFilename(null);
+        fetchDocuments();
+      })
+      .catch(err => {
+        showError(`เกิดข้อผิดพลาด: ${err.message}`);
+        setApprovingFilename(null);
+      });
+  };
+
+  const handleViewPreview = (filename, type) => {
+    setPreviewFilename(filename);
+    setPreviewModalType(type);
+    setLoadingPreview(true);
+    setPreviewContent('');
+    setPreviewChunks([]);
+    setOriginalChunks([]);
+    setSelectedChunkIds(new Set());
+
+    let endpoint = '';
+    if (type === 'raw') endpoint = '/api/admin/documents/view_raw';
+    else if (type === 'cleaned') endpoint = '/api/admin/documents/view_cleaned';
+    else if (type === 'chunks') endpoint = '/api/admin/documents/view_chunks';
+
+    fetch(API_URL + endpoint + `?filename=${encodeURIComponent(filename)}`)
+      .then(res => {
+        if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลพรีวิวได้");
+        return res.json();
+      })
+      .then(data => {
+        if (type === 'chunks') {
+          const loadedChunks = data.chunks || [];
+          setPreviewChunks(loadedChunks);
+          setOriginalChunks(JSON.parse(JSON.stringify(loadedChunks))); // deep copy
+        } else {
+          setPreviewContent(data.content || '');
+        }
+        setLoadingPreview(false);
+      })
+      .catch(err => {
+        showError(`เกิดข้อผิดพลาด: ${err.message}`);
+        setLoadingPreview(false);
+        setPreviewModalType(null);
+      });
+  };
+
+  const handleSaveContent = (filename, type, content) => {
+    setSavingContent(true);
+    fetch(API_URL + '/api/admin/documents/update_content', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ filename, type, content })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("ไม่สามารถบันทึกการแก้ไขได้");
+        return res.json();
+      })
+      .then(data => {
+        showSuccess("บันทึกการแก้ไขเรียบร้อยแล้ว!");
+        setSavingContent(false);
+      })
+      .catch(err => {
+        showError(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`);
+        setSavingContent(false);
+      });
+  };
+
+  const handleSaveIndividualChunk = (filename, chunkId, chunkText) => {
+    const updatedChunks = previewChunks.map(c => {
+      if (c.chunk_id === chunkId) {
+        return { ...c, content: chunkText };
+      }
+      return c;
+    });
+    setPreviewChunks(updatedChunks);
+    handleSaveContent(filename, 'chunks', updatedChunks);
+  };
+
+  const handleSaveSelectedChunks = (filename) => {
+    const mergedChunks = originalChunks.map(orig => {
+      const edited = previewChunks.find(c => c.chunk_id === orig.chunk_id);
+      if (edited && selectedChunkIds.has(orig.chunk_id)) {
+        return { ...orig, content: edited.content };
+      }
+      return orig;
+    });
+
+    setSavingContent(true);
+    fetch(API_URL + '/api/admin/documents/update_content', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ filename, type: 'chunks', content: mergedChunks })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("ไม่สามารถบันทึกการแก้ไขได้");
+        return res.json();
+      })
+      .then(data => {
+        showSuccess(`บันทึกรายการที่เลือก (${selectedChunkIds.size} Chunks) เรียบร้อยแล้ว!`);
+        setOriginalChunks(JSON.parse(JSON.stringify(mergedChunks)));
+        setPreviewChunks(JSON.parse(JSON.stringify(mergedChunks)));
+        setSavingContent(false);
+      })
+      .catch(err => {
+        showError(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`);
+        setSavingContent(false);
+      });
+  };
+
+  const handleSaveAllChunks = (filename) => {
+    setSavingContent(true);
+    fetch(API_URL + '/api/admin/documents/update_content', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ filename, type: 'chunks', content: previewChunks })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("ไม่สามารถบันทึกการแก้ไขได้");
+        return res.json();
+      })
+      .then(data => {
+        showSuccess("บันทึกส่วนย่อยทั้งหมดเรียบร้อยแล้ว!");
+        setOriginalChunks(JSON.parse(JSON.stringify(previewChunks)));
+        setSavingContent(false);
+      })
+      .catch(err => {
+        showError(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`);
+        setSavingContent(false);
+      });
+  };
+
   const fetchFeedback = () => {
     fetch(API_URL + '/api/admin/feedback')
       .then(r => r.json())
@@ -183,9 +362,9 @@ function App() {
   };
 
   const downloadCSV = () => {
-    if (history.length === 0) return;
+    if (filteredHistory.length === 0) return;
     const headers = ["เวลาที่ตอบ", "คำถามจากผู้ใช้", "คำตอบที่บอทตอบออกไป", "โมเดล AI", "Chunk ID", "เวลาตอบสนอง (วินาที)"];
-    const rows = history.map(log => [
+    const rows = filteredHistory.map(log => [
       log.timestamp,
       log.query,
       log.answer,
@@ -201,7 +380,14 @@ function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `bot_history_${new Date().toISOString().split('T')[0]}.csv`);
+    
+    let periodText = 'all';
+    if (historyPeriod === 'daily') periodText = 'daily';
+    else if (historyPeriod === 'weekly') periodText = 'weekly';
+    else if (historyPeriod === 'monthly') periodText = 'monthly';
+    else if (historyPeriod === 'yearly') periodText = 'yearly';
+    
+    link.setAttribute("download", `bot_history_${periodText}_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -223,13 +409,28 @@ function App() {
   const filteredHistory = history.filter(log => {
     if (historyPeriod === 'all') return true;
     const logDate = parseTimestamp(log.timestamp);
+    if (!logDate) return false;
     const now = new Date();
-    const diffTime = now - logDate;
-    const diffDays = diffTime / (1000 * 60 * 60 * 24);
-    if (historyPeriod === 'daily') return logDate.toDateString() === now.toDateString();
-    if (historyPeriod === 'weekly') return diffDays <= 7;
-    if (historyPeriod === 'monthly') return diffDays <= 30;
-    if (historyPeriod === 'yearly') return diffDays <= 365;
+    
+    if (historyPeriod === 'daily') {
+      return logDate.toDateString() === now.toDateString();
+    }
+    if (historyPeriod === 'weekly') {
+      const day = now.getDay();
+      const diffToMonday = day === 0 ? 6 : day - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+      return logDate >= monday;
+    }
+    if (historyPeriod === 'monthly') {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      return logDate >= startOfMonth;
+    }
+    if (historyPeriod === 'yearly') {
+      const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      return logDate >= startOfYear;
+    }
     return true;
   });
 
@@ -485,44 +686,7 @@ function App() {
       .catch(err => showError("ลบเอกสารไม่สำเร็จ"));
   };
 
-  const handleOpenEditDocModal = (doc) => {
-    setSelectedDoc(doc);
-    setExcludePagesInput(doc.exclude_pages ? doc.exclude_pages.join(', ') : '');
-    setShowEditDocModal(true);
-  };
 
-  const handleSaveExcludePages = (e) => {
-    e.preventDefault();
-    if (!selectedDoc) return;
-
-    const pagesArray = excludePagesInput
-      .split(',')
-      .map(p => p.trim())
-      .filter(p => p !== '' && !isNaN(p))
-      .map(p => parseInt(p, 10));
-
-    fetch(API_URL + '/api/admin/documents/update_exclude', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filename: selectedDoc.filename,
-        exclude_pages: pagesArray
-      })
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          showSuccess("ตั้งค่าหน้าเอกสารและกำลังสร้างสารบัญเวกเตอร์ใหม่...");
-          fetchDocuments();
-          fetchStats();
-          setShowEditDocModal(false);
-          setSelectedDoc(null);
-        } else {
-          showError("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
-        }
-      })
-      .catch(err => showError("เชื่อมต่อเซิร์ฟเวอร์ผิดพลาด"));
-  };
 
   const handleSaveSettings = (e) => {
     e.preventDefault();
@@ -674,7 +838,7 @@ function App() {
   };
 
   // PDF File Upload Handler
-  const uploadFile = (file) => {
+  const uploadFile = (file, excludePagesText = '') => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       showError("ระบบสนับสนุนการอัปโหลดไฟล์นามสกุล .pdf เท่านั้น");
       return;
@@ -693,7 +857,8 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/pdf',
-          'X-File-Name': encodeURIComponent(file.name)
+          'X-File-Name': encodeURIComponent(file.name),
+          'X-Exclude-Pages': excludePagesText
         },
         body: arrayBuffer
       })
@@ -724,7 +889,9 @@ function App() {
     e.preventDefault();
     setDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      uploadFile(e.dataTransfer.files[0]);
+      setSelectedFileForUpload(e.dataTransfer.files[0]);
+      setPreExcludePages('');
+      setShowPreUploadModal(true);
     }
   };
 
@@ -1205,7 +1372,9 @@ function App() {
                         className="hidden"
                         onChange={(e) => {
                           if (e.target.files && e.target.files[0]) {
-                            uploadFile(e.target.files[0]);
+                            setSelectedFileForUpload(e.target.files[0]);
+                            setPreExcludePages('');
+                            setShowPreUploadModal(true);
                           }
                         }}
                       />
@@ -1222,49 +1391,118 @@ function App() {
 
               {/* Documents Table */}
               <div className="bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
-                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-table text-tuh-rose"></i> แฟ้มเอกสารทั้งหมด</h3>
-                  {stats.last_build_duration !== undefined && stats.last_build_duration !== null && (
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/20 px-3.5 py-1.5 rounded-full border border-slate-200/50 dark:border-tuh-purple/10">
-                      ⏱️ สกัดเวกเตอร์ล่าสุดเสร็จสิ้นใน {stats.last_build_duration.toFixed(2)} วินาที
+                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-table text-tuh-rose"></i> แฟ้มเอกสารทั้งหมด</h3>
+                    {stats.last_build_duration !== undefined && stats.last_build_duration !== null && (
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/20 px-3.5 py-1.5 rounded-full border border-slate-200/50 dark:border-tuh-purple/10">
+                        ⏱️ สกัดเวกเตอร์ล่าสุดเสร็จสิ้นใน {stats.last_build_duration.toFixed(2)} วินาที
+                      </span>
+                    )}
+                  </div>
+                  {/* Search Bar */}
+                  <div className="relative w-full md:w-72">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                      <i className="fa-solid fa-magnifying-glass text-xs"></i>
                     </span>
-                  )}
+                    <input
+                      type="text"
+                      placeholder="ค้นหาเอกสารตามชื่อไฟล์..."
+                      value={docSearchQuery}
+                      onChange={(e) => setDocSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl focus:outline-none focus:border-tuh-rose transition text-tuh-navy dark:text-white"
+                    />
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
-                        <th className="px-6 py-4">ชื่อไฟล์</th>
-                        <th className="px-6 py-4">ขนาดไฟล์</th>
-                        <th className="px-6 py-4 text-center">จำนวนหน้า</th>
-                        <th className="px-6 py-4">วันที่อัปโหลด</th>
+                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20 select-none">
+                        <th className="px-6 py-4 cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('filename')}>
+                          ชื่อไฟล์
+                          {docSortField === 'filename' ? (
+                            docSortOrder === 'asc' ? <i className="fa-solid fa-arrow-up text-[10px] ml-1 text-tuh-rose"></i> : <i className="fa-solid fa-arrow-down text-[10px] ml-1 text-tuh-rose"></i>
+                          ) : (
+                            <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
+                          )}
+                        </th>
+                        <th className="px-6 py-4 cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('size')}>
+                          ขนาดไฟล์
+                          {docSortField === 'size' ? (
+                            docSortOrder === 'asc' ? <i className="fa-solid fa-arrow-up text-[10px] ml-1 text-tuh-rose"></i> : <i className="fa-solid fa-arrow-down text-[10px] ml-1 text-tuh-rose"></i>
+                          ) : (
+                            <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
+                          )}
+                        </th>
+                        <th className="px-6 py-4 text-center cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('pages')}>
+                          จำนวนหน้า
+                          {docSortField === 'pages' ? (
+                            docSortOrder === 'asc' ? <i className="fa-solid fa-arrow-up text-[10px] ml-1 text-tuh-rose"></i> : <i className="fa-solid fa-arrow-down text-[10px] ml-1 text-tuh-rose"></i>
+                          ) : (
+                            <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
+                          )}
+                        </th>
+                        <th className="px-6 py-4 cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('upload_date')}>
+                          วันที่อัปโหลด
+                          {docSortField === 'upload_date' ? (
+                            docSortOrder === 'asc' ? <i className="fa-solid fa-arrow-up text-[10px] ml-1 text-tuh-rose"></i> : <i className="fa-solid fa-arrow-down text-[10px] ml-1 text-tuh-rose"></i>
+                          ) : (
+                            <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
+                          )}
+                        </th>
                         <th className="px-6 py-4 text-center">สถานะการทำงาน</th>
                         <th className="px-6 py-4 text-center">เปิดใช้งาน</th>
                         <th className="px-6 py-4 text-right">เครื่องมือ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
-                      {documents.length === 0 ? (
-                        <tr>
-                          <td colSpan="7" className="px-6 py-8 text-center text-slate-400 font-bold">
-                            ไม่มีไฟล์เอกสารที่บันทึกไว้ในขณะนี้
-                          </td>
-                        </tr>
-                      ) : (
-                        documents.map(doc => {
+                      {(() => {
+                        const filtered = documents.filter(doc => 
+                          doc.filename.toLowerCase().includes(docSearchQuery.toLowerCase())
+                        );
+                        
+                        const sorted = [...filtered].sort((a, b) => {
+                          let valA = a[docSortField];
+                          let valB = b[docSortField];
+                          
+                          if (docSortField === 'size' || docSortField === 'pages') {
+                            valA = valA || 0;
+                            valB = valB || 0;
+                          } else if (docSortField === 'filename' || docSortField === 'upload_date') {
+                            valA = (valA || '').toLowerCase();
+                            valB = (valB || '').toLowerCase();
+                          }
+                          
+                          if (valA < valB) return docSortOrder === 'asc' ? -1 : 1;
+                          if (valA > valB) return docSortOrder === 'asc' ? 1 : -1;
+                          return 0;
+                        });
+
+                        if (sorted.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="7" className="px-6 py-8 text-center text-slate-400 font-bold">
+                                {documents.length === 0 ? 'ไม่มีไฟล์เอกสารที่บันทึกไว้ในขณะนี้' : 'ไม่พบเอกสารที่ตรงกับการค้นหา'}
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return sorted.map(doc => {
                           const isProcessing = doc.status === 'Processing';
                           const isActive = doc.status === 'Active';
+                          const isPipeline = ['Step_Raw_Text', 'Step_Clean_Text', 'Step_Chunk_Preview'].includes(doc.status);
                           return (
                             <tr key={doc.filename} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
-                              <td className="px-6 py-4 font-bold max-w-[200px] truncate" title={doc.filename}>
+                              <td className="px-6 py-4 font-bold max-w-[200px] truncate text-tuh-navy dark:text-white" title={doc.filename}>
                                 <i className="fa-solid fa-file-pdf text-red-500 mr-2"></i>
                                 {doc.filename}
                               </td>
                               <td className="px-6 py-4 text-xs font-bold text-slate-400">
                                 {Math.round(doc.size / 1024)} KB
                               </td>
-                              <td className="px-6 py-4 text-center">
+                              <td className="px-6 py-4 text-center text-tuh-navy dark:text-slate-200">
                                 <div>{doc.pages || '-'} หน้า</div>
                                 {doc.exclude_pages && doc.exclude_pages.length > 0 && (
                                   <div className="text-[10px] text-red-500 font-bold bg-red-500/10 rounded-full px-2 py-0.5 inline-block mt-1">
@@ -1279,13 +1517,44 @@ function App() {
                                 {isProcessing ? (
                                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500">
                                     <i className="fa-solid fa-circle-notch animate-spin"></i>
-                                    กำลังสกัด/ปรับเวกเตอร์
+                                    กำลังปรับปรุงฐานข้อมูล
                                   </span>
                                 ) : doc.status === 'Error' ? (
                                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-500">
                                     <i className="fa-solid fa-circle-xmark"></i>
                                     ผิดพลาด
                                   </span>
+                                ) : isPipeline ? (
+                                  <div className="flex flex-col items-center">
+                                    <div className="flex items-center gap-1 justify-center mt-1">
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
+                                        doc.status === 'Step_Raw_Text' ? 'bg-amber-500 text-white animate-pulse' : 'bg-emerald-500 text-white'
+                                      }`} title="สกัดข้อความดิบ">1</div>
+                                      <div className={`w-4 h-0.5 ${
+                                        doc.status !== 'Step_Raw_Text' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
+                                      }`} />
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
+                                        doc.status === 'Step_Clean_Text' ? 'bg-amber-500 text-white animate-pulse' : (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-400'
+                                      }`} title="คลีนข้อมูล">2</div>
+                                      <div className={`w-4 h-0.5 ${
+                                        (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
+                                      }`} />
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
+                                        doc.status === 'Step_Chunk_Preview' ? 'bg-amber-500 text-white animate-pulse' : doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-400'
+                                      }`} title="แบ่งข้อมูล">3</div>
+                                      <div className={`w-4 h-0.5 ${
+                                        doc.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
+                                      }`} />
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
+                                        doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-400'
+                                      }`} title="เวกเตอร์ทำงาน">4</div>
+                                    </div>
+                                    <div className="text-[10px] font-bold text-amber-500 mt-1">
+                                      {doc.status === 'Step_Raw_Text' && '1. ตรวจคำดิบ'}
+                                      {doc.status === 'Step_Clean_Text' && '2. ตรวจคำคลีน'}
+                                      {doc.status === 'Step_Chunk_Preview' && '3. ตรวจส่วนย่อย (Chunk)'}
+                                    </div>
+                                  </div>
                                 ) : (
                                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500">
                                     <i className="fa-solid fa-circle-check"></i>
@@ -1294,30 +1563,60 @@ function App() {
                                 )}
                               </td>
                               <td className="px-6 py-4 text-center">
-                                {/* Status Toggle Switch */}
-                                <button
-                                  disabled={isProcessing}
-                                  onClick={() => handleToggleDocStatus(doc.filename, doc.status)}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isActive ? 'bg-tuh-rose' : 'bg-slate-300 dark:bg-white/10'
-                                    } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                  <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'
-                                      }`}
-                                  />
-                                </button>
+                                {isPipeline ? (
+                                  <span className="text-xs font-bold text-amber-500 bg-amber-500/10 rounded-full px-2.5 py-1 inline-flex items-center gap-1">
+                                    <i className="fa-solid fa-hourglass-half animate-spin"></i> รอนุมัติ
+                                  </span>
+                                ) : (
+                                  /* Status Toggle Switch */
+                                  <button
+                                    disabled={isProcessing}
+                                    onClick={() => handleToggleDocStatus(doc.filename, doc.status)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isActive ? 'bg-tuh-rose' : 'bg-slate-300 dark:bg-white/10'
+                                      } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  >
+                                    <span
+                                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                    />
+                                  </button>
+                                )}
                               </td>
                               <td className="px-6 py-4 text-right flex items-center justify-end gap-1.5">
+                                {isPipeline ? (
+                                  <>
+                                    {/* Preview Content Button */}
+                                    <button
+                                      onClick={() => {
+                                        if (doc.status === 'Step_Raw_Text') handleViewPreview(doc.filename, 'raw');
+                                        if (doc.status === 'Step_Clean_Text') handleViewPreview(doc.filename, 'cleaned');
+                                        if (doc.status === 'Step_Chunk_Preview') handleViewPreview(doc.filename, 'chunks');
+                                      }}
+                                      className="inline-flex items-center gap-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-1.5 px-3 rounded-xl text-xs hover:shadow transition active:scale-95"
+                                      title="ตรวจสอบเนื้อหาขั้นตอนนี้"
+                                    >
+                                      <i className="fa-solid fa-eye text-[11px]"></i> พรีวิว
+                                    </button>
+                                    {/* Approve Button */}
+                                    <button
+                                      disabled={approvingFilename === doc.filename}
+                                      onClick={() => handleApproveStep(doc.filename, doc.status)}
+                                      className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-1.5 px-3 rounded-xl text-xs hover:shadow transition active:scale-95 disabled:opacity-50"
+                                      title="อนุมัติเข้าสู่ขั้นตอนถัดไป"
+                                    >
+                                      {approvingFilename === doc.filename ? (
+                                        <i className="fa-solid fa-spinner animate-spin"></i>
+                                      ) : (
+                                        <i className="fa-solid fa-circle-check text-[11px]"></i>
+                                      )}
+                                      อนุมัติ
+                                    </button>
+                                  </>
+                                ) : null}
                                 <button
-                                  onClick={() => handleOpenEditDocModal(doc)}
-                                  className="p-2 text-tuh-rose hover:bg-tuh-rose/10 rounded-xl transition active:scale-95 flex items-center justify-center"
-                                  title="ตั้งค่าละเว้นหน้าเอกสาร"
-                                >
-                                  <i className="fa-solid fa-gear text-sm"></i>
-                                </button>
-                                <button
+                                  disabled={approvingFilename === doc.filename}
                                   onClick={() => handleDeleteDoc(doc.filename)}
-                                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition active:scale-95 flex items-center justify-center"
+                                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition active:scale-95 flex items-center justify-center disabled:opacity-50"
                                   title="ลบเอกสาร"
                                 >
                                   <i className="fa-solid fa-trash-can text-sm"></i>
@@ -1325,8 +1624,8 @@ function App() {
                               </td>
                             </tr>
                           );
-                        })
-                      )}
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1480,22 +1779,16 @@ function App() {
                       <i className="fa-solid fa-clock-rotate-left text-tuh-rose"></i> ตารางรายการประวัติการตอบของบอท
                     </h3>
                     <p className="text-xs text-slate-450 dark:text-slate-400 font-semibold mt-1">
-                      บันทึกรายการคำถาม-คำตอบ อ้างอิงตามระยะเวลาที่เลือก (ดาวน์โหลด CSV เพื่อส่งออกข้อมูลทั้งหมด)
+                      บันทึกรายการคำถาม-คำตอบ อ้างอิงตามระยะเวลาที่เลือก (ดาวน์โหลด CSV เพื่อส่งออกข้อมูลตามฟิลเตอร์ที่เลือก)
                     </p>
                   </div>
                   <div className="flex items-center gap-2 self-start md:self-auto">
                     <button
                       onClick={downloadCSV}
-                      disabled={history.length === 0}
+                      disabled={filteredHistory.length === 0}
                       className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs shadow-sm hover:shadow"
                     >
                       <i className="fa-solid fa-file-csv"></i> ดาวน์โหลด CSV
-                    </button>
-                    <button
-                      onClick={fetchHistory}
-                      className="bg-tuh-gradient-2 hover:shadow-lg text-white font-bold py-2 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs"
-                    >
-                      <i className="fa-solid fa-arrows-rotate"></i> รีเฟรชประวัติ
                     </button>
                   </div>
                 </div>
@@ -2121,48 +2414,60 @@ function App() {
         </div>
       )}
 
-      {/* MODAL: EDIT DOC EXCLUDE PAGES MODAL */}
-      {showEditDocModal && selectedDoc && (
+
+
+      {/* MODAL: PRE-UPLOAD CONFIGURE EXCLUDE PAGES MODAL */}
+      {showPreUploadModal && selectedFileForUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg bg-white dark:bg-tuh-indigo/95 rounded-3xl border border-slate-200 dark:border-tuh-purple/35 shadow-2xl overflow-hidden animate-slide-in">
             <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
               <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
-                <i className="fa-solid fa-file-shield text-tuh-rose"></i> ตั้งค่าหน้าเอกสารละเว้น
+                <i className="fa-solid fa-file-circle-plus text-tuh-rose"></i> ตั้งค่าการนำเข้าและละเว้นหน้า
               </h3>
               <button
-                onClick={() => { setShowEditDocModal(false); setSelectedDoc(null); }}
+                onClick={() => { setShowPreUploadModal(false); setSelectedFileForUpload(null); }}
                 className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
             </div>
 
-            <form onSubmit={handleSaveExcludePages} className="p-6 space-y-4">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                setShowPreUploadModal(false);
+                uploadFile(selectedFileForUpload, preExcludePages);
+                setSelectedFileForUpload(null);
+              }} 
+              className="p-6 space-y-4"
+            >
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">ชื่อเอกสาร</label>
-                <div className="p-4 bg-slate-100 dark:bg-[#100220]/60 rounded-2xl font-bold border border-slate-200/50 dark:border-tuh-purple/10 text-sm truncate">
-                  {selectedDoc.filename}
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">ไฟล์ที่เลือก</label>
+                <div className="p-4 bg-slate-100 dark:bg-[#100220]/60 rounded-2xl font-bold border border-slate-200/50 dark:border-tuh-purple/10 text-sm truncate text-tuh-navy dark:text-white">
+                  {selectedFileForUpload.name}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1.5">ระบุหมายเลขหน้าที่ต้องการ "ละเว้น" (ไม่นำมาให้บอทตอบ)</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                  ระบุหมายเลขหน้าที่ต้องการ "ละเว้น" (ถ้ามี)
+                </label>
                 <input
                   type="text"
-                  placeholder="เช่น 12, 13, 14, 18 (คั่นด้วยจุลภาค ,)"
-                  value={excludePagesInput}
-                  onChange={(e) => setExcludePagesInput(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold"
+                  placeholder="ระบุเลขหน้า เช่น 12, 13, 14, 18 (คั่นด้วยจุลภาค ,) หรือปล่อยว่างไว้"
+                  value={preExcludePages}
+                  onChange={(e) => setPreExcludePages(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-tuh-navy dark:text-white"
                 />
                 <p className="text-xs text-slate-400 font-semibold mt-1.5 leading-relaxed">
-                  💡 หน้านโยบายเปล่า, หน้าภาคผนวก, หน้าคำลงท้าย, หรือหน้าปกที่บอทไม่ต้องนำมาสืบค้น สามารถกรอกเพื่อข้ามหน้าเหล่านั้นได้
+                  💡 หน้านโยบายเปล่า, หน้าภาคผนวก, หน้าคำลงท้าย, หรือหน้าปกที่บอทไม่ต้องนำมาสืบค้น สามารถกรอกเพื่อข้ามหน้าเหล่านั้นได้ตั้งแต่แรก
                 </p>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => { setShowEditDocModal(false); setSelectedDoc(null); }}
+                  onClick={() => { setShowPreUploadModal(false); setSelectedFileForUpload(null); }}
                   className="px-5 py-2.5 rounded-2xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 font-semibold transition active:scale-95"
                 >
                   ยกเลิก
@@ -2171,13 +2476,283 @@ function App() {
                   type="submit"
                   className="bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98]"
                 >
-                  <i className="fa-solid fa-floppy-disk mr-1.5"></i> บันทึกตั้งค่าละเว้นหน้า
+                  <i className="fa-solid fa-cloud-arrow-up mr-1.5"></i> เริ่มอัปโหลดและประมวลผล
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* MODAL: PIPELINE WORKFLOW CONTENT PREVIEW MODAL */}
+      {previewModalType && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-4xl bg-white dark:bg-tuh-indigo/95 rounded-3xl border border-slate-200 dark:border-tuh-purple/35 shadow-2xl overflow-hidden animate-slide-in">
+            <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
+              <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
+                <i className="fa-solid fa-square-poll-horizontal text-tuh-rose"></i> 
+                ตรวจสอบและแก้ไขข้อมูล: {previewFilename} 
+                <span className="text-xs bg-amber-500/10 text-amber-500 py-1 px-3 rounded-full font-bold ml-2">
+                  {previewModalType === 'raw' && 'ขั้นตอนที่ 1: คำดิบจาก PDF (สามารถแก้ไขได้)'}
+                  {previewModalType === 'cleaned' && 'ขั้นตอนที่ 2: ข้อความหลังคลีน (Markdown) (สามารถแก้ไขได้)'}
+                  {previewModalType === 'chunks' && 'ขั้นตอนที่ 3: ส่วนย่อยสำหรับสืบค้น (Chunks) (สามารถแก้ไขได้)'}
+                </span>
+              </h3>
+              <button
+                onClick={() => { setPreviewModalType(null); setPreviewFilename(''); }}
+                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {loadingPreview ? (
+                <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-12 h-12 rounded-full border-4 border-tuh-rose border-t-transparent animate-spin"></div>
+                  <p className="text-sm text-slate-400 font-bold">กำลังดึงข้อมูลพรีวิว...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {previewModalType === 'chunks' ? (
+                    <div>
+                      {/* Selective Saving Toolbar */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100/80 dark:bg-tuh-navy/30 p-3 rounded-2xl border border-slate-200/50 dark:border-tuh-purple/10 mb-3 text-xs font-bold">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-300">
+                          <i className="fa-solid fa-list-check text-tuh-rose"></i>
+                          <span>เลือกแล้ว: <strong className="text-tuh-rose">{selectedChunkIds.size}</strong> จาก <strong>{previewChunks.length}</strong> Chunks</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedChunkIds(new Set(previewChunks.map(c => c.chunk_id)))}
+                            className="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-xl transition active:scale-95 text-slate-700 dark:text-slate-200"
+                          >
+                            เลือกทั้งหมด
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedChunkIds(new Set())}
+                            className="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-xl transition active:scale-95 text-slate-700 dark:text-slate-200"
+                          >
+                            ล้างการเลือก
+                          </button>
+                          <button
+                            type="button"
+                            disabled={selectedChunkIds.size === 0 || savingContent}
+                            onClick={() => handleSaveSelectedChunks(previewFilename)}
+                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
+                          >
+                            <i className="fa-solid fa-save"></i> บันทึกรายการที่เลือก
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingContent}
+                            onClick={() => handleSaveAllChunks(previewFilename)}
+                            className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <i className="fa-solid fa-square-check"></i> บันทึกทั้งหมด
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[50vh] pr-1">
+                        {previewChunks.map((c, i) => (
+                          <div key={i} className={`p-4 bg-slate-50 dark:bg-[#100220]/60 border rounded-2xl flex flex-col space-y-2 hover:border-tuh-rose/30 transition ${selectedChunkIds.has(c.chunk_id) ? 'border-tuh-rose/50 dark:border-tuh-rose/40 shadow-sm' : 'border-slate-200/50 dark:border-tuh-purple/10'}`}>
+                            <div className="flex justify-between items-center text-xs font-bold text-slate-400">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedChunkIds.has(c.chunk_id)}
+                                  onChange={(e) => {
+                                    const newSet = new Set(selectedChunkIds);
+                                    if (e.target.checked) {
+                                      newSet.add(c.chunk_id);
+                                    } else {
+                                      newSet.delete(c.chunk_id);
+                                    }
+                                    setSelectedChunkIds(newSet);
+                                  }}
+                                  className="w-4 h-4 text-tuh-rose border-slate-300 rounded focus:ring-tuh-rose cursor-pointer"
+                                />
+                                <span className="text-tuh-navy dark:text-white">Chunk #{c.chunk_id || (i + 1)}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="bg-tuh-rose/10 text-tuh-rose px-2 py-0.5 rounded-full text-[10px]">
+                                  หน้า {c.metadata?.page || 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedChunk(c)}
+                                  className="p-1 text-slate-400 hover:text-tuh-rose hover:bg-slate-100/50 dark:hover:bg-white/10 rounded-lg transition"
+                                  title="ขยายขนาดกล่องข้อความ"
+                                >
+                                  <i className="fa-solid fa-expand text-xs"></i>
+                                </button>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col space-y-1.5 h-full">
+                              <textarea
+                                value={c.content}
+                                onChange={(e) => {
+                                  const newText = e.target.value;
+                                  const updated = [...previewChunks];
+                                  updated[i] = { ...c, content: newText };
+                                  setPreviewChunks(updated);
+
+                                  // Auto check on edit
+                                  if (!selectedChunkIds.has(c.chunk_id)) {
+                                    const newSet = new Set(selectedChunkIds);
+                                    newSet.add(c.chunk_id);
+                                    setSelectedChunkIds(newSet);
+                                  }
+                                }}
+                                className="w-full h-28 p-3 text-xs text-tuh-navy/90 dark:text-slate-200 leading-relaxed font-semibold bg-white dark:bg-[#100220]/45 border border-slate-200/50 dark:border-tuh-purple/10 rounded-xl focus:outline-none focus:border-tuh-rose transition resize-none"
+                                placeholder="เนื้อหาข้อมูลส่วนย่อย..."
+                              />
+                              <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-white/5">
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  📏 {c.content?.length || 0} ตัวอักษร
+                                </span>
+                                <button
+                                  disabled={savingContent}
+                                  onClick={() => handleSaveIndividualChunk(previewFilename, c.chunk_id, c.content)}
+                                  className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-[10px] transition active:scale-95 disabled:opacity-50"
+                                  title="บันทึกเฉพาะ Chunk นี้"
+                                >
+                                  {savingContent ? (
+                                    <i className="fa-solid fa-spinner animate-spin"></i>
+                                  ) : (
+                                    <i className="fa-solid fa-save text-[9px]"></i>
+                                  )}
+                                  บันทึก Chunk
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-xs font-bold text-slate-400 mb-2">
+                        {previewModalType === 'raw' ? '📝 แก้ไขข้อมูลตัวอักษรดิบที่สกัดจากหน้าเอกสาร:' : '📝 แก้ไขข้อมูลมาร์กดาวน์หลังแปลงรูปแบบและแปลงเลขไทย:'}
+                      </div>
+                      <textarea
+                        value={previewContent}
+                        onChange={(e) => setPreviewContent(e.target.value)}
+                        className="w-full h-[55vh] p-5 font-mono text-xs leading-relaxed border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl bg-slate-50 text-slate-800 dark:bg-black/45 dark:text-slate-200 focus:outline-none focus:border-tuh-rose transition resize-none"
+                        placeholder="กรอก/แก้ไขเนื้อหาเอกสารที่นี่..."
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-100 dark:border-tuh-purple/20 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setPreviewModalType(null); setPreviewFilename(''); }}
+                className="px-5 py-2.5 rounded-2xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 font-semibold transition active:scale-95"
+              >
+                ปิดหน้าต่าง
+              </button>
+              {previewModalType !== 'chunks' && (
+                <button
+                  type="button"
+                  disabled={savingContent}
+                  onClick={() => handleSaveContent(previewFilename, previewModalType, previewContent)}
+                  className="bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingContent ? (
+                    <i className="fa-solid fa-spinner animate-spin"></i>
+                  ) : (
+                    <i className="fa-solid fa-save"></i>
+                  )}
+                  บันทึกการแก้ไข
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SUB-MODAL FOR EXPANDED/ZOOMED CHUNK EDITING */}
+      {expandedChunk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-3xl bg-white dark:bg-tuh-indigo/95 rounded-3xl border border-slate-200 dark:border-tuh-purple/35 shadow-2xl overflow-hidden animate-slide-in">
+            <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
+              <h4 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
+                <i className="fa-solid fa-expand text-tuh-rose"></i>
+                แก้ไขคำอธิบายส่วนย่อย: Chunk #{expandedChunk.chunk_id} (หน้า {expandedChunk.metadata?.page || 1})
+              </h4>
+              <button
+                onClick={() => setExpandedChunk(null)}
+                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <textarea
+                value={expandedChunk.content}
+                onChange={(e) => {
+                  const newText = e.target.value;
+                  setExpandedChunk({ ...expandedChunk, content: newText });
+                  
+                  const idx = previewChunks.findIndex(x => x.chunk_id === expandedChunk.chunk_id);
+                  if (idx !== -1) {
+                    const updated = [...previewChunks];
+                    updated[idx] = { ...updated[idx], content: newText };
+                    setPreviewChunks(updated);
+                    
+                    if (!selectedChunkIds.has(expandedChunk.chunk_id)) {
+                      const newSet = new Set(selectedChunkIds);
+                      newSet.add(expandedChunk.chunk_id);
+                      setSelectedChunkIds(newSet);
+                    }
+                  }
+                }}
+                className="w-full h-[50vh] p-5 font-semibold text-sm leading-relaxed border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl bg-slate-50 text-slate-800 dark:bg-black/45 dark:text-slate-200 focus:outline-none focus:border-tuh-rose transition resize-none"
+                placeholder="พิมพ์แก้ไขเนื้อหาของ Chunk นี้ในขนาดที่ใหญ่ขึ้น..."
+              />
+              <div className="text-xs text-slate-400 font-bold">
+                📏 ความยาวปัจจุบัน: {expandedChunk.content?.length || 0} ตัวอักษร
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 dark:border-tuh-purple/20 flex justify-end gap-3 bg-slate-50/50 dark:bg-tuh-navy/20">
+              <button
+                type="button"
+                onClick={() => setExpandedChunk(null)}
+                className="px-5 py-2.5 rounded-2xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 font-semibold transition active:scale-95"
+              >
+                ย้อนกลับ
+              </button>
+              <button
+                type="button"
+                disabled={savingContent}
+                onClick={() => {
+                  handleSaveIndividualChunk(previewFilename, expandedChunk.chunk_id, expandedChunk.content);
+                  setExpandedChunk(null);
+                }}
+                className="bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] flex items-center gap-1.5"
+              >
+                {savingContent ? (
+                  <i className="fa-solid fa-spinner animate-spin"></i>
+                ) : (
+                  <i className="fa-solid fa-check"></i>
+                )}
+                ยืนยันและบันทึกด่วน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: EDIT PREDEFINED FAQ MODAL */}
       {showEditPredefinedFaqModal && selectedPredefinedFaq && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">

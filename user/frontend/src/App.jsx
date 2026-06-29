@@ -4,11 +4,11 @@ import dog from './dog.png';
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
-// Predefined FAQ questions and answers
+// คำถามที่พบบ่อยและคำตอบที่เตรียมไว้
 const FAQS = [
   {
     id: 1,
-    question: "แนะนำวิธีดูแลดวงตาเมื่อต้องจ้องหน้าจอคอมพิวเตอร์เป็นเวลานาน",
+    question: "ใครที่สามารถเบิกสวัสดิการได้บ้าง",
     icon: "fa-eye-slash",
     response: `สำหรับการดูแลดวงตาระหว่างทำงานหน้าจอคอมพิวเตอร์เป็นเวลานาน ทางงานสารสนเทศและศูนย์จักษุวิทยา รพ.ธรรมศาสตร์เฉลิมพระเกียรติ แนะนำกฎ **20-20-20** ดังนี้ครับ:\n\n1. 👀 **พักสายตา:** ทุกๆ 20 นาที ให้หยุดจ้องหน้าจอคอมพิวเตอร์\n2. 🌳 **มองระยะไกล:** มองออกไปที่วัตถุระยะ 20 ฟุต (ประมาณ 6 เมตร)\n3. ⏱️ **เวลาพัก:** มองเป็นเวลาอย่างน้อย 20 วินาที เพื่อผ่อนคลายกล้ามเนื้อตา\n\nนอกจากนี้ควรปรับความสว่างของหน้าจอให้เหมาะสม (เช่น การสลับใช้โหมดมืด (Dark Mode) สำหรับการถนอมสายตาที่เราออกแบบไว้) ปรับระดับสายตาให้อยู่ห่างจากหน้าจอ 50-70 ซม. และกระพริบตาบ่อยๆ หรือใช้น้ำตาเทียมหยอดตาระหว่างวันหากมีอาการตาแห้งครับ`
   },
@@ -30,24 +30,12 @@ const FAQS = [
     icon: "fa-clock",
     response: `**คลินิกนอกเวลาราชการ (Specialty Clinic)** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ เปิดให้บริการรักษาพยาบาลนอกเวลาปกติเพื่ออำนวยความสะดวกดังนี้ครับ:\n\n📅 **วันจันทร์ - วันศุกร์:** เวลา 16:00 - 20:00 น.\n📅 **วันเสาร์ - วันอาทิตย์ และวันหยุดนักขัตฤกษ์:** เวลา 08:00 - 12:00 น. (บางแผนกคลินิกเฉพาะทางอาจให้บริการถึง 16:00 น.)\n\n📢 *ข้อแนะนำ:* ควรโทรนัดหมายล่วงหน้าที่แผนกที่ต้องการรักษา หรือเบอร์ประชาสัมพันธ์หลัก 02-926-9999 หรือตรวจสอบแพทย์เวรและทำนัดล่วงหน้าผ่านแอปพลิเคชัน **TUH Easy App** ครับ`
   },
-  {
-    id: 5,
-    question: "สามารถตรวจสอบสิทธิ์การรักษาพยาบาล (เช่น บัตรทอง, ประกันสังคม) ได้อย่างไร?",
-    icon: "fa-hand-holding-medical",
-    response: `การตรวจสอบสิทธิ์การรักษาพยาบาล (บัตรทอง 30 บาท, ประกันสังคม, หรือสิทธิ์ข้าราชการ) สามารถทำได้สะดวกผ่านช่องทางต่อไปนี้ครับ:\n\n1. 📱 **ออนไลน์ด้วยตนเอง (แนะนำ):**\n   - ผ่านแอปพลิเคชัน **เป๋าตัง** (เลือกเมนู กระเป๋าสุขภาพ > สิทธิการรักษาพยาบาล)\n   - ผ่านทาง LINE Official Account ของ สปสช. โดยแอดไลน์ **@nhso** แล้วเลือกเช็คสิทธิ์\n2. 🏥 **ตรวจสอบที่โรงพยาบาล:** นำบัตรประชาชนมาเสียบเช็คสิทธิ์ได้ที่เครื่องบริการอัตโนมัติ (Kiosk) โถงชั้น 1 อาคารผู้ป่วยนอก\n3. ☎️ **โทรสายด่วน สปสช.:** ติดต่อศูนย์บริการหลัก สปสช. โทร. **1330** (เปิดบริการ 24 ชั่วโมง)`
-  },
-  {
-    id: 6,
-    question: "ขอลิงก์ดาวน์โหลดแอปพลิเคชัน TUH Easy App สำหรับจองคิวการรักษา",
-    icon: "fa-mobile-screen-button",
-    response: `แอปพลิเคชัน **TUH Easy App** ช่วยให้ท่านจองคิว เลื่อนนัด ดูประวัติการรักษาพยาบาล ตรวจสอบสิทธิ์การรักษา และชำระเงินออนไลน์ได้อย่างสะดวกรวดเร็วครับ\n\n📲 **ลิงก์ดาวน์โหลดอย่างเป็นทางการ:**\n- 🍏 **สำหรับ iOS (App Store):** [ดาวน์โหลดที่นี่](https://apps.apple.com/th/app/tuh-easy/id1527718210)\n- 🤖 **สำหรับ Android (Google Play Store):** [ดาวน์โหลดที่นี่](https://play.google.com/store/apps/details?id=th.ac.tuh.easyapp)\n\nหากท่านพบปัญหาหรือต้องการคำแนะนำการใช้งานแอป สามารถสอบถามเจ้าหน้าที่บริการที่จุดประชาสัมพันธ์หลักตึกผู้ป่วยนอก ชั้น 1 ได้ครับ`
-  }
+
 ];
 
+// สถานะเวลาปัจจุบันสำหรับการอัปเดตการนับถอยหลังแบบเรียลไทม์
 function App() {
-  // Current time state for real-time countdown updates
   const [currentTime, setCurrentTime] = useState(Date.now());
-
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(Date.now());
@@ -55,20 +43,26 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Theme State (Default to true for Dark Mode as it is softest on the eyes, or Light Mode depending on storage)
+  // สถานะธีม
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('tuh_theme');
     if (saved !== null) {
       return saved === 'dark';
     }
-    // Default to light mode but customized to soft eyes-friendly tones
+    // ตั้งค่าเริ่มต้นเป็นโหมดสว่าง
     return false;
   });
 
-  // Sidebar resizable width state
+  // สถานะความกว้างของแถบด้านข้าง
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('tuh_sidebar_width');
     return saved ? parseInt(saved, 10) : 320;
+  });
+
+  // สถานะขนาดฟอนต์
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('tuh_font_size');
+    return saved || 'normal';
   });
 
   const isResizing = useRef(false);
@@ -138,12 +132,12 @@ function App() {
     };
   }, [sidebarWidth]);
 
-  // Welcome message state
+  // ข้อความต้อนรับ
   const [welcomeMessage, setWelcomeMessage] = useState(() => {
     return localStorage.getItem('tuh_welcome_message') || 'สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** งานสารสนเทศโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ยินดีให้บริการครับ 😊\n\nท่านต้องการสอบถามข้อมูลด้านใด สามารถพิมพ์สอบถามหรือกดเลือกคำถามยอดนิยมด้านล่างนี้ได้เลยครับ';
   });
 
-  // Chat sessions state
+  // สถานะการสนทนา
   const [sessions, setSessions] = useState(() => {
     const saved = localStorage.getItem('tuh_chats');
     let loadedSessions = null;
@@ -155,7 +149,7 @@ function App() {
       }
     }
 
-    const savedWelcome = localStorage.getItem('tuh_welcome_message') || 'สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** งานสารสนเทศโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ยินดีให้บริการครับ 😊\n\nท่านต้องการสอบถามข้อมูลด้านใด สามารถพิมพ์สอบถามหรือกดเลือกคำถามยอดนิยมด้านล่างนี้ได้เลยครับ';
+    const savedWelcome = localStorage.getItem('tuh_welcome_message') || 'สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** \n\nท่านต้องการสอบถามข้อมูลด้านใด สามารถพิมพ์สอบถามหรือกดเลือกคำถามยอดนิยมด้านล่างนี้ได้เลยครับ';
 
     const defaultSession = {
       id: 'session-1',
@@ -171,11 +165,11 @@ function App() {
       ]
     };
 
-    // Check 1-hour inactivity
+    // ตรวจสอบการไม่ใช้งาน 1 ชั่วโมง
     const lastChatTime = localStorage.getItem('tuh_last_chat_time');
     const now = Date.now();
     const oneHourInMs = 60 * 60 * 1000;
-    // const oneMinuteInMs = 1 * 60 * 1000; // test log out after 1 minute
+    // ตั้งค่าเวลาสำหรับทดสอบการล็อกเอาต์อัตโนมัติภายใน 1 นาที
     if (lastChatTime) {
       const elapsed = now - parseInt(lastChatTime, 10);
       if (elapsed > oneHourInMs) {
@@ -189,10 +183,9 @@ function App() {
       return [defaultSession];
     }
 
-    // Filter out sessions older than 1 hour (1 * 60 * 60 * 1000 = 3,600,000 ms)
-
+    // กรองข้อมูลแชทที่เก่าเกิน 1 ชั่วโมง (1 * 60 * 60 * 1000 = 3,600,000 ms)
     const validSessions = loadedSessions.map(session => {
-      // If session doesn't have createdAt, try to parse from the ID, or default to current time
+      // ถ้า session ไม่มี createdAt ให้ลอง parse จาก ID, หรือใช้ค่าปัจจุบัน
       if (!session.createdAt) {
         if (session.id && session.id.startsWith('session-')) {
           const timestampStr = session.id.substring(8);
@@ -207,7 +200,8 @@ function App() {
         }
       }
       return session;
-    }).filter(session => {
+    }).filter((session, idx) => {
+      if (idx === 0) return true;
       return (now - session.createdAt) <= oneHourInMs;
     });
 
@@ -215,7 +209,7 @@ function App() {
       return [defaultSession];
     }
 
-    // Check if the most recent session has messages
+    // ตรวจสอบว่า session ล่าสุดมีข้อความหรือไม่
     const mostRecent = validSessions[0];
     if (mostRecent && mostRecent.messages.length > 1) {
       const newId = `session-${now}`;
@@ -233,7 +227,7 @@ function App() {
         ]
       };
 
-      // Store the active session ID in window so the activeSessionId useState can pick it up
+      // เก็บ ID ของเซสชันที่ใช้งานไว้ใน window เพื่อให้ useState สามารถรับค่าได้
       window.__initialActiveSessionId = newId;
       return [newSession, ...validSessions];
     }
@@ -261,13 +255,13 @@ function App() {
   const [copiedId, setCopiedId] = useState(null);
   const [faqsList, setFaqsList] = useState(FAQS);
 
-  // Feedback form state
+  // สถานะของฟอร์มแสดงความคิดเห็น
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [isForcedFeedback, setIsForcedFeedback] = useState(false);
 
-  // Question tracking & dislike feedback states
+  // คำถาม & แสดงความคิดเห็นที่ไม่พอใจ
   const [questionCount, setQuestionCount] = useState(() => {
     const saved = sessionStorage.getItem('tuh_question_count');
     return saved ? parseInt(saved, 10) : 0;
@@ -282,7 +276,7 @@ function App() {
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  // Sync theme with HTML class
+  // ารประสานสถานะธีมเข้ากับคลาสในแท็ก HTML
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -292,12 +286,53 @@ function App() {
       localStorage.setItem('tuh_theme', 'light');
     }
   }, [isDarkMode]);
-  // Save sessions to localStorage
+
+  // ปรับปรุงขนาดฟอนต์บนระดับ HTML
+  useEffect(() => {
+    localStorage.setItem('tuh_font_size', fontSize);
+    if (fontSize === 'large') {
+      document.documentElement.style.fontSize = '18px';
+    } else if (fontSize === 'xl') {
+      document.documentElement.style.fontSize = '20px';
+    } else {
+      // 'normal'
+      document.documentElement.style.fontSize = '16px';
+    }
+  }, [fontSize]);
+
+  // บันทึกแชทลง localStorage
   useEffect(() => {
     localStorage.setItem('tuh_chats', JSON.stringify(sessions));
   }, [sessions]);
 
-  // Inactivity checker: Check every 30 seconds if last chat activity was more than 1 hour ago
+  // ตรวจสอบและลบเซสชันที่หมดอายุโดยอัตโนมัติเมื่อตัวนับถอยหลังถึง 00:00 (1 ชั่วโมง)
+  useEffect(() => {
+    if (sessions.length <= 1) return;
+    const now = Date.now();
+    const oneHourInMs = 60 * 60 * 1000;
+
+    const expiredSessionsExist = sessions.some((s, idx) => {
+      if (idx === 0) return false;
+      const elapsed = now - (s.createdAt || now);
+      return elapsed > oneHourInMs;
+    });
+
+    if (expiredSessionsExist) {
+      const filtered = sessions.filter((s, idx) => {
+        if (idx === 0) return true;
+        const elapsed = now - (s.createdAt || now);
+        return elapsed <= oneHourInMs;
+      });
+
+      setSessions(filtered);
+
+      if (!filtered.some(s => s.id === activeSessionId)) {
+        setActiveSessionId(filtered[0].id);
+      }
+    }
+  }, [currentTime, sessions, activeSessionId]);
+
+  // ตรวจสอบการไม่ใช้งาน: ตรวจสอบทุก 30 วินาทีว่าการแชทล่าสุดนานกว่า 1 ชั่วโมงหรือไม่
   useEffect(() => {
     const defaultSession = {
       id: 'session-1',
@@ -328,14 +363,14 @@ function App() {
       }
     };
 
-    // Run check immediately on mount/update
+    // ให้รันการตรวจสอบทันทีเมื่อ [Component] ถูกโหลดขึ้นมา (Mount) หรือเมื่อมีการอัปเดตข้อมูล
     checkInactivity();
 
     const interval = setInterval(checkInactivity, 30000);
     return () => clearInterval(interval);
   }, [welcomeMessage]);
 
-  // Load custom welcome message and configurations on startup
+  // โหลดข้อความต้อนรับแบบกำหนดเองและการตั้งค่าเมื่อเริ่มต้นระบบ
   useEffect(() => {
     fetch(API_URL + '/api/admin/settings')
       .then(r => r.json())
@@ -369,21 +404,7 @@ function App() {
       .catch(err => console.warn("Failed to fetch settings from API:", err));
   }, []);
 
-  // Listen to beforeunload to prevent tab closing without feedback
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      const feedbackSubmitted = sessionStorage.getItem('tuh_feedback_submitted');
-      if (feedbackSubmitted !== 'true') {
-        e.preventDefault();
-        e.returnValue = 'กรุณากรอกข้อเสนอแนะการใช้งานก่อนปิดระบบแชทบอท';
-        return 'กรุณากรอกข้อเสนอแนะการใช้งานก่อนปิดระบบแชทบอท';
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
-
-  // Automatically show/hide FAQs based on messages in current chat when activeSessionId changes
+  // แสดงหรือซ่อนคำถามที่พบบ่อย (FAQs) โดยอัตโนมัติตามข้อความในแชทปัจจุบัน เมื่อ activeSessionId มีการเปลี่ยนแปลง
   useEffect(() => {
     const session = sessions.find(s => s.id === activeSessionId);
     if (session) {
@@ -391,7 +412,7 @@ function App() {
     }
   }, [activeSessionId]);
 
-  // Auto scroll to chat bottom
+  // เลื่อนลงไปด้านล่างสุดโดยอัตโนมัติ
   useEffect(() => {
     const scrollToBottom = () => {
       if (chatContainerRef.current) {
@@ -404,11 +425,11 @@ function App() {
       }
     };
 
-    // Scroll immediately
+    // เลื่อนลงไปด้านล่างทันที
     scrollToBottom();
 
-    // Scroll again after short delays to account for DOM rendering,
-    // layout updates, and message bubble transition animations.
+    // เลื่อนลงอีกครั้งหลังจากผ่านไปช่วงสั้น ๆ เพื่อให้แน่ใจว่า DOM ถูกเรนเดอร์,
+    // การอัปเดตเค้าโครง และแอนิเมชันการเปลี่ยนสถานะของข้อความฟองสบู่ทำงานเสร็จสิ้น
     const timer1 = setTimeout(scrollToBottom, 100);
     const timer2 = setTimeout(scrollToBottom, 300);
 
@@ -419,8 +440,9 @@ function App() {
   }, [sessions, activeSessionId, isTyping]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || { messages: [] };
+  const isActiveSessionLatest = activeSessionId === sessions[0]?.id;
 
-  // Create new conversation
+  // สร้างบทสนทนาใหม่
   const handleNewChat = () => {
     const newId = `session-${Date.now()}`;
     const newSession = {
@@ -442,7 +464,7 @@ function App() {
     setIsSidebarOpen(false);
   };
 
-  // Delete chat session
+  // ลบบทสนทนา
   const handleDeleteSession = (id, e) => {
     e.stopPropagation();
     if (sessions.length === 1) {
@@ -456,9 +478,13 @@ function App() {
     }
   };
 
-  // Process and send user message
+  // ประมวลผลและส่งข้อความจากผู้ใช้
   const handleSendMessage = (text) => {
     if (!text.trim() || isTyping) return;
+
+    // หากไม่ใช่แชทล่าสุด จะส่งข้อความไม่ได้
+    const isActiveSessionLatest = activeSessionId === sessions[0]?.id;
+    if (!isActiveSessionLatest) return;
 
     localStorage.setItem('tuh_last_chat_time', Date.now().toString());
 
@@ -473,7 +499,7 @@ function App() {
       timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Extract recent short-term history (up to last 2 turns / 4 messages)
+    // คัดแยกประวัติการสนทนาล่าสุด (ไม่เกิน 2 รอบ / 4 ข้อความ)
     const sessionMessages = activeSession.messages || [];
     const startIndex = (sessionMessages.length > 0 && sessionMessages[0].sender === 'bot') ? 1 : 0;
     const candidates = sessionMessages.slice(startIndex);
@@ -482,10 +508,10 @@ function App() {
       text: m.text
     }));
 
-    // Update active session messages
+    // อัปเดตข้อความในเซสชันที่ใช้งาน
     let updatedSessions = sessions.map(s => {
       if (s.id === activeSessionId) {
-        // Update session title based on first user message if it was a default title
+        // อัปเดตชื่อเซสชันตามข้อความแรกของผู้ใช้ หากชื่อเดิมเป็นชื่อเริ่มต้น
         let newTitle = s.title;
         if (s.title.startsWith('บทสนทนาใหม่ #')) {
           newTitle = text.length > 25 ? text.substring(0, 25) + '...' : text;
@@ -504,7 +530,7 @@ function App() {
     setShowFaqs(false);
     setIsTyping(true);
 
-    // Call the Python Hybrid Search API (FAISS + BM25)
+    // เรียก API ค้นหาแบบผสม (FAISS + BM25) ของ Python
     fetch(API_URL + '/api/search', {
       method: 'POST',
       headers: {
@@ -521,7 +547,7 @@ function App() {
         return response.json();
       })
       .then(data => {
-        // Use the generated AI answer from the backend if available
+        //ใช้คำตอบ AI ที่สร้างจากส่วนหลังบ้านหากมี
         const botResponseText = data.answer || getBotResponse(text);
 
         const botMessage = {
@@ -543,7 +569,7 @@ function App() {
         localStorage.setItem('tuh_last_chat_time', Date.now().toString());
         setIsTyping(false);
 
-        // Trigger feedback modal after 3rd bot response if not submitted yet
+        // กำหนดให้แสดงฟอร์มข้อเสนอแนะหลังจากข้อความจากบอทข้อที่ 3 หากยังไม่มีการส่งข้อเสนอแนะ
         if (nextCount === 3 && sessionStorage.getItem('tuh_feedback_submitted') !== 'true') {
           setTimeout(() => {
             setIsForcedFeedback(false);
@@ -553,7 +579,7 @@ function App() {
       })
       .catch(error => {
         console.warn("API Search failed, using static fallback:", error);
-        // Fallback on error
+        // ใช้ค่าเริ่มต้นแทนหากเกิดข้อผิดพลาด
         const botResponseText = getBotResponse(text);
         const botMessage = {
           id: `bot-${Date.now()}`,
@@ -574,7 +600,7 @@ function App() {
         localStorage.setItem('tuh_last_chat_time', Date.now().toString());
         setIsTyping(false);
 
-        // Trigger feedback modal after 3rd bot response if not submitted yet
+        // กำหนดให้แสดงฟอร์มข้อเสนอแนะหลังจากข้อความจากบอทข้อที่ 3 หากยังไม่มีการส่งข้อเสนอแนะ
         if (nextCount === 3 && sessionStorage.getItem('tuh_feedback_submitted') !== 'true') {
           setTimeout(() => {
             setIsForcedFeedback(false);
@@ -584,11 +610,11 @@ function App() {
       });
   };
 
-  // Custom Bot Response Router
+  // ระบบกำหนดเส้นทางการตอบกลับของบอทแบบปรับแต่งเอง
   const getBotResponse = (text) => {
     const t = text.toLowerCase().trim();
 
-    // Check match against predefined FAQs
+    // ตรวจสอบว่าตรงกับคำถามที่พบบ่อย (FAQs) หรือไม่
     for (const faq of faqsList) {
       if (t === faq.question.toLowerCase().trim() || t.includes(faq.question.substring(0, 20).toLowerCase())) {
         if (faq.response && faq.response.trim() !== '') {
@@ -598,7 +624,7 @@ function App() {
     }
 
 
-    // Keyword logic
+    // ตรวจสอบคำสำคัญ
     if (t.includes('ดวงตา') || t.includes('จ้องจอ') || t.includes('ถนอมสายตา') || t.includes('ปวดตา') || t.includes('เมื่อยตา')) {
       return faqsList[0]?.response || '';
     }
@@ -624,19 +650,19 @@ function App() {
       return "ด้วยความยินดีอย่างยิ่งครับ! หากมีข้อสงสัยหรือข้อขัดข้องเรื่องใดเพิ่มเติม สามารถพิมพ์ถามผมได้ตลอดเวลาเลยนะครับ ขอให้มีสุขภาพดวงตาและสุขภาพกายที่แข็งแรงครับ 🏥💚";
     }
 
-    // Default Fallback
+    // ค่าเริ่มต้นแทน
     return `ขอบคุณสำหรับคำถามครับคุณผู้ใช้ ผมเป็นระบบปัญญาประดิษฐ์ให้ข้อมูลเบื้องต้นของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ สำหรับคำถามเกี่ยวกับการรักษาเฉพาะทางลึกหรือข้อมูลอื่นๆ นอกเหนือจากนี้ ท่านสามารถติดต่อเพิ่มเติมได้ที่:\n\n` +
       `📞 **สายด่วนโรงพยาบาล (ประชาสัมพันธ์):** โทร. 02-926-9999\n` +
       `🏢 **งานสารสนเทศ (ไอที):** โทร. 02-926-9999 ต่อ 7120\n\n` +
       `ท่านสามารถส่งความคิดเห็นและข้อแนะนำการบริการผ่านเมนู **"ข้อเสนอแนะ"** ที่มุมซ้ายล่างได้เลยครับ เพื่อให้ทีมงานสารสนเทศนำไปปรับปรุงระบบแชทบอทให้ตอบคำถามได้หลากหลายและดียิ่งขึ้นครับ`;
   };
 
-  // Handle like/dislike bot messages
+  // จัดการข้อความถูกใจ/ไม่ถูกใจของบอท
   const handleLikeMessage = (msgId, likedState) => {
     let msgText = '';
     let userQuery = '';
 
-    // Find the message synchronously in the current sessions state
+    // ค้นหาข้อความพร้อมกันในสถานะ sessions ปัจจุบัน
     const currentSession = sessions.find(s => s.id === activeSessionId);
     if (currentSession) {
       const msgIndex = currentSession.messages.findIndex(m => m.id === msgId);
@@ -646,7 +672,7 @@ function App() {
           userQuery = currentSession.messages[msgIndex - 1].text;
         }
 
-        // Check if user is disliking the message (toggling from not disliked to disliked)
+        // ตรวจสอบว่าผู้ใช้กำลังไม่พอใจกับข้อความหรือไม่ (เปลี่ยนจากไม่พอใจเป็นไม่พอใจ)
         const isDisliking = likedState === 'dislike' && !currentSession.messages[msgIndex].disliked;
         if (isDisliking) {
           setDislikeQuestion(userQuery || 'ไม่พบคำถาม');
@@ -668,7 +694,7 @@ function App() {
               const newLiked = likedState === 'like' ? !m.liked : false;
               const newDisliked = likedState === 'dislike' ? !m.disliked : false;
 
-              // Send rating log to backend
+              // ส่งบันทึกการให้คะแนนไปยังส่วนหลังบ้าน
               fetch(API_URL + '/api/admin/feedback/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -694,7 +720,7 @@ function App() {
     }));
   };
 
-  // Handle dislike feedback submission
+  // จัดการส่งคำอธิบายเพิ่มเติมสำหรับข้อความที่ไม่พอใจ
   const handleDislikeSubmit = (e) => {
     e.preventDefault();
     if (!dislikeReason.trim()) return;
@@ -722,7 +748,7 @@ function App() {
       })
       .catch(err => {
         console.error("Failed to submit dislike explanation:", err);
-        // Fallback: still show success and close so user is not blocked
+        // ส่วนสำรอง (Fallback): ให้แสดงผลสถานะว่าสำเร็จและปิด [ฟอร์ม/หน้าต่าง] ไป เพื่อไม่ให้ผู้ใช้งานติดขัดหรือค้างอยู่หน้าเดิม
         setDislikeSuccess(true);
         setTimeout(() => {
           setShowDislikeModal(false);
@@ -732,9 +758,9 @@ function App() {
       });
   };
 
-  // Handle copy message text
+  // คัดลอกข้อความ
   const handleCopyMessage = (text, msgId) => {
-    // Remove markdown bold syntax and link syntax for clean plain text while keeping newlines
+    // ลบรูปแบบตัวหนาและรูปแบบลิงก์ของ Markdown ออกเพื่อให้เป็นข้อความธรรมดาที่สะอาดตา โดยยังคงรักษาการขึ้นบรรทัดใหม่ไว้
     let cleanedText = text;
     cleanedText = cleanedText.replace(/\*\*(.*?)\*\*/g, '$1');
     cleanedText = cleanedText.replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)');
@@ -749,7 +775,7 @@ function App() {
     });
   };
 
-  // Handle close chatbot
+  // ปิดแชทบอท
   const handleCloseChatbot = () => {
     const feedbackSubmitted = sessionStorage.getItem('tuh_feedback_submitted');
     if (feedbackSubmitted === 'true') {
@@ -760,11 +786,11 @@ function App() {
     }
   };
 
-  // Handle submit feedback
+  // จัดการส่งข้อเสนอแนะ
   const handleFeedbackSubmit = (e) => {
     e.preventDefault();
 
-    // Create feedback record
+    // สร้างบันทึกข้อเสนอแนะ
     const feedbackData = {
       rating: feedbackRating >= 4 ? 'like' : 'dislike',
       comment: feedbackText,
@@ -772,7 +798,7 @@ function App() {
       msgId: `feedback-${Date.now()}`
     };
 
-    // Send to backend API
+    // ส่งไปยัง API ส่วนหลังบ้าน
     fetch(API_URL + '/api/admin/feedback/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -781,7 +807,7 @@ function App() {
       .then(r => r.json())
       .then(data => {
         sessionStorage.setItem('tuh_feedback_submitted', 'true');
-        // Also save locally
+        // บันทึกในเครื่องด้วย
         const savedFeedback = localStorage.getItem('tuh_feedback_logs') || '[]';
         try {
           const logs = JSON.parse(savedFeedback);
@@ -813,7 +839,7 @@ function App() {
     }, 2000);
   };
 
-  // Convert raw message text into HTML with simple Markdown parsing
+  // แปลงข้อความดิบเป็น HTML ด้วยการแยกวิเคราะห์ Markdown แบบง่าย
   const parseMarkdown = (text) => {
     if (!text) return '';
     // Bold parsing (**text**)
@@ -830,7 +856,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-screen p-4 md:p-6 lg:p-8 bg-zayg-gradient dark:bg-[#1a237e] box-border overflow-hidden flex font-sans text-tuh-navy dark:text-white transition-colors duration-300">
+    <div className="h-screen w-screen p-4 md:p-6 lg:p-8 bg-zayg-gradient box-border overflow-hidden flex font-sans text-tuh-navy dark:text-white transition-colors duration-300">
       <div className="flex-1 flex h-full overflow-hidden bg-white/70 dark:bg-tuh-navy/70 backdrop-blur-md rounded-[24px] border border-white/60 dark:border-white/5 shadow-2xl relative">
 
         {/* 1. LEFT SIDEBAR PANEL (หน้าต่างซ้าย) */}
@@ -842,12 +868,18 @@ function App() {
         )}
 
         <aside
-          style={{ '--sidebar-width': `${sidebarWidth}px` }}
+          style={{ 
+            '--sidebar-width': `${
+              fontSize === 'xl' ? Math.max(385, sidebarWidth + 60) : 
+              fontSize === 'large' ? Math.max(355, sidebarWidth + 30) : 
+              sidebarWidth
+            }px` 
+          }}
           className={`fixed inset-y-0 left-0 z-30 w-80 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out md:static md:relative md:translate-x-0 tuh-resizable-sidebar ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
         >
 
-          {/* Sidebar Header */}
+          {/* หัวข้อแถบด้านข้าง */}
           <div className="p-4 border-b border-slate-100 dark:border-tuh-purple/20 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <a
@@ -873,7 +905,7 @@ function App() {
             </button>
           </div>
 
-          {/* Start New Chat Button */}
+          {/* ปุ่มเริ่มบทสนทนาใหม่ */}
           <div className="p-4">
             <button
               onClick={handleNewChat}
@@ -884,36 +916,18 @@ function App() {
             </button>
           </div>
 
-          {/* Chat History List */}
+          {/* ประวัติการสนทนา */}
           <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
             <div className="px-3 mb-2 flex items-center justify-between">
               <span className="text-[13px] font-bold text-tuh-indigo/50 dark:text-slate-450 uppercase tracking-wider">
                 ประวัติการสนทนา
               </span>
-              {(() => {
-                const lastChatTime = localStorage.getItem('tuh_last_chat_time');
-                let baseTime = lastChatTime ? parseInt(lastChatTime, 10) : null;
-                if (!baseTime && sessions.length > 0) {
-                  baseTime = sessions[0].createdAt || currentTime;
-                }
-                const elapsed = baseTime ? currentTime - baseTime : 0;
-                const remaining = (60 * 60 * 1000) - elapsed;
-                const m = Math.max(0, Math.floor(remaining / 60000));
-                const s = Math.max(0, Math.floor((remaining % 60000) / 1000));
-                const text = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                return (
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-tuh-rose/10 text-tuh-rose dark:bg-tuh-rose/25 dark:text-tuh-pink border border-tuh-rose/15 dark:border-none shadow-sm flex items-center gap-1 animate-pulse">
-                    <i className="fa-solid fa-clock text-[9px]"></i>
-                    {text}
-                  </span>
-                );
-              })()}
             </div>
             <div className="space-y-1">
               {sessions.map(s => {
                 const isActive = s.id === activeSessionId;
 
-                // Calculate remaining time for this specific session
+                // คำนวณเวลาที่เหลือสำหรับเซสชันนี้
                 const elapsed = currentTime - (s.createdAt || currentTime);
                 const remaining = (60 * 60 * 1000) - elapsed;
                 const m = Math.max(0, Math.floor(remaining / 60000));
@@ -935,10 +949,12 @@ function App() {
                     <div className="flex items-center gap-2 overflow-hidden flex-1">
                       <i className={`fa-solid ${isActive ? 'fa-message text-tuh-rose dark:text-tuh-coral' : 'fa-comment text-tuh-indigo/40 dark:text-slate-400'} text-sm shrink-0`}></i>
                       <span className="text-[15px] truncate flex-1 min-w-0 pr-1">{s.title}</span>
-                      <span className={`text-[10px] font-extrabold shrink-0 px-1.5 py-0.5 rounded bg-slate-100/80 dark:bg-white/5 text-tuh-indigo/50 dark:text-slate-400 flex items-center gap-0.5 ${isActive ? 'text-tuh-rose dark:text-tuh-pink bg-tuh-rose/10 dark:bg-tuh-rose/20' : ''}`}>
-                        <i className="fa-regular fa-clock text-[9px]"></i>
-                        {countdownText}
-                      </span>
+                      {s.id !== sessions[0]?.id && (
+                        <span className={`text-[10px] font-extrabold shrink-0 px-1.5 py-0.5 rounded bg-slate-100/80 dark:bg-white/5 text-tuh-indigo/50 dark:text-slate-400 flex items-center gap-0.5 ${isActive ? 'text-tuh-rose dark:text-tuh-pink bg-tuh-rose/10 dark:bg-tuh-rose/20' : ''}`}>
+                          <i className="fa-regular fa-clock text-[9px]"></i>
+                          {countdownText}
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={(e) => handleDeleteSession(s.id, e)}
@@ -953,10 +969,10 @@ function App() {
             </div>
           </div>
 
-          {/* Bottom Menu Buttons */}
+          {/* ปุ่มเมนูส่วนล่าง */}
           <div className="p-4 border-t border-slate-100 dark:border-tuh-purple/20 space-y-2 bg-slate-50/50 dark:bg-tuh-navy/40">
 
-            {/* Theme Mode Toggle (ปรับโหมดหน้าจอ) */}
+            {/* สลับโหมดหน้าจอ */}
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-tuh-indigo/40 text-tuh-navy dark:text-slate-100 transition-all duration-300 hover:translate-x-1 active:scale-[0.98] group"
@@ -970,7 +986,35 @@ function App() {
               </span>
             </button>
 
-            {/* User Guide Button (คู่มือการใช้งาน) */}
+            {/* ปรับขนาดตัวอักษร */}
+            <div className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-100/50 dark:hover:bg-tuh-indigo/20 text-tuh-navy dark:text-slate-100 transition-all duration-300">
+              <div className="flex items-center gap-2.5 select-none shrink-0">
+                <i className="fa-solid fa-font text-base text-tuh-purple dark:text-purple-300"></i>
+                <span className="text-[15px] font-medium">ขนาดตัวอักษร</span>
+              </div>
+              <div className="flex items-center gap-1 bg-slate-200/55 dark:bg-white/5 p-1 rounded-lg shrink-0">
+                <button
+                  onClick={() => setFontSize('normal')}
+                  className={`text-[10px] md:text-xs px-2 py-0.5 rounded-md font-semibold transition ${fontSize === 'normal' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                >
+                  ปกติ
+                </button>
+                <button
+                  onClick={() => setFontSize('large')}
+                  className={`text-[10px] md:text-xs px-2 py-0.5 rounded-md font-semibold transition ${fontSize === 'large' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                >
+                  ใหญ่
+                </button>
+                <button
+                  onClick={() => setFontSize('xl')}
+                  className={`text-[10px] md:text-xs px-2 py-0.5 rounded-md font-semibold transition ${fontSize === 'xl' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                >
+                  ใหญ่สุด
+                </button>
+              </div>
+            </div>
+
+            {/* ปุ่มคู่มือการใช้งาน */}
             <button
               onClick={() => { setShowGuide(true); setIsSidebarOpen(false); }}
               className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-tuh-indigo/40 text-tuh-navy dark:text-slate-100 transition-all duration-300 hover:translate-x-1 active:scale-[0.98] group"
@@ -979,7 +1023,7 @@ function App() {
               <span className="text-[15px] font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">คู่มือการใช้งาน</span>
             </button>
 
-            {/* Feedback Button (ข้อเสนอแนะ) */}
+            {/* ปุ่มข้อเสนอแนะ */}
             <button
               onClick={() => { setIsForcedFeedback(false); setShowFeedback(true); setIsSidebarOpen(false); }}
               className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-tuh-indigo/40 text-tuh-navy dark:text-slate-100 transition-all duration-300 hover:translate-x-1 active:scale-[0.98] group"
@@ -990,7 +1034,7 @@ function App() {
 
           </div>
 
-          {/* Resize Handle (All Devices - mouse and touch) */}
+          {/* แถบปรับขนาด (ทั้งเมาส์และสัมผัส) */}
           <div
             onMouseDown={startResizing}
             onTouchStart={startTouchResizing}
@@ -1001,19 +1045,19 @@ function App() {
           </div>
         </aside>
 
-        {/* 2. RIGHT CHAT WINDOW PANEL (หน้าต่างขวา) */}
+        {/* 2. หน้าต่างขวา */}
         <main className="flex-1 flex flex-col justify-center items-center p-4 bg-white/20 dark:bg-tuh-navy/10 relative overflow-hidden h-full">
 
-          {/* Dynamic Background Design Elements from User Image Palette */}
+          {/* องค์ประกอบการออกแบบพื้นหลังแบบไดนามิกจากจานสีภาพผู้ใช้ */}
           <div className="absolute top-20 right-20 w-80 h-80 rounded-full bg-tuh-purple/10 dark:bg-tuh-purple/20 blur-[100px] pointer-events-none animate-float-slow"></div>
-          <div className="absolute bottom-40 left-10 w-96 h-96 rounded-full bg-tuh-coral/10 dark:bg-tuh-rose/10 blur-[120px] pointer-events-none animate-float-slower"></div>
+          <div className="absolute bottom-40 left-10 w-96 h-96 rounded-full bg-tuh-purple/10 dark:bg-tuh-purple/10 blur-[120px] pointer-events-none animate-float-slower"></div>
 
           {activeSession.messages.length <= 1 ? (
-            /* ==================== STATE A: WELCOME SCREEN (เมื่อไม่มีการสนทนา) ==================== */
+            /* ==================== STATE A: หน้าจอเริ่มต้น (เมื่อไม่มีการสนทนา) ==================== */
             <>
-              {/* Stage Header */}
+              {/* ส่วนหัว */}
               <div className="absolute top-0 left-0 right-0 p-5 md:p-7 flex items-center justify-between z-10">
-                {/* Left Part: hamburger menu button and dropdown */}
+                {/* ส่วนซ้าย: ปุ่มเมนูแฮมเบอร์เกอร์และเมนูแบบเลื่อนลง */}
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setIsSidebarOpen(true)}
@@ -1027,7 +1071,7 @@ function App() {
                   </div>
                 </div>
 
-                {/* Right Part: contact button */}
+                {/* ส่วนขวา: ปุ่มติดต่อ */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm md:text-base font-semibold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
@@ -1036,19 +1080,31 @@ function App() {
                 </div>
               </div>
 
-              {/* Center Stage Content */}
+              {/* เนื้อหาตรงกลาง */}
               <div className="flex flex-col items-center justify-center text-center max-w-2xl mx-auto my-auto z-10 px-4 select-none animate-fade-in">
                 <img
                   src={dog}
                   className="w-28 h-28 md:w-36 md:h-36 rounded-full object-cover shadow-lg border-4 border-white/50 dark:border-tuh-purple/30 animate-mascot-float mb-6"
                   alt="Mascot"
                 />
-                <h2 className="text-3xl md:text-4xl font-black tracking-tight text-tuh-navy dark:text-white mb-2">สวัสดีครับ ขาหมูเองนะครับ</h2>
-                <p className="text-sm md:text-base text-tuh-indigo/70 dark:text-slate-300 font-medium mb-8">
-                  มีเรื่องเกี่ยวกับสวัสดิการที่ต้องการสอบถามงานสารสนเทศไหมครับ?
-                </p>
+                <div className="mb-8 max-w-xl text-center leading-relaxed">
+                  {welcomeMessage.includes('\n') ? (
+                    <>
+                      <div className="text-xl md:text-2xl font-bold text-tuh-navy dark:text-white mb-2">
+                        {parseMarkdown(welcomeMessage.split('\n')[0])}
+                      </div>
+                      <div className="text-sm md:text-base text-tuh-indigo/80 dark:text-slate-200 font-semibold">
+                        {parseMarkdown(welcomeMessage.split('\n').slice(1).join('\n'))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm md:text-base text-tuh-indigo/80 dark:text-slate-200 font-semibold">
+                      {parseMarkdown(welcomeMessage)}
+                    </div>
+                  )}
+                </div>
 
-                {/* Mock Center Input Box */}
+                {/* ช่องรับข้อความส่วนกลางจำลอง */}
                 <div className="w-full max-w-xl flex items-center gap-2 p-1.5 pl-4 rounded-2xl bg-white/70 dark:bg-[#1B2062]/60 border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md mb-6 focus-within:ring-2 focus-within:ring-tuh-rose/50 transition">
                   <input
                     type="text"
@@ -1060,7 +1116,7 @@ function App() {
                       }
                     }}
                     placeholder="พิมพ์ข้อความของคุณเพื่อเริ่มต้นแชท..."
-                    className="flex-1 bg-transparent border-none outline-none text-tuh-navy dark:text-white placeholder-tuh-indigo/45 dark:placeholder-slate-450 text-sm md:text-base py-2 px-1"
+                    className="flex-1 bg-transparent border-none outline-none text-tuh-navy dark:text-white placeholder-tuh-indigo/45 dark:placeholder-white/40 text-sm md:text-base py-2 px-1"
                   />
                   <button
                     onClick={() => {
@@ -1074,7 +1130,7 @@ function App() {
                   </button>
                 </div>
 
-                {/* Quick FAQ buttons */}
+                {/* ปุ่มคำถามที่พบบ่อย */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-2xl px-4">
                   {faqsList.slice(0, 4).map(faq => (
                     <button
@@ -1092,9 +1148,9 @@ function App() {
               </div>
             </>
           ) : (
-            /* ==================== STATE B: FULL-VIEW CHAT INTERFACE (เมื่อมีการสนทนา) ==================== */
+            /* ==================== STATE B: หน้าต่างแชทแบบเต็มหน้าจอ (เมื่อมีการสนทนา) ==================== */
             <div className="w-full max-w-8xl h-[88vh] max-h-[850px] flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md border border-slate-250/50 dark:border-tuh-purple/20 shadow-2xl rounded-[24px] overflow-hidden z-10 transition-all duration-300 animate-slide-in">
-              {/* Chat Window Headers */}
+              {/* ส่วนหัวของหน้าต่างแชท */}
               <header className="p-4 md:px-6 md:py-4 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/50 dark:bg-[#1B2062]/50 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0">
                 <div className="flex items-center gap-3 w-full lg:w-auto">
                   <button
@@ -1122,7 +1178,7 @@ function App() {
                 </div>
               </header>
 
-              {/* Chat Messages Feed Area */}
+              {/* พื้นที่แสดงข้อความแชท */}
               <div
                 ref={chatContainerRef}
                 className="flex-1 overflow-y-auto px-4 py-4 space-y-4 custom-scrollbar z-10"
@@ -1143,9 +1199,9 @@ function App() {
                     return (
                       <div
                         key={msg.id || index}
-                        className={`flex gap-2 max-w-[90%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
+                        className={`flex gap-2 ${isBot ? 'max-w-[50%] mr-auto' : 'max-w-[90%] ml-auto flex-row-reverse'} animate-slide-in`}
                       >
-                        {/* Avatar Icon */}
+                        {/* ไอคอนอวาตาร์ */}
                         {isBot ? (
                           <img
                             src={dog}
@@ -1158,42 +1214,42 @@ function App() {
                           </div>
                         )}
 
-                        {/* Message Bubble */}
+                        {/* ฟองคำพูด */}
                         <div className="space-y-1 min-w-0">
-                          <div className={`p-3 rounded-2xl text-[14px] leading-relaxed shadow-sm break-words ${isBot
-                            ? 'bg-slate-100 dark:bg-[#07010f] border border-slate-200/60 dark:border-tuh-purple/20 text-tuh-navy dark:text-white rounded-tl-sm'
-                            : 'bg-[#f8bbd0] text-black dark:bg-[#ad1457] dark:text-white border-none rounded-tr-sm shadow-md'
+                          <div className={`text-base leading-relaxed break-words ${isBot
+                            ? 'py-1 px-2 text-tuh-navy dark:text-white'
+                            : 'p-3 rounded-2xl shadow-md bg-[#f8bbd0] text-black dark:bg-[#ad1457] dark:text-white rounded-tr-sm'
                             }`}>
                             {parseMarkdown(msg.text)}
                           </div>
 
                           {isBot ? (
-                            <div className="flex items-center gap-1 mt-0.5 px-0.5">
+                            <div className="flex items-center gap-1.5 mt-1 px-0.5">
                               <button
                                 onClick={() => handleLikeMessage(msg.id, 'like')}
-                                className={`p-1 rounded-md text-[10px] transition-all ${msg.liked ? 'text-emerald-500 bg-emerald-500/10' : 'text-tuh-indigo/35 hover:text-emerald-500'}`}
+                                className={`p-1 rounded-md text-[13px] transition-all ${msg.liked ? 'text-emerald-500 bg-emerald-500/10' : 'text-tuh-indigo/35 dark:text-slate-400/50 hover:text-emerald-500 dark:hover:text-emerald-400'}`}
                               >
                                 <i className={`fa-thumbs-up ${msg.liked ? 'fa-solid' : 'fa-regular'}`}></i>
                               </button>
                               <button
                                 onClick={() => handleLikeMessage(msg.id, 'dislike')}
-                                className={`p-1 rounded-md text-[10px] transition-all ${msg.disliked ? 'text-red-500 bg-red-500/10' : 'text-tuh-indigo/35 hover:text-red-500'}`}
+                                className={`p-1 rounded-md text-[13px] transition-all ${msg.disliked ? 'text-red-500 bg-red-500/10' : 'text-tuh-indigo/35 dark:text-slate-400/50 hover:text-red-500 dark:hover:text-red-400'}`}
                               >
                                 <i className={`fa-thumbs-down ${msg.disliked ? 'fa-solid' : 'fa-regular'}`}></i>
                               </button>
                               <button
                                 onClick={() => handleCopyMessage(msg.text, msg.id)}
-                                className={`p-1 rounded-md text-[10px] transition-all flex items-center gap-0.5 ${copiedId === msg.id ? 'text-emerald-600 bg-emerald-500/10' : 'text-tuh-indigo/35 hover:text-emerald-600'}`}
+                                className={`p-1 rounded-md text-[13px] transition-all flex items-center gap-0.5 ${copiedId === msg.id ? 'text-emerald-600 bg-emerald-500/10' : 'text-tuh-indigo/35 dark:text-slate-400/50 hover:text-emerald-600 dark:hover:text-emerald-400'}`}
                               >
                                 <i className={`fa-solid ${copiedId === msg.id ? 'fa-check' : 'fa-copy'}`}></i>
                               </button>
-                              <span className="text-[9px] text-tuh-indigo/25">•</span>
-                              <span className="text-[10px] text-tuh-indigo/40 dark:text-tuh-pink/40 font-medium">{msg.timestamp}</span>
+                              <span className="text-[12px] text-tuh-indigo/25 dark:text-slate-400/30">•</span>
+                              <span className="text-[13px] text-tuh-indigo/40 dark:text-tuh-pink/40 font-medium">{msg.timestamp}</span>
                             </div>
                           ) : (
-                            <div className="flex items-center justify-end gap-1 mt-0.5 px-0.5">
-                              <span className="text-[10px] text-tuh-indigo/40 dark:text-tuh-pink/40 font-medium">{msg.timestamp}</span>
-                              <span className="text-[9px] text-tuh-indigo/25">•</span>
+                            <div className="flex items-center justify-end gap-1.5 mt-1 px-0.5">
+                              <span className="text-[13px] text-tuh-indigo/40 dark:text-tuh-pink/40 font-medium">{msg.timestamp}</span>
+                              <span className="text-[12px] text-tuh-indigo/25 dark:text-slate-400/30">•</span>
                               <button
                                 onClick={() => {
                                   setInputValue(msg.text);
@@ -1201,9 +1257,9 @@ function App() {
                                   if (textarea) textarea.focus();
                                 }}
                                 disabled={isTyping}
-                                className="p-0.5 rounded-md text-[10px] text-tuh-indigo/35 hover:text-orange-500"
+                                className="p-0.5 rounded-md text-[13px] text-tuh-indigo/35 dark:text-slate-400/50 hover:text-orange-500 dark:hover:text-orange-400"
                               >
-                                <i className="fa-solid fa-arrow-rotate-left text-[9px]"></i>
+                                <i className="fa-solid fa-arrow-rotate-left text-[12px]"></i>
                               </button>
                             </div>
                           )}
@@ -1230,48 +1286,49 @@ function App() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Floating Chat Input Section */}
+              {/* ส่วนรับข้อความ */}
               <div className="p-3 border-t border-slate-200/60 dark:border-tuh-purple/15 bg-white/50 dark:bg-[#1B2062]/50 shrink-0">
-                <div className="flex items-end gap-1.5 relative">
-                  <textarea
-                    value={inputValue}
-                    disabled={isTyping}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage(inputValue);
-                      }
-                    }}
-                    rows={1}
-                    placeholder={isTyping ? "กำลังประมวลผล..." : "พิมพ์ข้อความของคุณที่นี่..."}
-                    className="floating-textarea flex-1 py-2 pl-3 pr-16 rounded-xl bg-slate-50 dark:bg-[#07010f] border border-slate-250 dark:border-tuh-purple/25 text-tuh-navy dark:text-white placeholder-slate-400 focus:outline-none text-xs md:text-sm resize-none overflow-y-auto leading-normal"
-                  />
+                {isActiveSessionLatest ? (
+                  <div className="flex items-end gap-2.5 w-full">
+                    <textarea
+                      value={inputValue}
+                      disabled={isTyping}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage(inputValue);
+                        }
+                      }}
+                      rows={1}
+                      placeholder={isTyping ? "กำลังประมวลผล..." : "พิมพ์ข้อความของคุณที่นี่..."}
+                      className="floating-textarea flex-1 py-3 px-4 rounded-xl bg-slate-50 dark:bg-[#07010f] border border-slate-250 dark:border-tuh-purple/25 text-tuh-navy dark:text-white placeholder-slate-400 dark:placeholder-white/40 focus:outline-none text-xs md:text-sm resize-none overflow-y-auto leading-normal focus:ring-2 focus:ring-tuh-rose/30 dark:focus:ring-tuh-rose/50 transition-all duration-300"
+                    />
 
-                  {/* Microphone & Wave/Speaker Mock Icons */}
-                  <div className="absolute right-8 bottom-2 flex items-center gap-1 text-slate-400 dark:text-slate-450 pr-1 select-none">
-                    <i className="fa-solid fa-microphone text-xs hover:text-slate-650 dark:hover:text-white transition cursor-pointer"></i>
-                    <i className="fa-solid fa-volume-high text-xs hover:text-slate-655 dark:hover:text-white transition cursor-pointer"></i>
+                    <button
+                      onClick={() => handleSendMessage(inputValue)}
+                      disabled={isTyping}
+                      className="h-[46px] w-[46px] rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-all shrink-0 shadow-md hover:shadow-tuh-rose/20"
+                    >
+                      <i className="fa-solid fa-paper-plane text-sm"></i>
+                    </button>
                   </div>
-
-                  <button
-                    onClick={() => handleSendMessage(inputValue)}
-                    disabled={isTyping}
-                    className="absolute right-1.5 bottom-1.5 p-1.5 rounded-lg bg-tuh-gradient-2 text-white hover:scale-105 transition active:scale-95 shrink-0"
-                  >
-                    <i className="fa-solid fa-paper-plane text-[10px]"></i>
-                  </button>
-                </div>
+                ) : (
+                  <div className="w-full flex items-center justify-center p-3 rounded-xl bg-slate-100/80 dark:bg-tuh-navy/40 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400 font-bold text-center text-xs md:text-sm select-none gap-2">
+                    <i className="fa-solid fa-lock text-tuh-rose text-sm"></i>
+                    <span>บทสนทนานี้หมดเวลาส่งข้อความแล้ว สามารถดูประวัติการสนทนาได้อย่างเดียว</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
         </main>
 
-        {/* 3. MODAL: USER MANUAL (คู่มือการใช้งาน) */}
+        {/*คู่มือการใช้งาน*/}
         {showGuide && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden">
-              {/* Modal Header */}
+              {/* ส่วนหัวของคู่มือการใช้งาน */}
               <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
                 <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
                   <i className="fa-solid fa-circle-info text-tuh-rose"></i>
@@ -1285,7 +1342,7 @@ function App() {
                 </button>
               </div>
 
-              {/* Modal Content */}
+              {/* เนื้อหาคู่มือการใช้งาน */}
               <div className="p-6 overflow-y-auto space-y-4 text-sm leading-relaxed custom-scrollbar text-tuh-navy/80 dark:text-tuh-pink/80">
                 <p className="font-medium text-tuh-navy dark:text-white">
                   ระบบ TUH Chatbot AI พัฒนาขึ้นโดยงานสารสนเทศโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ เพื่อช่วยเหลือและตอบคำถามเบื้องต้นแก่ผู้ใช้บริการและบุคลากร
@@ -1320,7 +1377,7 @@ function App() {
                 </div>
               </div>
 
-              {/* Modal Footer */}
+              {/* ปุ่มปิดคู่มือการใช้งาน */}
               <div className="p-4 bg-slate-50 dark:bg-tuh-navy/20 border-t border-slate-100 dark:border-tuh-purple/25 flex justify-end">
                 <button
                   onClick={() => setShowGuide(false)}
@@ -1333,11 +1390,11 @@ function App() {
           </div>
         )}
 
-        {/* 4. MODAL: FEEDBACK (ข้อเสนอแนะ) */}
+        {/* 4. MODAL: ข้อเสนอแนะ */}
         {showFeedback && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-lg w-full border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden">
-              {/* Modal Header */}
+              {/* ส่วนหัวข้อเสนอแนะ */}
               <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
                 <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
                   <i className="fa-solid fa-comments text-tuh-rose"></i>
@@ -1353,7 +1410,7 @@ function App() {
                 )}
               </div>
 
-              {/* Modal Form Content */}
+              {/* เนื้อหาข้อเสนอแนะ */}
               {feedbackSuccess ? (
                 <div className="p-8 text-center space-y-4">
                   <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 text-3xl flex items-center justify-center mx-auto animate-bounce">
@@ -1367,7 +1424,7 @@ function App() {
               ) : (
                 <form onSubmit={handleFeedbackSubmit} className="p-6 space-y-4">
 
-                  {/* Star Rating Select */}
+                  {/* แถบดาวแสดงความพึงพอใจ */}
                   <div>
                     <label className="block text-xs font-semibold text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">คะแนนความพึงพอใจการใช้ระบบ</label>
                     <div className="flex gap-2 items-center">
@@ -1387,7 +1444,7 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Message Text area */}
+                  {/* ช่องกรอกข้อความ */}
                   <div>
                     <label className="block text-xs font-semibold text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">ข้อแนะนำ / สิ่งที่ควรปรับปรุง</label>
                     <textarea
@@ -1399,7 +1456,7 @@ function App() {
                     ></textarea>
                   </div>
 
-                  {/* Form Footer Buttons */}
+                  {/* ปุ่มส่งข้อเสนอแนะและยกเลิก */}
                   <div className="flex justify-end gap-2 pt-2">
                     {!isForcedFeedback && (
                       <button
@@ -1427,7 +1484,7 @@ function App() {
         {showDislikeModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-lg w-full border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden">
-              {/* Modal Header */}
+              {/* ส่วนหัวข้อเสนอแนะที่ไม่พึงพอใจ */}
               <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
                 <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
                   <i className="fa-solid fa-face-frown text-red-500"></i>
@@ -1441,7 +1498,7 @@ function App() {
                 </button>
               </div>
 
-              {/* Modal Content */}
+              {/* เนื้อหาข้อเสนอแนะที่ไม่พึงพอใจ */}
               {dislikeSuccess ? (
                 <div className="p-8 text-center space-y-4">
                   <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 text-3xl flex items-center justify-center mx-auto animate-bounce">
@@ -1454,7 +1511,7 @@ function App() {
                 </div>
               ) : (
                 <form onSubmit={handleDislikeSubmit} className="p-6 space-y-4">
-                  {/* Question (Disabled) */}
+                  {/* คำถาม (ปิด) */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">คำถามของคุณ</label>
                     <div className="p-3.5 bg-slate-50 dark:bg-tuh-navy/30 border border-slate-200 dark:border-tuh-purple/10 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-200 select-none max-h-24 overflow-y-auto">
@@ -1462,7 +1519,7 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Answer (Disabled) */}
+                  {/* คำตอบ (ปิด) */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">คำตอบจากบอท</label>
                     <div className="p-3.5 bg-slate-50 dark:bg-tuh-navy/30 border border-slate-200 dark:border-tuh-purple/10 rounded-2xl text-sm text-slate-500 dark:text-slate-400 select-none max-h-36 overflow-y-auto whitespace-pre-wrap">
@@ -1470,7 +1527,7 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Reason Input */}
+                  {/* ช่องกรอกเหตุผลหรือข้อแก้ไขที่ถูกต้อง */}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">ระบุเหตุผลหรือข้อแก้ไขที่ถูกต้อง <span className="text-red-500">*</span></label>
                     <textarea
@@ -1483,7 +1540,7 @@ function App() {
                     ></textarea>
                   </div>
 
-                  {/* Footer Buttons */}
+                  {/* ปุ่มส่งข้อเสนอแนะที่ไม่พึงพอใจและยกเลิก */}
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       type="button"
@@ -1505,7 +1562,7 @@ function App() {
           </div>
         )}
 
-      </div> {/* Close App Box Container */}
+      </div> {/* ปิดกล่องบรรจุแอปพลิเคชัน */}
     </div>
   );
 }

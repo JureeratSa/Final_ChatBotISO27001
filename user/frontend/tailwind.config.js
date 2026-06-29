@@ -14,7 +14,7 @@ export default {
           rose: '#FF4D80',
           purple: '#8B5CF6',
           indigo: '#321154',
-          navy: '#100220',
+          navy: '#080c20',
         }
       },
       fontFamily: {

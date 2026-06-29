@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  font-size: 16px;
+}
+
 @layer base {
   body {
     @apply antialiased transition-colors duration-300;
@@ -12,17 +16,33 @@
   }
 
   html.dark body {
-    @apply bg-[#0e0a1f] text-slate-100;
+    @apply bg-[#050818] text-slate-100;
   }
 }
 
 /* ZAY-G Style Pastel Gradient Background */
 .bg-zayg-gradient {
-  background: linear-gradient(135deg, #C0D1FC 0%, #E5ECFD 40%, #E7C6FD 75%, #F4D6FB 100%);
+  background: linear-gradient(-45deg, #C0D1FC, #E5ECFD, #E7C6FD, #F4D6FB);
+  background-size: 400% 400%;
+  animation: ambientGlow 15s ease infinite;
 }
 
 .dark .bg-zayg-gradient {
-  background: linear-gradient(135deg, #0d091a 0%, #120c24 40%, #1b0e30 75%, #25123d 100%);
+  background: linear-gradient(-45deg, #04081c, #0d1235, #360759, #660f99);
+  background-size: 400% 400%;
+  animation: ambientGlow 15s ease infinite;
+}
+
+@keyframes ambientGlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 /* Glassmorphism Styles */
@@ -60,9 +80,12 @@
 
 /* Mascot Float Animation */
 @keyframes mascotFloat {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px) rotate(0deg);
   }
+
   50% {
     transform: translateY(-10px) rotate(1deg);
   }
@@ -203,6 +226,7 @@
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -213,6 +237,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -234,18 +259,24 @@
 }
 
 @keyframes floatSlow {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0) scale(1);
   }
+
   50% {
     transform: translate(10px, -15px) scale(1.02);
   }
 }
 
 @keyframes floatSlower {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0) scale(1.02);
   }
+
   50% {
     transform: translate(-15px, 10px) scale(0.98);
   }

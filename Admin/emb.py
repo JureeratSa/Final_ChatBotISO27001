@@ -174,7 +174,16 @@ def build_indices():
         faiss_index.add(embeddings)
         faiss_index_path = os.path.join(index_dir, "faiss.index")
         faiss_meta_path = os.path.join(index_dir, "faiss_metadata.json")
-        faiss.write_index(faiss_index, faiss_index_path)
+        try:
+            import tempfile
+            import shutil
+            temp_dir = tempfile.gettempdir()
+            local_temp_write = os.path.join(temp_dir, "tuh_write_faiss.index")
+            faiss.write_index(faiss_index, local_temp_write)
+            shutil.move(local_temp_write, faiss_index_path)
+        except Exception as e_write:
+            print(f"Failed local write bypass, trying direct write: {e_write}")
+            faiss.write_index(faiss_index, faiss_index_path)
         with open(faiss_meta_path, "w", encoding="utf-8") as f:
             json.dump(chunks, f, ensure_ascii=False, indent=2)
         print(f"บันทึกดัชนี FAISS สำเร็จที่: {index_dir}")
@@ -286,7 +295,17 @@ class HybridRetriever:
             # local_faiss หรือ cloud_gemini
             if HAS_DENSE and os.path.exists(self.faiss_index_path) and os.path.exists(self.faiss_meta_path):
                 try:
-                    self.faiss_index = faiss.read_index(self.faiss_index_path)
+                    import tempfile
+                    import shutil
+                    temp_dir = tempfile.gettempdir()
+                    local_faiss_path = os.path.join(temp_dir, "tuh_faiss.index")
+                    try:
+                        shutil.copy2(self.faiss_index_path, local_faiss_path)
+                        self.faiss_index = faiss.read_index(local_faiss_path)
+                    except Exception as e_copy:
+                        print(f"Failed local copy load fallback, trying direct read: {e_copy}")
+                        self.faiss_index = faiss.read_index(self.faiss_index_path)
+
                     with open(self.faiss_meta_path, "r", encoding="utf-8") as f:
                         self.faiss_chunks = json.load(f)
                     
@@ -369,7 +388,26 @@ class HybridRetriever:
 
     def _search_lexical(self, query, top_k):
         """ค้นหาข้อความแบบอิงคำตรงความถี่คำ (Lexical Keyword Search) บน BM25"""
-        tokenized_query = word_tokenize(query, keep_whitespace=False)
+        # ขยายคำสั่งสืบค้น (Query Expansion) เพื่อรองรับคำพ้องความหมาย (Synonyms) สำหรับการวิเคราะห์แบบ Lexical
+        expanded_query = query
+        synonyms = {
+            "สามี": ["คู่สมรส", "ครอบครัว"],
+            "ภรรยา": ["คู่สมรส", "ครอบครัว"],
+            "แฟน": ["คู่สมรส", "ครอบครัว"],
+            "พ่อ": ["บิดา", "ครอบครัว"],
+            "แม่": ["มารดา", "ครอบครัว"],
+            "ลูก": ["บุตร", "ครอบครัว"],
+            "เบิก": ["สิทธิเบิก", "มีสิทธิได้รับ"],
+            "คู่สมรส": ["สามี", "ภรรยา"],
+            "บิดา": ["พ่อ"],
+            "มารดา": ["แม่"],
+            "บุตร": ["ลูก"],
+        }
+        for word, syns in synonyms.items():
+            if word in query:
+                expanded_query += " " + " ".join(syns)
+
+        tokenized_query = word_tokenize(expanded_query, keep_whitespace=False)
         scores = self.bm25.get_scores(tokenized_query)
         
         chunk_scores = list(zip(self.bm25_chunks, scores))
