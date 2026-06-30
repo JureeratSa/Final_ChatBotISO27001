@@ -2,9 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  font-size: 22px;
+}
+
 @layer base {
   body {
     @apply antialiased transition-colors duration-300;
+    font-weight: 500;
   }
 
   html:not(.dark) body {
@@ -261,5 +266,47 @@ html.dark .hover\:border-tuh-rose\/40:hover {
 html.dark .dark\:bg-tuh-indigo\/40,
 html.dark .dark\:bg-tuh-indigo\/25 {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Force TH Sarabun New font globally for all text elements, excluding icons */
+*:not(i):not([class*="fa-"]) {
+  font-family: 'TH Sarabun New', 'Sarabun', sans-serif !important;
+}
+
+/* Allow larger headings/stats to keep their relative scaling */
+body .text-2xl,
+body [class*="text-2xl"] {
+  font-size: 1.5rem !important;
+}
+
+body .text-3xl, 
+body [class*="text-3xl"] {
+  font-size: 1.875rem !important;
+}
+
+body .text-5xl, 
+body [class*="text-5xl"] {
+  font-size: 3rem !important;
+}
+
+/* Custom Font classes override wildcard rules */
+.font-lily, *:not(i):not([class*="fa-"]).font-lily {
+  font-family: 'Lily Script One', 'LilyUPC', 'Lily', cursive, sans-serif !important;
+}
+
+.font-chonburi, *:not(i):not([class*="fa-"]).font-chonburi {
+  font-family: 'Chonburi', cursive !important;
+}
+
+.font-bebas, *:not(i):not([class*="fa-"]).font-bebas {
+  font-family: 'Bebas Neue', sans-serif !important;
+  font-weight: bold !important;
+  letter-spacing: 0.08em !important;
+}
+
+.font-roboto, *:not(i):not([class*="fa-"]).font-roboto {
+  font-family: 'Roboto', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
 }
 

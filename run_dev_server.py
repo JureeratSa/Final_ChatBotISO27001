@@ -84,7 +84,7 @@ if not os.path.exists(dest_node_modules):
 print("Starting Vite dev server on C: drive...")
 # Start npm run dev
 dev_process = subprocess.Popen(
-    "npm run dev -- --force",
+    "npm run dev -- --force --port 5175",
     cwd=dest_frontend,
     shell=True,
     stdout=subprocess.PIPE,

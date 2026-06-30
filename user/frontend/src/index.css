@@ -2,13 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ปรับค่า Base ตรงนี้ให้ใหญ่ขึ้น */
 html {
-  font-size: 16px;
+  font-size: 35px;
 }
 
 @layer base {
   body {
     @apply antialiased transition-colors duration-300;
+    font-weight: 500;
+    /* เปลี่ยนฟอนต์หลักที่นี่ */
+    font-family: 'Chonburi', cursive !important;
   }
 
   html:not(.dark) body {
@@ -20,7 +24,7 @@ html {
   }
 }
 
-/* ZAY-G Style Pastel Gradient Background */
+/* พื้นหลังแบบไล่เฉดสีพาสเทลในสไตล์ของ ZAY-G */
 .bg-zayg-gradient {
   background: linear-gradient(-45deg, #C0D1FC, #E5ECFD, #E7C6FD, #F4D6FB);
   background-size: 400% 400%;
@@ -37,15 +41,17 @@ html {
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
 }
 
-/* Glassmorphism Styles */
+/* รูปแบบสไตล์กระจก */
 .glass-panel {
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(25px) saturate(140%);
@@ -68,6 +74,7 @@ html {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 1rem;
 }
 
 .dark .glass-input {
@@ -78,7 +85,7 @@ html {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-/* Mascot Float Animation */
+/* การเคลื่อนไหวของ Mascot */
 @keyframes mascotFloat {
 
   0%,
@@ -95,7 +102,7 @@ html {
   animation: mascotFloat 4s ease-in-out infinite;
 }
 
-/* Royal Blue Bubble Color from ZAY-G Image */
+/* สี Royal Blue */
 .bg-zayg-blue {
   background-color: #4E6EF5;
 }
@@ -104,7 +111,7 @@ html {
   color: #4E6EF5;
 }
 
-/* Custom Gradients from original code (preserved) */
+/* Custom Gradients */
 .bg-tuh-gradient-1 {
   background: linear-gradient(135deg, #4E6EF5 0%, #7B90FF 100%);
 }
@@ -150,7 +157,7 @@ html {
 .tuh-sidebar-active {
   background-color: #E6EBFD;
   color: #4E6EF5;
-  @apply font-bold shadow-sm;
+  @apply font-bold shadow-sm rounded-lg;
 }
 
 .dark .tuh-sidebar-active {
@@ -160,14 +167,16 @@ html {
 }
 
 .tuh-sidebar-inactive {
-  @apply hover:bg-slate-100/70 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white;
+  @apply hover:bg-slate-100/70 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg;
 }
 
-/* FAQ Pill Button Style */
+/* รูปแบบสไตล์ FAQ Button */
 .faq-pill-button {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(78, 110, 245, 0.15);
   color: #3b59db;
+  padding: 1rem 2rem;
+  border-radius: 9999px;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -193,10 +202,10 @@ html {
   box-shadow: 0 4px 12px rgba(78, 110, 245, 0.45);
 }
 
-/* Custom Scrollbars */
+/* แถบเลื่อน */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -204,23 +213,15 @@ html {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(78, 110, 245, 0.2);
+  background: rgba(78, 110, 245, 0.4);
   border-radius: 9999px;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.3);
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(78, 110, 245, 0.4);
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* Keyframes & Animations */
+/* เฟรมหลักและแอนิเมชัน */
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -288,4 +289,52 @@ html {
 
 .animate-float-slower {
   animation: floatSlower 15s ease-in-out infinite;
+}
+
+/* แก้ไขบรรทัดนี้: ลบ !important และใช้ขนาดที่อ้างอิงจาก html base ได้เลย */
+*:not(i):not([class*="fa-"]) {
+  font-family: 'TH Sarabun New', 'Sarabun', sans-serif !important;
+}
+
+/* ขนาดตัวอักษร */
+body .text-2xl,
+body [class*="text-2xl"] {
+  font-size: 2.5rem !important;
+}
+
+/*เริ่มการสนทนาของคุณ*/
+
+body .text-3xl,
+body [class*="text-3xl"] {
+  font-size: 3.5rem !important;
+}
+
+/*TUH Chatbot AI*/
+
+body .text-5xl,
+body [class*="text-5xl"] {
+  font-size: 6rem !important;
+}
+
+/* เริ่มการสนทนาของคุณ */
+
+/* Custom Font classes override wildcard rules */
+.font-lily, *:not(i):not([class*="fa-"]).font-lily {
+  font-family: 'Lily Script One', 'LilyUPC', 'Lily', cursive, sans-serif !important;
+}
+
+.font-chonburi, *:not(i):not([class*="fa-"]).font-chonburi {
+  font-family: 'Chonburi', cursive !important;
+}
+
+.font-bebas, *:not(i):not([class*="fa-"]).font-bebas {
+  font-family: 'Bebas Neue', sans-serif !important;
+  font-weight: bold !important;
+  letter-spacing: 0.08em !important;
+}
+
+.font-roboto, *:not(i):not([class*="fa-"]).font-roboto {
+  font-family: 'Roboto', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
 }

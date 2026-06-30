@@ -50,6 +50,8 @@ DB_FEEDBACK_PATH = os.path.join(DB_DIR, "db_feedback.json")
 DB_UNANSWERED_PATH = os.path.join(DB_DIR, "db_unanswered.json")
 DB_DOCUMENTS_PATH = os.path.join(DB_DIR, "db_documents.json")
 DB_HISTORY_PATH = os.path.join(DB_DIR, "db_history.json")
+DB_FORMS_PATH = os.path.join(DB_DIR, "db_forms.json")
+DB_ANNOUNCEMENTS_PATH = os.path.join(DB_DIR, "db_announcements.json")
 
 
 
@@ -298,23 +300,26 @@ def clean_thai_text(text):
     return text.strip()
 
 def contains_profanity(text):
-    """犧歩ｸ｣犧ｧ犧謂ｸｪ犧ｭ犧壟ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｹ�ｸ吭ｸ�ｸｳ犧籾ｸｲ犧｡犧もｸｭ犧�ｸ憫ｸｹ犹霞ｹ�ｸ癌ｹ霞ｹ犧樅ｸｷ犹謂ｸｭ犹≒ｸ謂ｹ霞ｸ�ｹ犧歩ｸｷ犧ｭ犧吭ｸｭ犧｢犹謂ｸｲ犧�ｸｪ犧ｸ犧�犧ｲ犧�"""
+    """ตรวจสอบคำหยาบคายเพื่อสกัดและงดตอบคำถามที่ไม่สุภาพ"""
     if not text:
         return False
     text_lower = text.lower()
     
-    # 1. 犧･犧壟ｸもｹ霞ｸｭ犧｢犧≒ｹ犧ｧ犹霞ｸ吭ｸ伶ｸｵ犹謂ｸｭ犧ｲ犧謂ｸ｡犧ｵ犧�ｸｳ犧ｧ犹謂ｸｲ "犹犧ｫ犧ｵ犹霞ｸ｢" 犧ｫ犧｣犧ｷ犧ｭ "犧≒ｸｹ" 犹犧樅ｸｷ犹謂ｸｭ犧ｫ犧･犧ｵ犧≒ｹ犧･犧ｵ犹謂ｸ｢犧� false positive
-    temp_text = text_lower
-    temp_text = temp_text.replace("犹犧ｫ犧ｵ犹霞ｸ｢犧｡", "")  # 犹犧癌ｹ謂ｸ� 犹もｸｫ犧扉ｹ犧ｫ犧ｵ犹霞ｸ｢犧｡
+    # ลบเครื่องหมายวรรคตอน จุด ขีด และช่องว่าง เพื่อป้องกันการเลี่ยงคำ (เช่น ค.ว.ย, ค ว ย)
+    import re
+    temp_text = re.sub(r'[\s\.\-\_\,\#\*\(\)\{\}\[\]\?\!\/\\\+\=\~\`\"\'\:\;\u200b]+', '', text_lower)
     
-    exceptions_gu = ["犧≒ｸｹ犹�", "犧≒ｸｹ犧･", "犧≒ｸｹ犧｣", "犧≒ｸｹ犧｣犧ｹ", "犧≒ｸｹ犹犧≒ｸｴ", "犧≒ｸｹ犹癌ｸ�", "犧≒ｸｹ犹犧壟ｸｭ犧｣犹�", "犧≒ｸｹ犧歩ｸｹ", "犧≒ｸｹ犹犧｡犹�"]
+    # เคลียร์คำที่อาจเป็น false positive
+    temp_text = temp_text.replace("เหี้ยม", "")
+    
+    exceptions_gu = ["กูเกิ้ล", "กูเกิล", "กูรู", "กูรูรู", "กูเกิลแมพ", "กูเกิ้ลแมพ", "กูรูหลัก", "กู๊ดมอนิ่ง", "กู๊ดไนท์"]
     for exc in exceptions_gu:
         temp_text = temp_text.replace(exc, "")
         
-    # 2. 犧｣犧ｲ犧｢犧≒ｸｲ犧｣犧�ｸｳ犧ｫ犧｢犧ｲ犧壟ｸｫ犧･犧ｱ犧≒ｸ伶ｸｵ犹謂ｸ謂ｸｰ犧�ｸｱ犧扉ｸ≒ｸ｣犧ｭ犧�
+    # คำหยาบคายหลัก
     rude_keywords = [
-        "犧｡犧ｶ犧�", "犹犧ｫ犧ｵ犹霞ｸ｢", "犧�ｸｧ犧｢", "犹犧｢犹�ｸ�", "犧ｪ犧ｱ犧ｪ", "犧｣犧ｰ犧｢犧ｳ", "犧ｭ犧ｱ犧巵ｸ｣犧ｵ犧｢犹�", "犧謂ｸｱ犧財ｹ�ｸ｣", "犧歩ｸｭ犹≒ｸｫ犧･",
-        "犧癌ｸｴ犧壟ｸｫ犧ｲ犧｢", "犧霞ｸｴ犧壟ｸｫ犧ｲ犧｢", "犧ｪ犹霞ｸ吭ｸ歩ｸｵ犧�", "犹犧ｪ犧ｷ犧ｭ犧�", "犹�ｸｭ犹霞ｸｪ犧ｱ犧歩ｸｧ犹�", "犹�ｸｭ犧ｪ犧ｱ犧歩ｸｧ犹�", "犧ｭ犧ｵ犧ｪ犧ｱ犧歩ｸｧ犹�", "犧≒ｸｹ"
+        "มึง", "เหี้ย", "ควย", "เย็ด", "สัส", "ระยำ", "อัปรีย์", "จัญไร", "ตอแหล",
+        "ฉิบหาย", "ชิบหาย", "สถดิก", "เสือก", "ไอ้สัตว์", "อีสัตว์", "อีสัด", "กู"
     ]
     
     for word in rude_keywords:
@@ -324,30 +329,30 @@ def contains_profanity(text):
     return False
 
 def get_fallback_vector_answer(results):
-    """犧�ｸｳ犧ｪ犧ｱ犹謂ｸ�ｸ扉ｸｶ犧�ｹ犧吭ｸｷ犹霞ｸｭ犧ｫ犧ｲ犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�ｸ歩ｸ｣犧�ｸもｸｶ犹霞ｸ吭ｸ歩ｸｭ犧� 犧≒ｸ｣犧内ｸｵ犧｣犧ｰ犧壟ｸ� AI 犧ｭ犧ｭ犧游ｹ�ｸ･犧吭ｹ呉ｸｫ犧｣犧ｷ犧ｭ犧ｭ犧ｴ犧吭ｹ犧伶ｸｭ犧｣犹呉ｹ犧吭ｹ�ｸ歩ｸ･犹謂ｸ｡"""
+    """ส่งคืนข้อมูลคำตอบสำรองจากฐานข้อมูลเวกเตอร์เมื่อเซิร์ฟเวอร์ AI ออฟไลน์หรือพบข้อผิดพลาด"""
     if results:
         top_res = results[0]
         top_content = top_res['metadata']['raw_table'] if top_res['metadata'].get('type') == 'table' and 'raw_table' in top_res['metadata'] else top_res['content']
-        source = top_res['metadata'].get('source', '犹犧ｭ犧≒ｸｪ犧ｲ犧｣')
+        source = top_res['metadata'].get('source', 'เอกสารอ้างอิง')
         page = top_res['metadata'].get('page', '')
-        page_str = f" 犧ｫ犧吭ｹ霞ｸｲ {page}" if page else ""
+        page_str = f" หน้า {page}" if page else ""
         
         ans = (
-            f" **(犹犧金ｸｴ犧｣犹呉ｸ游ｹ犧ｧ犧ｭ犧｣犹� AI 犧ｭ犧ｭ犧游ｹ�ｸ･犧吭ｹ� - 犹≒ｸｪ犧扉ｸ�ｸもｹ霞ｸｭ犧�ｸｧ犧ｲ犧｡犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�ｸ伶ｸｵ犹謂ｸ｡犧ｵ犧�ｸｧ犧ｲ犧｡犹�ｸ≒ｸ･犹霞ｹ犧�ｸｵ犧｢犧�ｸ伶ｸｵ犹謂ｸｪ犧ｸ犧�)**\n\n"
-            f"�塘 **犹犧ｭ犧≒ｸｪ犧ｲ犧｣犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�ｸｫ犧･犧ｱ犧� ({source}{page_str}):**\n{top_content}"
+            f" **(เซิร์ฟเวอร์ AI ออฟไลน์ - แสดงข้อความอ้างอิงที่มีความใกล้เคียงที่สุด)**\n\n"
+            f"📄 **เอกสารอ้างอิงหลัก ({source}{page_str}):**\n{top_content}"
         )
         
         other_pages = []
         for res in results[1:3]:
             other_page = res['metadata'].get('page')
             if other_page and other_page not in other_pages and other_page != page:
-                other_pages.append(f"犧ｫ犧吭ｹ霞ｸｲ {other_page}")
+                other_pages.append(f"หน้า {other_page}")
         if other_pages:
-            ans += f"\n\n�庁 *犧�ｸｸ犧内ｸｪ犧ｲ犧｡犧ｲ犧｣犧籾ｸｪ犧ｷ犧壟ｸ�ｹ霞ｸ吭ｸｫ犧ｱ犧ｧ犧もｹ霞ｸｭ犧伶ｸｵ犹謂ｹ犧≒ｸｵ犹謂ｸ｢犧ｧ犧もｹ霞ｸｭ犧�ｹ犧樅ｸｴ犹謂ｸ｡犹犧歩ｸｴ犧｡犹�ｸ扉ｹ霞ｸ伶ｸｵ犹�: {', '.join(other_pages)}*"
+            ans += f"\n\n💡 *คุณสามารถสืบค้นหัวข้อที่เกี่ยวข้องเพิ่มเติมได้ที่: {', '.join(other_pages)}*"
     else:
         ans = (
-            "犧ｪ犧ｧ犧ｱ犧ｪ犧扉ｸｵ犧�ｸ｣犧ｱ犧� 犧憫ｸ｡犹犧巵ｹ�ｸ吭ｸ｣犧ｰ犧壟ｸ壟ｸ巵ｸｱ犧財ｸ財ｸｲ犧巵ｸ｣犧ｰ犧扉ｸｴ犧ｩ犧説ｹ呉ｹ�ｸｫ犹霞ｸもｹ霞ｸｭ犧｡犧ｹ犧･犹犧壟ｸｷ犹霞ｸｭ犧�ｸ歩ｹ霞ｸ吭ｸもｸｭ犧�ｹもｸ｣犧�ｸ樅ｸ｢犧ｲ犧壟ｸｲ犧･犧倨ｸ｣犧｣犧｡犧ｨ犧ｲ犧ｪ犧歩ｸ｣犹呉ｹ犧霞ｸ･犧ｴ犧｡犧樅ｸ｣犧ｰ犹犧≒ｸｵ犧｢犧｣犧歩ｸｴ "
-            "犧もｸ内ｸｰ犧吭ｸｵ犹霞ｸ｣犧ｰ犧壟ｸ壟ｸ�ｹ霞ｸ吭ｸｫ犧ｲ犧ｭ犧ｭ犧游ｹ�ｸ･犧吭ｹ� 犧ｫ犧｣犧ｷ犧ｭ犹�ｸ｡犹謂ｸ樅ｸ壟ｸもｹ霞ｸｭ犧｡犧ｹ犧･犹犧ｧ犧≒ｹ犧歩ｸｭ犧｣犹呉ｸ伶ｸｵ犹謂ｹ犧≒ｸｵ犹謂ｸ｢犧ｧ犧もｹ霞ｸｭ犧�ｸ≒ｸｱ犧壟ｸ�ｸｳ犧籾ｸｲ犧｡犧もｸｭ犧�ｸ�ｸｸ犧内ｸ�ｸ｣犧ｱ犧�"
+            "สวัสดีครับ ยินดีให้บริการครับ ขณะนี้ระบบค้นหาของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติออฟไลน์อยู่ "
+            "หรือไม่พบข้อมูลที่เกี่ยวข้องกับคำถามของคุณครับ"
         )
     return ans
 
@@ -371,15 +376,27 @@ def generate_response_ai(query, results, config, history=[]):
     if results:
         context_parts = []
         for r in results:
-            source = r['metadata'].get('source', '犹犧ｭ犧≒ｸｪ犧ｲ犧｣')
+            source = r['metadata'].get('source', 'เอกสารอ้างอิง')
             page = r['metadata'].get('page', '')
             content = r['metadata']['raw_table'] if r['metadata'].get('type') == 'table' and 'raw_table' in r['metadata'] else r['content']
-            context_parts.append(f"犹犧吭ｸｷ犹霞ｸｭ犧ｫ犧ｲ犧ｫ犧･犧ｱ犧� (犧謂ｸｲ犧� {source} 犧ｫ犧吭ｹ霞ｸｲ {page}):\n{content}")
+            context_parts.append(f"เนื้อหาอ้างอิงหลัก (จาก {source} หน้า {page}):\n{content}")
         context = "\n---\n".join(context_parts)
 
-    system_prompt = config.get("system_prompt", "犧�ｸｸ犧内ｸ�ｸｷ犧ｭ TUH Chatbot AI 犧巵ｸｱ犧財ｸ財ｸｲ犧巵ｸ｣犧ｰ犧扉ｸｴ犧ｩ犧説ｹ呉ｸ癌ｹ謂ｸｧ犧｢犹犧ｫ犧･犧ｷ犧ｭ犧歩ｸｭ犧壟ｸ�ｸｳ犧籾ｸｲ犧｡犧もｸｭ犧�ｹもｸ｣犧�ｸ樅ｸ｢犧ｲ犧壟ｸｲ犧･犧倨ｸ｣犧｣犧｡犧ｨ犧ｲ犧ｪ犧歩ｸ｣犹呉ｹ犧霞ｸ･犧ｴ犧｡犧樅ｸ｣犧ｰ犹犧≒ｸｵ犧｢犧｣犧歩ｸｴ 犧謂ｸ�ｸ歩ｸｭ犧壟ｸ�ｸｳ犧籾ｸｲ犧｡犧憫ｸｹ犹霞ｹ�ｸ癌ｹ霞ｹもｸ扉ｸ｢犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�ｸ謂ｸｲ犧≒ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧伶ｸｵ犹謂ｸ≒ｸｳ犧ｫ犧吭ｸ扉ｹ�ｸｫ犹霞ｸｭ犧｢犹謂ｸｲ犧�ｹ犧巵ｹ�ｸ吭ｸ倨ｸ｣犧｣犧｡犧癌ｸｲ犧歩ｸｴ犹≒ｸ･犧ｰ犧歩ｸ｣犧�ｸ巵ｸ｣犧ｰ犹犧扉ｹ�ｸ吭ｸ伶ｸｵ犹謂ｸｪ犧ｸ犧� (犧�ｸｧ犧ｲ犧｡犧｢犧ｲ犧ｧ犹�ｸ｡犹謂ｹ犧≒ｸｴ犧� 3-4 犧壟ｸ｣犧｣犧伶ｸｱ犧� 犧ｫ犧｣犧ｷ犧ｭ犧ｪ犧｣犧ｸ犧巵ｹ犧巵ｹ�ｸ吭ｸもｹ霞ｸｭ犧ｪ犧ｱ犹霞ｸ吭ｹ�) 犧ｫ犹霞ｸｲ犧｡犧樅ｸｹ犧扉ｸｫ犧｣犧ｷ犧ｭ犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�ｸ籾ｸｶ犧�ｸ�ｸｳ犧ｧ犹謂ｸｲ '犧謂ｸｲ犧≒ｸ壟ｸ｣犧ｴ犧壟ｸ伶ｸ伶ｸｵ犹謂ｸ≒ｸｳ犧ｫ犧吭ｸ扉ｹ�ｸｫ犹�', '犧謂ｸｲ犧≒ｹ犧ｭ犧≒ｸｪ犧ｲ犧｣犧伶ｸｵ犹謂ｹ≒ｸ吭ｸ壟ｹ�ｸｧ犹�', '犧謂ｸｲ犧≒ｹ�ｸ游ｸ･犹�' 犧ｫ犧｣犧ｷ犧ｭ犧�ｸｳ犧ｭ犧ｷ犹謂ｸ吭ｹ�ｸ扉ｸ伶ｸｵ犹謂ｸｪ犧ｷ犹謂ｸｭ犧籾ｸｶ犧�ｹ≒ｸｫ犧･犹謂ｸ�ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧ｫ犧｣犧ｷ犧ｭ犹犧壟ｸｷ犹霞ｸｭ犧�ｸｫ犧･犧ｱ犧�ｸ≒ｸｲ犧｣犧巵ｹ霞ｸｭ犧吭ｸもｹ霞ｸｭ犧｡犧ｹ犧･犹もｸ扉ｸ｢犹犧扉ｹ�ｸ扉ｸもｸｲ犧� 犹�ｸｫ犹霞ｸ歩ｸｭ犧壟ｹ犧ｪ犧｡犧ｷ犧ｭ犧吭ｸｧ犹謂ｸｲ犧�ｸｸ犧内ｸ｡犧ｵ犧�ｸｧ犧ｲ犧｡犧｣犧ｹ犹霞ｹ犧｣犧ｷ犹謂ｸｭ犧�ｸ吭ｸｱ犹霞ｸ吭ｸｭ犧｢犧ｹ犹謂ｹ≒ｸ･犹霞ｸｧ犹もｸ扉ｸ｢犧歩ｸ｣犧� 犧ｫ犧ｲ犧≒ｹ�ｸ｡犹謂ｸ樅ｸ壟ｸもｹ霞ｸｭ犧｡犧ｹ犧･ 犹�ｸｫ犹霞ｹ≒ｸ謂ｹ霞ｸ�ｸ憫ｸｹ犹霞ｹ�ｸ癌ｹ霞ｸｭ犧｢犹謂ｸｲ犧�ｸｪ犧ｸ犧�犧ｲ犧樅ｸｧ犹謂ｸｲ犹�ｸ｡犹謂ｸ樅ｸ壟ｸもｹ霞ｸｭ犧｡犧ｹ犧･ 犹≒ｸ･犧ｰ犧歩ｹ霞ｸｭ犧�ｸ歩ｸｭ犧壟ｸ≒ｸ･犧ｱ犧壟ｹ犧巵ｹ�ｸ吭ｸ�犧ｲ犧ｩ犧ｲ犹�ｸ伶ｸ｢ 犧ｫ犹霞ｸｲ犧｡犧歩ｸｭ犧壟ｸ�ｸｳ犧籾ｸｲ犧｡犧謂ｸｲ犧≒ｸ�ｸ吭ｸ伶ｸｵ犹謂ｸ樅ｸｴ犧｡犧樅ｹ呉ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｹ犧もｹ霞ｸｲ犧｡犧ｲ 犹犧癌ｹ謂ｸ� 犧≒ｸｹ 犹�ｸｭ犹霞ｹ犧ｫ犧ｵ犹霞ｸ｢ 犹�ｸｭ犹霞ｸｪ犧ｱ犧歩ｸｧ犹� 犧｡犧ｶ犧�")
+    system_prompt = config.get("system_prompt", "คุณคือ \"ขาหมู\" ผู้ช่วยแชทบอทอัจฉริยะ (ผู้ชาย) ของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (TUH) ที่ตอบคำถามอย่างเป็นธรรมชาติ สุภาพ และราบรื่น (Smooth)\n- **การแทนตัวเองและการลงท้าย:** ต้องแทนตัวเองว่า \"ผม\" และลงท้ายประโยคด้วย \"ครับ\" เสมอ ห้ามใช้คำว่า \"ค่ะ\", \"คะ\", หรือ \"ครับ/ค่ะ\" อย่างเด็ดขาดในทุกกรณี! (แม้คำตอบดั้งเดิมในเอกสารอ้างอิงจะมีคำว่า ค่ะ ให้แปลงเป็น ครับ ทั้งหมด)\n- **วิธีการตอบ:** ตอบโดยใช้ภาษาที่เข้าใจง่าย กระชับ และตรงประเด็น ห้ามเริ่มต้นคำตอบด้วยคำว่า \"จากเอกสารอ้างอิงที่ให้มา\", \"จากข้อมูลที่ระบุ\", \"จากบริบทที่กำหนดให้\", \"จากเอกสารแนบ\", \"จากไฟล์\" หรือคำอื่นใดที่สื่อถึงเบื้องหลังข้อมูลเด็ดขาด ให้เริ่มตอบเข้าสู่ประเด็นโดยตรงเสมือนคุณมีความรู้เรื่องนั้นอยู่แล้วโดยตรง\n- **การติดต่อสอบถามเพิ่มเติม:** หากต้องให้สอบถามเพิ่มเติม ให้แจ้งให้ติดต่อ \"9000 - งานบริหารทรัพยากรมนุษย์ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ\" เสมอ\n- **เอกสารอ้างอิง:** หากตอบได้ ให้ใช้ข้อมูลอ้างอิงประกอบ แต่ถ้าตอบไม่ได้เพราะไม่มีข้อมูล ให้แจ้งผู้ใช้อย่างสุภาพว่าไม่มีข้อมูลเรื่องนี้ และห้ามนำเอกสารอ้างอิงที่ไม่เกี่ยวข้องมาแนบ\n- **การกรองคำหยาบคาย:** ห้ามตอบคำถามจากผู้ใช้ที่ใช้คำหยาบ โดยให้ตอบปฏิเสธที่จะตอบอย่างสุภาพ")
+    
+    # แทรกข้อมูลรายชื่อแบบฟอร์มสวัสดิการที่ลงทะเบียนไว้
+    forms_list = load_db(DB_FORMS_PATH, [])
+    if forms_list:
+        forms_info = "รายชื่อแบบฟอร์มสวัสดิการที่ระบบสนับสนุนการดาวน์โหลดตรง:\n"
+        for f in forms_list:
+            name = f.get("name", "").strip()
+            if name:
+                forms_info += f"- {name}\n"
+        system_prompt += f"\n\n{forms_info}\nสำคัญมาก:\n1. เมื่อมีการกล่าวถึงหรืออ้างอิงถึงชื่อแบบฟอร์มเหล่านี้ในคำตอบ ให้เขียนสะกดตรงเป๊ะตามรายชื่อข้างต้น ห้ามดัดแปลงหรือย่อชื่อโดยเด็ดขาด เพื่อให้ระบบกรองและฝังลิงก์ดาวน์โหลดตรงได้ถูกต้อง\n2. หากผู้ใช้ถามหาแบบฟอร์ม ไฟล์ ลิงก์ดาวน์โหลด หรือช่องทางรับแบบฟอร์ม ให้ยืนยันอย่างชัดเจนและสุภาพว่าคุณมีแบบฟอร์มพร้อมให้ดาวน์โหลด และผู้ใช้สามารถกดคลิกที่ชื่อแบบฟอร์มในคำตอบเพื่อเปิดดาวน์โหลด PDF ได้โดยตรงจากระบบได้เลยครับ ห้ามตอบว่าไม่มีข้อมูลหรือดาวน์โหลดไม่ได้เด็ดขาด" 
     temp = float(config.get("temperature", 0.2))
     max_tokens = int(config.get("max_tokens", 1000))
+    if max_tokens < 1000:
+        max_tokens = 1000
     api_key = config.get("gemini_api_key") or gemini_api_key
     model_name = config.get("model_name", "deepseek/deepseek-v4-flash")
 
@@ -387,7 +404,7 @@ def generate_response_ai(query, results, config, history=[]):
     for msg in history:
         role = "user" if msg.get("sender") == "user" else "assistant"
         openai_messages.append({"role": role, "content": msg.get("text", "")})
-    openai_messages.append({"role": "user", "content": f"犧壟ｸ｣犧ｴ犧壟ｸ伶ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧� (Context):\n{context}\n\n犧�ｸｳ犧籾ｸｲ犧｡犧謂ｸｲ犧≒ｸ憫ｸｹ犹霞ｹ�ｸ癌ｹ�: {query}"})
+    openai_messages.append({"role": "user", "content": f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"})
 
     ans = None
     for attempt in range(2):
@@ -418,7 +435,7 @@ def generate_response_ai(query, results, config, history=[]):
         except Exception as e:
             print(f"OpenRouter API Error 犹�ｸ吭ｸ｣犧ｭ犧壟ｸ伶ｸｵ犹� {attempt + 1}: {e}")
             if attempt == 1:
-                ans = f"犹犧≒ｸｴ犧扉ｸもｹ霞ｸｭ犧憫ｸｴ犧扉ｸ樅ｸ･犧ｲ犧扉ｹ�ｸ吭ｸ≒ｸｲ犧｣犧扉ｸｶ犧�ｸ�ｸｳ犧歩ｸｭ犧�: {e}\n\n" + get_fallback_vector_answer(results)
+                ans = f"เกิดข้อผิดพลาดในการทำงานของคำตอบ: {e}\n\n" + get_fallback_vector_answer(results)
             time.sleep(1)
 
     if ans is None or ans.strip() == "":
@@ -428,8 +445,11 @@ def generate_response_ai(query, results, config, history=[]):
     has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
     is_profanity_warning = has_profanity_in_history or (ans and any(k in ans for k in ["คำไม่สุภาพ", "ไม่สุภาพ", "คำสุภาพ", "กรุณาใช้คำสุภาพ"]))
 
-    # แสดงรายการเอกสารประกอบท้ายคำตอบ
-    if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning:
+    # ตรวจสอบว่าคำตอบระบุว่าไม่มีข้อมูล / ไม่สามารถตอบได้ หรือไม่ เพื่อไม่แนบเอกสารอ้างอิง
+    is_unanswered_response = ans and any(k in ans for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้", "ไม่ได้ระบุ", "ไม่มีรายละเอียด"])
+
+    # แสดงรายการเอกสารประกอบท้ายคำตอบ (ห้ามแสดงหากเป็นคำเตือนคำหยาบคาย หรือเป็นเคสไม่มีข้อมูล)
+    if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning and not is_unanswered_response:
         citations = []
         for res in results:
             source = res["metadata"].get("source", "เอกสารอ้างอิง")
@@ -452,7 +472,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-File-Name, X-Exclude-Pages')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-File-Name, X-Exclude-Pages, X-Form-Name, X-Form-Page')
         self.end_headers()
 
     def _send_json(self, data, status=200):
@@ -486,6 +506,54 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         # 3. Feedbacks
         elif path == '/api/admin/feedback':
             self._send_json(load_db(DB_FEEDBACK_PATH, []))
+        elif path == '/api/admin/forms':
+            self._send_json(load_db(DB_FORMS_PATH, []))
+        elif path.startswith('/api/forms/download/'):
+            filename = unquote(path.replace('/api/forms/download/', ''))
+            forms_dir = os.path.join(root_dir, "uploads", "forms")
+            filepath = os.path.join(forms_dir, filename)
+            
+            # Security check
+            resolved_path = os.path.abspath(filepath)
+            resolved_forms_dir = os.path.abspath(forms_dir)
+            if not resolved_path.startswith(resolved_forms_dir):
+                self.send_response(403)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Access Denied"}).encode('utf-8'))
+                return
+                
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, "rb") as f_binary:
+                        data = f_binary.read()
+                    self.send_response(200)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Content-Type', 'application/pdf')
+                    from urllib.parse import quote
+                    safe_filename = "form.pdf"
+                    self.send_header('Content-Disposition', f'inline; filename="{safe_filename}"; filename*=UTF-8\'\'{quote(filename)}')
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                except Exception as e:
+                    self.send_response(500)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            else:
+                self.send_response(404)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "File Not Found"}).encode('utf-8'))
+        # Announcements
+        elif path == '/api/admin/announcements':
+            self._send_json(load_db(DB_ANNOUNCEMENTS_PATH, []))
+        elif path == '/api/announcements/active':
+            self.handle_announcements_active()
         # 4. Unanswered Questions
         elif path == '/api/admin/unanswered':
             self._send_json(load_db(DB_UNANSWERED_PATH, []))
@@ -538,6 +606,14 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         # 8. Feedback Submit
         elif self.path == '/api/admin/feedback/submit':
             self.handle_feedback_submit()
+        elif self.path == '/api/admin/forms/upload':
+            self.handle_forms_upload()
+        elif self.path == '/api/admin/forms/delete':
+            self.handle_forms_delete()
+        elif self.path == '/api/admin/announcements/create':
+            self.handle_announcements_create()
+        elif self.path == '/api/admin/announcements/delete':
+            self.handle_announcements_delete()
         # 9. Document Approve Step
         elif self.path == '/api/admin/documents/approve':
             self.handle_documents_approve()
@@ -569,7 +645,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
 
             # 犧歩ｸ｣犧ｧ犧謂ｸｪ犧ｭ犧壟ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｸ≒ｹ謂ｸｭ犧吭ｸ巵ｸ｣犧ｰ犧｡犧ｧ犧･犧憫ｸ･
             if contains_profanity(query_str):
-                profanity_warning = "犧もｸｭ犧ｭ犧�犧ｱ犧｢犧�ｸ｣犧ｱ犧� 犧≒ｸ｣犧ｸ犧内ｸｲ犹�ｸ癌ｹ霞ｸ�ｸｳ犧ｪ犧ｸ犧�犧ｲ犧樅ｹ�ｸ吭ｸ≒ｸｲ犧｣犧ｪ犧吭ｸ伶ｸ吭ｸｲ犧扉ｹ霞ｸｧ犧｢犧�ｸ｣犧ｱ犧� ��"
+                profanity_warning = "ขออภัยด้วยครับ กรุณาใช้คำสุภาพในการสนทนาด้วยนะครับ 😊"
                 log_bot_response(query_str, profanity_warning, [], 0.0, "Profanity Filter")
                 self._send_json({"answer": profanity_warning, "results": []})
                 return
@@ -597,7 +673,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             active_docs = {d["filename"] for d in docs if d.get("status") == "Active"}
             
             # 犹≒ｸ｡犧巵ｸ癌ｸｷ犹謂ｸｭ犧�ｸｹ犹謂ｸｪ犧ｱ犧財ｸ財ｸｲ犧｣犧ｭ犧�ｸ｣犧ｱ犧壟ｹ�ｸ游ｸ･犹呉ｸ｣犧ｰ犧壟ｸ壟ｹ犧≒ｹ謂ｸｲ
-            default_pdf = "犧巵ｸ｣犧ｰ犧≒ｸｲ犧ｨ 犧｡犧�.犧ｪ犧ｧ犧ｱ犧ｪ犧扉ｸｴ犧≒ｸｲ犧｣犧扉ｹ霞ｸｲ犧吭ｸｪ犧ｸ犧もｸ�犧ｲ犧� 犧�.犧ｨ.2566.pdf"
+            default_pdf = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
             if default_pdf in active_docs:
                 active_docs.update(["sample_cleaned.md", "sample_cleaned.json"])
             
@@ -616,6 +692,46 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     print(f"Error querying retriever: {e}")
             
             answer = generate_response_ai(query_str, results, config, history)
+            
+            # ค้นหาและแนบลิงก์ Google Drive ของแบบฟอร์มสวัสดิการที่เกี่ยวข้อง (รองรับการแมตช์แบบยืดหยุ่น)
+            forms = load_db(DB_FORMS_PATH, [])
+            matched_forms = []
+            import re
+            for form in forms:
+                form_name = form.get("name", "").strip()
+                form_link = form.get("link", "").strip()
+                if form_name and form_link:
+                    # หาคำหลักที่เป็นเอกลักษณ์ของแบบฟอร์มนั้น ๆ
+                    core_name = form_name.replace("แบบเสนอขอรับ", "").replace("แบบคำขอเบิก", "").replace("แบบฟอร์ม", "").strip()
+                    is_match = False
+                    matched_term = ""
+                    
+                    if form_name in answer:
+                        is_match = True
+                        matched_term = form_name
+                    elif core_name and len(core_name) > 4 and core_name in answer:
+                        is_match = True
+                        # ค้นหาคำเต็ม ๆ ในคำตอบที่ครอบคลุม core_name
+                        pattern = r"(?:แบบคำขอเบิก|แบบเสนอขอรับ|แบบฟอร์มขอเบิก|แบบฟอร์มขอรับ|แบบฟอร์ม|แบบคำขอ|ใบเสนอขอรับ|ใบคำขอเบิก)\s*" + re.escape(core_name)
+                        m = re.search(pattern, answer)
+                        if m:
+                            matched_term = m.group(0).strip()
+                        else:
+                            matched_term = core_name
+                            
+                    if is_match:
+                        matched_forms.append(form)
+            
+            if matched_forms:
+                form_bullets = []
+                for form in matched_forms:
+                    form_bullets.append(f"- [{form.get('name')}]({form.get('link')})")
+                form_section = "\n\n🔗 **แบบฟอร์มที่เกี่ยวข้อง (ดาวน์โหลดไฟล์ PDF):**\n" + "\n".join(form_bullets)
+                if "---" in answer and "เอกสารอ้างอิง:" in answer:
+                    parts = answer.split("---", 1)
+                    answer = parts[0] + form_section + "\n\n---" + parts[1]
+                else:
+                    answer += form_section
             response_time = time.perf_counter() - start_time
             
             # 犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ犹≒ｸ･犧ｰ犧歩ｸｱ犧ｧ犧謂ｸｳ犧･犧ｭ犧�
@@ -624,7 +740,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             
             # 犹犧癌ｹ�ｸ�ｸｧ犹謂ｸｲ犧�ｸｳ犧歩ｸｭ犧壟ｹ犧巵ｹ�ｸ吭ｸ�ｸｳ犹犧歩ｸｷ犧ｭ犧吭ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｸｫ犧｣犧ｷ犧ｭ犹�ｸ｡犹� 犹犧樅ｸｷ犹謂ｸｭ犹犧�ｸ･犧ｵ犧｢犧｣犹呉ｸ憫ｸ･犧･犧ｱ犧樅ｸ倨ｹ呉ｹ≒ｸ･犧ｰ犧巵ｹ霞ｸｭ犧�ｸ≒ｸｱ犧吭ｸ≒ｸｲ犧｣犧扉ｸｶ犧�ｹ犧ｭ犧≒ｸｪ犧ｲ犧｣犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�
             has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
-            is_profanity_warning = has_profanity_in_history or any(k in answer for k in ["犧�ｸｳ犧ｫ犧｢犧ｲ犧�", "犹�ｸ｡犹謂ｸｪ犧ｸ犧�犧ｲ犧�", "犧�ｸｳ犧ｪ犧ｸ犧�犧ｲ犧�", "犹�ｸ癌ｹ霞ｸ�ｸｳ犧ｪ犧ｸ犧�犧ｲ犧�"])
+            is_profanity_warning = has_profanity_in_history or any(k in answer for k in ["คำไม่สุภาพ", "ไม่สุภาพ", "คำสุภาพ", "กรุณาใช้คำสุภาพ"])
             
             if is_profanity_warning:
                 results = []
@@ -633,7 +749,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             log_bot_response(query_str, answer, chunk_ids, response_time, model_tag)
 
             # 犧�ｸｱ犧扉ｸ≒ｸ｣犧ｭ犧�ｸ籾ｹ霞ｸｲ犧ｫ犧ｲ犧�ｸｧ犧ｲ犧｡犧｣犧ｹ犹霞ｹ�ｸ｡犹謂ｸ樅ｹ霞ｸ�
-            is_unanswered = len(results) == 0 or any(k in answer for k in ["犹�ｸ｡犹謂ｸ樅ｸ壟ｸもｹ霞ｸｭ犧｡犧ｹ犧･", "犧もｸｭ犧ｭ犧�犧ｱ犧｢", "犹�ｸ｡犹謂ｸ｡犧ｵ犧もｹ霞ｸｭ犧｡犧ｹ犧･", "犹�ｸ｡犹謂ｸｪ犧ｲ犧｡犧ｲ犧｣犧籾ｸ歩ｸｭ犧壟ｹ�ｸ扉ｹ�"])
+            is_unanswered = len(results) == 0 or any(k in answer for k in ["ไม่พบข้อมูล", "ขออภัย", "ไม่มีข้อมูล", "ไม่สามารถตอบได้"])
             if is_unanswered and not is_profanity_warning:
                 log_unanswered_query(query_str)
                 
@@ -654,10 +770,10 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     "token": "tuh-admin-session-token-998877",
                     "username": "admin",
                     "role": "System Administrator",
-                    "name": "犹≒ｸｭ犧扉ｸ｡犧ｴ犧� 犧ｪ犧ｲ犧｣犧ｪ犧吭ｹ犧伶ｸｨ"
+                    "name": "แอดมิน สารสนเทศ"
                 })
             else:
-                self._send_json({"error": "犧癌ｸｷ犹謂ｸｭ犧憫ｸｹ犹霞ｹ�ｸ癌ｹ霞ｸｫ犧｣犧ｷ犧ｭ犧｣犧ｫ犧ｱ犧ｪ犧憫ｹ謂ｸｲ犧吭ｹ�ｸ｡犹謂ｸ籾ｸｹ犧≒ｸ歩ｹ霞ｸｭ犧�"}, 401)
+                self._send_json({"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}, 401)
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
 
@@ -695,6 +811,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             rating = data.get("rating", "")
             comment = data.get("comment", "")
             query = data.get("query", "")
+            answer = data.get("answer", "")
             msg_id = data.get("msgId", "")
             
             feedback = load_db(DB_FEEDBACK_PATH, [])
@@ -703,6 +820,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 if fb.get("msgId") == msg_id and msg_id:
                     if rating: fb["rating"] = rating
                     if comment: fb["comment"] = comment
+                    if query: fb["query"] = query
+                    if answer: fb["answer"] = answer
                     fb["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
                     updated = True
                     break
@@ -714,6 +833,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     "rating": rating,
                     "comment": comment,
                     "query": query,
+                    "answer": answer,
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
                 })
             save_db(DB_FEEDBACK_PATH, feedback)
@@ -744,6 +864,222 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     break
             save_db(DB_UNANSWERED_PATH, unanswered)
             self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+
+    def _parse_pages(self, page_str, total_pages):
+        """Parse page specification like '1,3,5' or '2-5' or '1-3,7' into sorted 0-indexed page list."""
+        pages = set()
+        parts = page_str.replace(' ', '').split(',')
+        for part in parts:
+            if not part:
+                continue
+            if '-' in part:
+                bounds = part.split('-', 1)
+                try:
+                    start = int(bounds[0]) - 1
+                    end = int(bounds[1]) - 1
+                except ValueError:
+                    continue
+                for p in range(start, end + 1):
+                    if 0 <= p < total_pages:
+                        pages.add(p)
+            else:
+                try:
+                    p = int(part) - 1
+                    if 0 <= p < total_pages:
+                        pages.add(p)
+                except ValueError:
+                    continue
+        return sorted(pages)
+
+    def handle_forms_upload(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            from urllib.parse import unquote, quote
+            form_name = unquote(self.headers.get('X-Form-Name', '').strip())
+            filename = unquote(self.headers.get('X-File-Name', 'form.pdf').strip())
+            page = unquote(self.headers.get('X-Form-Page', '').strip())
+            
+            if not form_name or not filename:
+                self._send_json({"error": "กรุณากรอกชื่อและเลือกไฟล์แบบฟอร์มให้ครบถ้วน"}, 400)
+                return
+                
+            post_data = self.rfile.read(content_length)
+            
+            forms_dir = os.path.join(root_dir, "uploads", "forms")
+            os.makedirs(forms_dir, exist_ok=True)
+            
+            # Save the uploaded file temporarily
+            ts = int(time.time())
+            temp_filepath = os.path.join(forms_dir, f"_temp_{ts}_{filename}")
+            with open(temp_filepath, "wb") as f:
+                f.write(post_data)
+            
+            # If pages are specified, extract only those pages from the PDF
+            final_filename = f"{ts}_{filename}"
+            final_filepath = os.path.join(forms_dir, final_filename)
+            
+            if page:
+                try:
+                    import fitz
+                    src_doc = fitz.open(temp_filepath)
+                    total = len(src_doc)
+                    page_indices = self._parse_pages(page, total)
+                    
+                    if not page_indices:
+                        src_doc.close()
+                        os.remove(temp_filepath)
+                        self._send_json({"error": f"หน้าที่ระบุ ({page}) ไม่อยู่ในไฟล์ PDF (มีทั้งหมด {total} หน้า)"}, 400)
+                        return
+                    
+                    new_doc = fitz.open()
+                    for pi in page_indices:
+                        new_doc.insert_pdf(src_doc, from_page=pi, to_page=pi)
+                    new_doc.save(final_filepath)
+                    new_doc.close()
+                    src_doc.close()
+                    os.remove(temp_filepath)
+                    human_pages = [str(p + 1) for p in page_indices]
+                    print(f"Extracted pages {','.join(human_pages)} from '{filename}' -> '{final_filename}'")
+                except Exception as extract_err:
+                    print(f"Error extracting pages: {extract_err}")
+                    # Fallback: use the full file
+                    if os.path.exists(temp_filepath):
+                        os.rename(temp_filepath, final_filepath)
+            else:
+                # No page specified, use the full file as-is
+                os.rename(temp_filepath, final_filepath)
+                
+            forms = load_db(DB_FORMS_PATH, [])
+            
+            # If form with this name already exists, remove its old file and update it
+            for f_item in forms:
+                if f_item.get("name", "").lower() == form_name.lower():
+                    old_filename = f_item.get("filename")
+                    if old_filename:
+                        old_filepath = os.path.join(forms_dir, old_filename)
+                        if os.path.exists(old_filepath):
+                            try:
+                                os.remove(old_filepath)
+                            except Exception:
+                                pass
+                    f_item["filename"] = final_filename
+                    f_item["page"] = page
+                    host = self.headers.get('Host', 'localhost:8000')
+                    f_item["link"] = f"http://{host}/api/forms/download/{quote(final_filename)}"
+                    save_db(DB_FORMS_PATH, forms)
+                    self._send_json({"success": True, "message": "อัปเดตแบบฟอร์มเดิมและอัปโหลดไฟล์ใหม่สำเร็จ"})
+                    return
+            
+            host = self.headers.get('Host', 'localhost:8000')
+            forms.append({
+                "id": f"form-{int(time.time() * 1000)}",
+                "name": form_name,
+                "filename": final_filename,
+                "page": page,
+                "link": f"http://{host}/api/forms/download/{quote(final_filename)}"
+            })
+            save_db(DB_FORMS_PATH, forms)
+            page_msg = f" (ตัดเฉพาะหน้า {page})" if page else ""
+            self._send_json({"success": True, "message": f"เพิ่มแบบฟอร์มใหม่และอัปโหลดไฟล์สำเร็จ{page_msg}"})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_forms_delete(self):
+        try:
+            data = self._get_json_payload()
+            form_id = data.get("id", "")
+            
+            forms = load_db(DB_FORMS_PATH, [])
+            new_forms = []
+            forms_dir = os.path.join(root_dir, "uploads", "forms")
+            for f in forms:
+                if f.get("id") == form_id:
+                    old_filename = f.get("filename")
+                    if old_filename:
+                        old_filepath = os.path.join(forms_dir, old_filename)
+                        if os.path.exists(old_filepath):
+                            try:
+                                os.remove(old_filepath)
+                            except Exception:
+                                pass
+                else:
+                    new_forms.append(f)
+            save_db(DB_FORMS_PATH, new_forms)
+            self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_announcements_create(self):
+        try:
+            data = self._get_json_payload()
+            title = data.get("title", "").strip()
+            content = data.get("content", "").strip()
+            start_date = data.get("start_date", "").strip() # Format: YYYY-MM-DDTHH:MM or YYYY-MM-DD
+            end_date = data.get("end_date", "").strip()     # Format: YYYY-MM-DDTHH:MM or YYYY-MM-DD
+            
+            if not title or not content or not start_date or not end_date:
+                self._send_json({"error": "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง"}, 400)
+                return
+                
+            announcements = load_db(DB_ANNOUNCEMENTS_PATH, [])
+            announcements.append({
+                "id": f"ann-{int(time.time() * 1000)}",
+                "title": title,
+                "content": content,
+                "start_date": start_date,
+                "end_date": end_date,
+                "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            save_db(DB_ANNOUNCEMENTS_PATH, announcements)
+            self._send_json({"success": True, "message": "สร้างประกาศสำเร็จ"})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_announcements_delete(self):
+        try:
+            data = self._get_json_payload()
+            ann_id = data.get("id", "")
+            if not ann_id:
+                self._send_json({"error": "Missing announcement ID"}, 400)
+                return
+            announcements = load_db(DB_ANNOUNCEMENTS_PATH, [])
+            new_announcements = [a for a in announcements if a.get("id") != ann_id]
+            save_db(DB_ANNOUNCEMENTS_PATH, new_announcements)
+            self._send_json({"success": True, "message": "ลบประกาศสำเร็จ"})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_announcements_active(self):
+        try:
+            # Filter announcements where local time is between start_date and end_date
+            now_str = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
+            now_date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            
+            announcements = load_db(DB_ANNOUNCEMENTS_PATH, [])
+            active_list = []
+            
+            for a in announcements:
+                start = a.get("start_date", "")
+                end = a.get("end_date", "")
+                
+                # If the date is simple date (YYYY-MM-DD), pad it with time to compare properly
+                if len(start) == 10:
+                    start += "T00:00"
+                if len(end) == 10:
+                    end += "T23:59"
+                
+                if len(now_str) == 16 and len(start) == 16 and len(end) == 16:
+                    if start <= now_str <= end:
+                        active_list.append(a)
+                else:
+                    # Fallback string compare
+                    if start <= now_date_str <= end:
+                        active_list.append(a)
+                        
+            self._send_json(active_list)
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
 
@@ -1019,7 +1355,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
     def handle_documents_upload(self):
         try:
             content_length = int(self.headers['Content-Length'])
-            from urllib.parse import unquote
+            from urllib.parse import unquote, quote
             filename = unquote(self.headers.get('X-File-Name', 'uploaded_document.pdf'))
             post_data = self.rfile.read(content_length)
             

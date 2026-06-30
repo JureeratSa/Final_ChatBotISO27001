@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import dog from './dog.png'; // Rebuild trigger
+import dog from './dog.png'; // Rebuild trigger 
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
@@ -98,6 +98,19 @@ function App() {
   const [docSortField, setDocSortField] = useState('upload_date'); // default by upload date
   const [docSortOrder, setDocSortOrder] = useState('desc'); // default desc (newest first)
 
+  // Welfare Forms States
+  const [forms, setForms] = useState([]);
+  const [formName, setFormName] = useState('');
+  const [formFile, setFormFile] = useState(null);
+  const [formPage, setFormPage] = useState('');
+
+  // Announcement States
+  const [announcements, setAnnouncements] = useState([]);
+  const [annTitle, setAnnTitle] = useState('');
+  const [annContent, setAnnContent] = useState('');
+  const [annStartDate, setAnnStartDate] = useState('');
+  const [annEndDate, setAnnEndDate] = useState('');
+
   // Bot Response History States
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -130,6 +143,8 @@ function App() {
       fetchUnanswered();
       fetchSettings();
       fetchHistory();
+      fetchForms();
+      fetchAnnouncements();
     }
   }, [isLoggedIn]);
 
@@ -137,6 +152,13 @@ function App() {
   useEffect(() => {
     if (isLoggedIn && activeTab === 'history') {
       fetchHistory();
+    }
+  }, [activeTab, isLoggedIn]);
+
+  // Refetch announcements when switching to announcements tab
+  useEffect(() => {
+    if (isLoggedIn && activeTab === 'announcements') {
+      fetchAnnouncements();
     }
   }, [activeTab, isLoggedIn]);
 
@@ -337,6 +359,134 @@ function App() {
       .then(r => r.json())
       .then(data => setUnanswered(data))
       .catch(err => console.error("Error fetching unanswered:", err));
+  };
+
+  const fetchForms = () => {
+    fetch(API_URL + '/api/admin/forms')
+      .then(res => res.json())
+      .then(data => setForms(data))
+      .catch(err => console.error("Error fetching forms:", err));
+  };
+
+  const handleAddForm = (e) => {
+    e.preventDefault();
+    if (!formName.trim()) {
+      showError("กรุณากรอกชื่อแบบฟอร์ม");
+      return;
+    }
+    if (!formFile) {
+      showError("กรุณาเลือกไฟล์ PDF ของแบบฟอร์ม");
+      return;
+    }
+
+    const headers = {
+      'X-Form-Name': encodeURIComponent(formName),
+      'X-File-Name': encodeURIComponent(formFile.name),
+      'X-Form-Page': formPage || ''
+    };
+
+    fetch(API_URL + '/api/admin/forms/upload', {
+      method: 'POST',
+      headers: headers,
+      body: formFile
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showError(data.error);
+        } else {
+          showSuccess(data.message || "บันทึกและอัปโหลดแบบฟอร์มสำเร็จ");
+          setFormName('');
+          setFormPage('');
+          setFormFile(null);
+          const fileInput = document.getElementById('form-file-uploader');
+          if (fileInput) fileInput.value = '';
+          fetchForms();
+        }
+      })
+      .catch(err => showError("เกิดข้อผิดพลาดในการอัปโหลดแบบฟอร์ม"));
+  };
+
+  const handleDeleteForm = (formId) => {
+    if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบแบบฟอร์มนี้?")) return;
+    fetch(API_URL + '/api/admin/forms/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: formId })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showSuccess("ลบแบบฟอร์มสำเร็จ");
+          fetchForms();
+        } else {
+          showError("ลบไม่สำเร็จ");
+        }
+      })
+      .catch(err => showError("เกิดข้อผิดพลาดในการลบ"));
+  };
+
+  const fetchAnnouncements = () => {
+    fetch(API_URL + '/api/admin/announcements')
+      .then(res => res.json())
+      .then(data => setAnnouncements(data))
+      .catch(err => console.error("Error fetching announcements:", err));
+  };
+
+  const handleCreateAnnouncement = (e) => {
+    e.preventDefault();
+    if (!annTitle.trim() || !annContent.trim() || !annStartDate || !annEndDate) {
+      showError("กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง");
+      return;
+    }
+    if (new Date(annStartDate) > new Date(annEndDate)) {
+      showError("วันเริ่มประกาศต้องไม่มากกว่าวันสิ้นสุดประกาศ");
+      return;
+    }
+
+    fetch(API_URL + '/api/admin/announcements/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: annTitle,
+        content: annContent,
+        start_date: annStartDate,
+        end_date: annEndDate
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          showError(data.error);
+        } else {
+          showSuccess("สร้างประกาศสำเร็จ");
+          setAnnTitle('');
+          setAnnContent('');
+          setAnnStartDate('');
+          setAnnEndDate('');
+          fetchAnnouncements();
+        }
+      })
+      .catch(err => showError("เกิดข้อผิดพลาดในการสร้างประกาศ"));
+  };
+
+  const handleDeleteAnnouncement = (annId) => {
+    if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประกาศนี้ก่อนหมดระยะเวลา?")) return;
+    fetch(API_URL + '/api/admin/announcements/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: annId })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          showSuccess("ลบประกาศสำเร็จ");
+          fetchAnnouncements();
+        } else {
+          showError("ลบไม่สำเร็จ");
+        }
+      })
+      .catch(err => showError("เกิดข้อผิดพลาดในการลบประกาศ"));
   };
 
   const fetchSettings = () => {
@@ -805,9 +955,9 @@ function App() {
         return {
           ...faq,
           question: predefinedFaqQuestion,
-          answer: '',
-          response: '', // Keep answer empty to enforce RAG search on PDF
-          icon: faq.icon || 'fa-circle-question'
+          answer: predefinedFaqAnswer,
+          response: predefinedFaqAnswer,
+          icon: predefinedFaqIcon || 'fa-circle-question'
         };
       }
       return faq;
@@ -932,7 +1082,7 @@ function App() {
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Username</label>
               <div className="relative">
-                <i className="fa-solid fa-user absolute left-4 top-3.5 text-slate-400"></i>
+                <i className="fa-solid fa-user absolute left-4 top-3.5 text-slate-500 dark:text-slate-400"></i>
                 <input
                   type="text"
                   required
@@ -947,7 +1097,7 @@ function App() {
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Password</label>
               <div className="relative">
-                <i className="fa-solid fa-lock absolute left-4 top-3.5 text-slate-400"></i>
+                <i className="fa-solid fa-lock absolute left-4 top-3.5 text-slate-500 dark:text-slate-400"></i>
                 <input
                   type={showPassword ? "text" : "password"}
                   required
@@ -985,7 +1135,7 @@ function App() {
             </button>
           </form>
 
-          <div className="mt-8 text-center text-xs text-slate-400 font-semibold">
+          <div className="mt-8 text-center text-xs text-slate-500 dark:text-slate-400 font-semibold">
             งานสารสนเทศ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
           </div>
         </div>
@@ -1033,12 +1183,12 @@ function App() {
             className="w-10 h-10 rounded-xl object-cover shadow-md shrink-0 border border-slate-100 dark:border-tuh-purple/20"
           />
           <div>
-            <h2 className="font-extrabold text-base text-tuh-navy dark:text-white leading-tight">TUH Admin Chatbot</h2>
+            <h2 className="font-extrabold text-xl text-tuh-navy dark:text-white leading-tight font-roboto">TUH Admin Chatbot</h2>
             <a
               href="https://intranet.hospital.tu.ac.th/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[10px] text-tuh-indigo/60 dark:text-white hover:text-tuh-rose dark:hover:text-tuh-pink font-bold block mt-0.5 leading-none transition-colors cursor-pointer"
+              className="text-xs text-tuh-indigo/80 dark:text-slate-200 font-bold block mt-0.5 leading-none transition-colors cursor-pointer font-roboto"
             >
               Thammasat University Hospital
             </a>
@@ -1069,6 +1219,14 @@ function App() {
           >
             <i className="fa-solid fa-file-pdf text-sm"></i>
             <span>จัดการเอกสาร PDF</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('announcements'); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+          >
+            <i className="fa-solid fa-bullhorn text-sm"></i>
+            <span>สร้างและจัดการประกาศ</span>
           </button>
 
           <button
@@ -1134,7 +1292,7 @@ function App() {
               <i className={`fa-solid ${isDarkMode ? 'fa-sun text-amber-500 animate-spin-slow' : 'fa-moon text-tuh-rose'} text-base`}></i>
               <span>สลับโหมดสี</span>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 font-bold">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-white/10 font-bold">
               {isDarkMode ? 'โหมดสว่าง' : 'โหมดมืด'}
             </span>
           </button>
@@ -1164,8 +1322,9 @@ function App() {
             <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
               <span className="text-tuh-rose shrink-0">
                 {activeTab === 'dashboard' && <i className="fa-solid fa-chart-line"></i>}
-                {activeTab === 'satisfaction' && <i className="fa-solid fa-face-smile"></i>}
+                 {activeTab === 'satisfaction' && <i className="fa-solid fa-face-smile"></i>}
                 {activeTab === 'documents' && <i className="fa-solid fa-file-pdf"></i>}
+                {activeTab === 'announcements' && <i className="fa-solid fa-bullhorn"></i>}
                 {activeTab === 'logs' && <i className="fa-solid fa-circle-question"></i>}
                 {activeTab === 'history' && <i className="fa-solid fa-clock-rotate-left"></i>}
                 {activeTab === 'faqs' && <i className="fa-solid fa-book"></i>}
@@ -1174,8 +1333,9 @@ function App() {
               </span>
               <span className={`${activeTab === 'dashboard' ? 'text-tuh-gradient-light' : 'text-tuh-gradient'} font-black`}>
                 {activeTab === 'dashboard' && 'ภาพรวม'}
-                {activeTab === 'satisfaction' && 'สถิติความพึงพอใจ'}
+                 {activeTab === 'satisfaction' && 'สถิติความพึงพอใจ'}
                 {activeTab === 'documents' && 'จัดการแฟ้มเอกสาร PDF'}
+                {activeTab === 'announcements' && 'สร้างและจัดการประกาศระบบ'}
                 {activeTab === 'logs' && 'บันทึกคำถามที่บอทตอบไม่ได้'}
                 {activeTab === 'history' && 'ประวัติการตอบของบอท'}
                 {activeTab === 'faqs' && 'ทะเบียนคู่มือคำตอบ FAQs'}
@@ -1203,132 +1363,132 @@ function App() {
                 {/* 1. Q&A History Portal */}
                 <div
                   onClick={() => setActiveTab('history')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-sky-500/40 dark:hover:border-sky-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between h-48"
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-sky-500/40 dark:hover:border-sky-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>ประวัติการตอบของบอท</span>
-                      <h3 className="text-3xl font-black tracking-tight text-sky-500">
-                        {stats.total_queries} <span className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>คำถามทั้งหมด</span>
+                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ประวัติการตอบของบอท</span>
+                      <h3 className="text-3xl font-black tracking-tight text-sky-600 dark:text-sky-400">
+                        {stats.total_queries} <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามทั้งหมด</span>
                       </h3>
                     </div>
-                    <span className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center text-base"><i className="fa-solid fa-clock-rotate-left"></i></span>
+                    <span className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center text-base"><i className="fa-solid fa-clock-rotate-left"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-[11px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       บันทึกคิวรีถามตอบของผู้ใช้ย้อนหลัง ความเร็วตอบสนอง และข้อมูลอ้างอิง
                     </p>
-                    <span className="text-xs text-sky-500 font-bold flex items-center gap-1">เข้าสู่เมนูประวัติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-sm text-sky-600 dark:text-sky-400 font-bold flex items-center gap-1">เข้าสู่เมนูประวัติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
                 {/* 2. Satisfaction Stats Portal */}
                 <div
                   onClick={() => setActiveTab('satisfaction')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-500/40 dark:hover:border-emerald-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between h-48"
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-500/40 dark:hover:border-emerald-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>สถิติความพึงพอใจ</span>
-                      <h3 className="text-3xl font-black tracking-tight text-emerald-500">
+                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>สถิติความพึงพอใจ</span>
+                      <h3 className="text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
                         {stats.likes + stats.dislikes > 0 ? Math.round((stats.likes / (stats.likes + stats.dislikes)) * 100) : 100}%
                       </h3>
                     </div>
-                    <span className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-base"><i className="fa-solid fa-face-smile"></i></span>
+                    <span className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base"><i className="fa-solid fa-face-smile"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-[11px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       วิเคราะห์ความพึงพอใจย้อนหลังรายวัน/สัปดาห์/เดือน/ปี และสถิติแยกตามหมวดหมู่คำถามหลัก
                     </p>
-                    <span className="text-xs text-emerald-500 font-bold flex items-center gap-1">เข้าสู่เมนูสถิติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-sm text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">เข้าสู่เมนูสถิติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
                 {/* 3. Unanswered Logs Portal */}
                 <div
                   onClick={() => setActiveTab('logs')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-rose-500/40 dark:hover:border-rose-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between h-48"
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-rose-500/40 dark:hover:border-rose-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>คำถามที่บอทตอบไม่ได้</span>
-                      <h3 className={`text-3xl font-black tracking-tight ${stats.pending_unanswered > 0 ? (isDarkMode ? 'text-[#f06292]' : 'text-rose-500') : (isDarkMode ? 'text-white' : 'text-slate-500')}`}>
-                        {stats.pending_unanswered} <span className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>คำถามค้างตอบ</span>
+                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามที่บอทตอบไม่ได้</span>
+                      <h3 className={`text-3xl font-black tracking-tight ${stats.pending_unanswered > 0 ? (isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400') : (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>
+                        {stats.pending_unanswered} <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามค้างตอบ</span>
                       </h3>
                     </div>
-                    <span className={`w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f06292]' : 'text-rose-500'}`}><i className="fa-solid fa-circle-question"></i></span>
+                    <span className={`w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}><i className="fa-solid fa-circle-question"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-[11px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       คำถามจากผู้ใช้ที่บอทไม่มีความรู้อ้างอิง รอการเพิ่มคู่มือคำตอบจากแอดมินโดยตรง
                     </p>
-                    <span className={`text-xs font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f06292]' : 'text-rose-500'}`}>เข้าสู่เมนูตอบคำถาม <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className={`text-sm font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}>เข้าสู่เมนูตอบคำถาม <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
                 {/* 4. PDF Manage Portal */}
                 <div
                   onClick={() => setActiveTab('documents')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-purple-500/40 dark:hover:border-purple-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between h-48"
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-purple-500/40 dark:hover:border-purple-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>จัดการเอกสาร PDF</span>
-                      <h3 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-[#f69988]' : 'text-purple-500'}`}>
-                        {stats.active_documents} / {stats.total_documents} <span className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>แฟ้มเปิดใช้งาน</span>
+                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>จัดการเอกสาร PDF</span>
+                      <h3 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>
+                        {stats.active_documents} / {stats.total_documents} <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>แฟ้มเปิดใช้งาน</span>
                       </h3>
                     </div>
-                    <span className={`w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f69988]' : 'text-purple-500'}`}><i className="fa-solid fa-file-pdf"></i></span>
+                    <span className={`w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}><i className="fa-solid fa-file-pdf"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-[11px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       อัปโหลดแฟ้มข้อมูล PDF ค้นหา ลบ และจัดการสิทธิ์การข้ามบางหน้าของการเรียนรู้ของระบบ RAG
                     </p>
-                    <span className={`text-xs font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f69988]' : 'text-purple-500'}`}>เข้าสู่เมนูจัดการไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className={`text-sm font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>เข้าสู่เมนูจัดการไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
                 {/* 5. FAQs Portal */}
                 <div
                   onClick={() => setActiveTab('faqs')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-amber-500/40 dark:hover:border-amber-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between h-48"
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-amber-500/40 dark:hover:border-amber-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>คู่มือตอบกลับ (FAQs)</span>
-                      <h3 className="text-3xl font-black tracking-tight text-amber-500">
-                        6 <span className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>คำถามด่วนหน้าแรก</span>
+                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คู่มือตอบกลับ (FAQs)</span>
+                      <h3 className="text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+                        6 <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามด่วนหน้าแรก</span>
                       </h3>
                     </div>
-                    <span className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-base"><i className="fa-solid fa-book"></i></span>
+                    <span className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-base"><i className="fa-solid fa-book"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-[11px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       จัดการไอคอน คำถาม และคำตอบด่วนสำหรับการคลิกถามยอดฮิต 6 ปุ่มบนหน้าแรกของผู้ใช้
                     </p>
-                    <span className="text-xs text-amber-500 font-bold flex items-center gap-1">เข้าสู่เมนู FAQs <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-sm text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">เข้าสู่เมนู FAQs <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
                 {/* 6. Admin Profile Portal */}
                 <div
                   onClick={() => setActiveTab('profile')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-slate-500/40 dark:hover:border-slate-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between h-48"
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-slate-500/40 dark:hover:border-slate-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>โปรไฟล์แอดมิน</span>
-                      <h3 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-500'}`}>
-                        ผู้ดูแล <span className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-450'}`}>ระบบไอที</span>
+                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>โปรไฟล์แอดมิน</span>
+                      <h3 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                        ผู้ดูแล <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ระบบไอที</span>
                       </h3>
                     </div>
-                    <span className={`w-10 h-10 rounded-xl bg-slate-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-white' : 'text-slate-500'}`}><i className="fa-solid fa-user-gear"></i></span>
+                    <span className={`w-10 h-10 rounded-xl bg-slate-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}><i className="fa-solid fa-user-gear"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-[11px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-white' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       ความปลอดภัย ข้อมูลประจำตัว บทบาท อีเมล และระบบเปลี่ยนรหัสผ่านในการเข้าใช้งานแผงจัดการ
                     </p>
-                    <span className={`text-xs font-bold flex items-center gap-1 ${isDarkMode ? 'text-white' : 'text-slate-500'}`}>เข้าสู่เมนูโปรไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className={`text-sm font-bold flex items-center gap-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>เข้าสู่เมนูโปรไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1362,7 +1522,7 @@ function App() {
                     <div className="text-5xl text-tuh-rose/60"><i className="fa-solid fa-cloud-arrow-up"></i></div>
                     <div>
                       <h3 className="text-lg font-extrabold text-tuh-navy dark:text-white">ลากและวางไฟล์ PDF ของคุณที่นี่</h3>
-                      <p className="text-sm text-slate-400 font-bold mt-1">ระบบรองรับไฟล์ระเบียบและเอกสารภาษาไทยนามสกุล PDF เท่านั้น</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-bold mt-1">ระบบรองรับไฟล์ระเบียบและเอกสารภาษาไทยนามสกุล PDF เท่านั้น</p>
                     </div>
                     <div>
                       <input
@@ -1402,7 +1562,7 @@ function App() {
                   </div>
                   {/* Search Bar */}
                   <div className="relative w-full md:w-72">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500 dark:text-slate-400">
                       <i className="fa-solid fa-magnifying-glass text-xs"></i>
                     </span>
                     <input
@@ -1418,7 +1578,7 @@ function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20 select-none">
+                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20 select-none">
                         <th className="px-6 py-4 cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('filename')}>
                           ชื่อไฟล์
                           {docSortField === 'filename' ? (
@@ -1482,7 +1642,7 @@ function App() {
                         if (sorted.length === 0) {
                           return (
                             <tr>
-                              <td colSpan="7" className="px-6 py-8 text-center text-slate-400 font-bold">
+                              <td colSpan="7" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
                                 {documents.length === 0 ? 'ไม่มีไฟล์เอกสารที่บันทึกไว้ในขณะนี้' : 'ไม่พบเอกสารที่ตรงกับการค้นหา'}
                               </td>
                             </tr>
@@ -1499,7 +1659,7 @@ function App() {
                                 <i className="fa-solid fa-file-pdf text-red-500 mr-2"></i>
                                 {doc.filename}
                               </td>
-                              <td className="px-6 py-4 text-xs font-bold text-slate-400">
+                              <td className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400">
                                 {Math.round(doc.size / 1024)} KB
                               </td>
                               <td className="px-6 py-4 text-center text-tuh-navy dark:text-slate-200">
@@ -1510,7 +1670,7 @@ function App() {
                                   </div>
                                 )}
                               </td>
-                              <td className="px-6 py-4 text-xs text-slate-400">
+                              <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                                 {doc.upload_date}
                               </td>
                               <td className="px-6 py-4 text-center">
@@ -1534,19 +1694,19 @@ function App() {
                                         doc.status !== 'Step_Raw_Text' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
                                       }`} />
                                       <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Step_Clean_Text' ? 'bg-amber-500 text-white animate-pulse' : (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-400'
+                                        doc.status === 'Step_Clean_Text' ? 'bg-amber-500 text-white animate-pulse' : (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
                                       }`} title="คลีนข้อมูล">2</div>
                                       <div className={`w-4 h-0.5 ${
                                         (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
                                       }`} />
                                       <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Step_Chunk_Preview' ? 'bg-amber-500 text-white animate-pulse' : doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-400'
+                                        doc.status === 'Step_Chunk_Preview' ? 'bg-amber-500 text-white animate-pulse' : doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
                                       }`} title="แบ่งข้อมูล">3</div>
                                       <div className={`w-4 h-0.5 ${
                                         doc.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
                                       }`} />
                                       <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-400'
+                                        doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
                                       }`} title="เวกเตอร์ทำงาน">4</div>
                                     </div>
                                     <div className="text-[10px] font-bold text-amber-500 mt-1">
@@ -1631,6 +1791,262 @@ function App() {
                 </div>
               </div>
 
+              {/* Welfare Forms Management Panel */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                {/* 1. Add Form Panel */}
+                <div className="bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-6 shadow-sm">
+                  <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2 mb-4">
+                    <i className="fa-solid fa-file-circle-plus text-tuh-rose"></i> เพิ่มแบบฟอร์มสวัสดิการ
+                  </h3>
+                  <form onSubmit={handleAddForm} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">ชื่อแบบฟอร์ม <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น แบบเสนอขอรับสวัสดิการ..."
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">อัปโหลดไฟล์แบบฟอร์ม (PDF) <span className="text-red-500">*</span></label>
+                      <input
+                        type="file"
+                        id="form-file-uploader"
+                        required
+                        accept=".pdf"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setFormFile(e.target.files[0]);
+                          }
+                        }}
+                        className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เลือกหน้าที่ต้องการตัดจาก PDF</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น 3 หรือ 1,3,5 หรือ 2-5 (ระบบจะตัดเฉพาะหน้าที่เลือกให้ User โหลด)"
+                        value={formPage}
+                        onChange={(e) => setFormPage(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
+                    >
+                      <i className="fa-solid fa-cloud-arrow-up"></i> บันทึกและอัปโหลดไฟล์
+                    </button>
+                  </form>
+                </div>
+
+                {/* 2. Forms List Panel */}
+                <div className="lg:col-span-2 bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm flex flex-col">
+                  <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20">
+                    <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2">
+                      <i className="fa-solid fa-folder-open text-tuh-rose"></i> แฟ้มแบบฟอร์มทั้งหมด ({forms.length} รายการ)
+                    </h3>
+                  </div>
+
+                  <div className="flex-1 overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                          <th className="px-6 py-3.5">ชื่อแบบฟอร์ม</th>
+                          <th className="px-6 py-3.5">ไฟล์ PDF / หน้าที่ระบุ</th>
+                          <th className="px-6 py-3.5 text-center">ดาวน์โหลด</th>
+                          <th className="px-6 py-3.5 text-right">จัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
+                        {forms.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
+                              ยังไม่มีแบบฟอร์มที่ลงทะเบียนไว้ในแฟ้มข้อมูล
+                            </td>
+                          </tr>
+                        ) : (
+                          forms.map((form) => (
+                            <tr key={form.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
+                              <td className="px-6 py-4 font-bold text-tuh-navy dark:text-white">
+                                <i className="fa-regular fa-file-lines text-teal-500 mr-2"></i>
+                                {form.name}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="truncate max-w-[180px] block text-tuh-navy dark:text-slate-200" title={form.filename ? form.filename.substring(form.filename.indexOf('_') + 1) : ''}>
+                                    <i className="fa-solid fa-file-pdf text-red-500 mr-1.5"></i>
+                                    {form.filename ? form.filename.substring(form.filename.indexOf('_') + 1) : 'ไม่มีไฟล์'}
+                                  </span>
+                                  {form.page && <span className="text-[10px] text-tuh-rose">หน้า {form.page}</span>}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <a
+                                  href={form.page ? `${form.link}#page=${form.page}` : form.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition"
+                                  title="เปิดดู / ดาวน์โหลดเอกสาร PDF"
+                                >
+                                  <i className="fa-solid fa-arrow-down-long text-xs"></i>
+                                </a>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <button
+                                  onClick={() => handleDeleteForm(form.id)}
+                                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition active:scale-95 inline-flex items-center justify-center"
+                                  title="ลบแบบฟอร์ม"
+                                >
+                                  <i className="fa-solid fa-trash-can text-sm"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB: ANNOUNCEMENTS */}
+          {activeTab === 'announcements' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-in">
+              {/* Form to create announcement */}
+              <div className="bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-6 shadow-sm h-fit">
+                <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2 mb-4">
+                  <i className="fa-solid fa-bullhorn text-tuh-rose"></i> สร้างประกาศใหม่
+                </h3>
+                <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เรื่อง / หัวข้อประกาศ</label>
+                    <input
+                      type="text"
+                      placeholder="กรอกหัวข้อประกาศ..."
+                      value={annTitle}
+                      onChange={(e) => setAnnTitle(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เนื้อหาประกาศ</label>
+                    <textarea
+                      rows="4"
+                      placeholder="กรอกรายละเอียดประกาศ..."
+                      value={annContent}
+                      onChange={(e) => setAnnContent(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">วันและเวลาเริ่มแสดงประกาศ</label>
+                    <input
+                      type="datetime-local"
+                      value={annStartDate}
+                      onChange={(e) => setAnnStartDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">วันและเวลาสิ้นสุดประกาศ</label>
+                    <input
+                      type="datetime-local"
+                      value={annEndDate}
+                      onChange={(e) => setAnnEndDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
+                  >
+                    <i className="fa-solid fa-plus-circle"></i> ยืนยันการสร้างประกาศ
+                  </button>
+                </form>
+              </div>
+
+              {/* Announcements List */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-5 shadow-sm">
+                  <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2 mb-4">
+                    <i className="fa-solid fa-list-check text-tuh-rose"></i> รายการประกาศทั้งหมด ({announcements.length})
+                  </h3>
+
+                  {announcements.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 dark:text-slate-500 font-bold">
+                      <i className="fa-solid fa-bullhorn text-4xl mb-3 block opacity-30"></i>
+                      ไม่มีประกาศในระบบขณะนี้
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {announcements.map((ann) => {
+                        const now = new Date();
+                        const start = new Date(ann.start_date);
+                        const end = new Date(ann.end_date);
+                        let statusBadge = null;
+
+                        if (now < start) {
+                          statusBadge = <span className="bg-amber-500/10 text-amber-500 border border-amber-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold">รอแสดงผล</span>;
+                        } else if (now > end) {
+                          statusBadge = <span className="bg-slate-500/10 text-slate-400 border border-slate-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold">หมดระยะเวลา</span>;
+                        } else {
+                          statusBadge = <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold animate-pulse">กำลังแสดงผล</span>;
+                        }
+
+                        return (
+                          <div key={ann.id} className="p-5 rounded-2xl border border-slate-100 dark:border-tuh-purple/10 bg-slate-50/50 dark:bg-tuh-navy/20 flex flex-col justify-between gap-4 hover:shadow-md transition">
+                            <div className="flex justify-between items-start gap-4">
+                              <div className="space-y-1.5 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-extrabold text-tuh-navy dark:text-white text-base">{ann.title}</h4>
+                                  {statusBadge}
+                                </div>
+                                <p className="text-sm font-semibold text-slate-650 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteAnnouncement(ann.id)}
+                                className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-650 transition active:scale-95 shrink-0"
+                                title="ลบประกาศ"
+                              >
+                                <i className="fa-solid fa-trash-can text-lg"></i>
+                              </button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between text-xs text-slate-450 dark:text-slate-500 border-t border-slate-100 dark:border-tuh-purple/5 pt-3 font-semibold gap-2">
+                              <div>
+                                <i className="fa-regular fa-clock mr-1"></i>
+                                เริ่ม: {ann.start_date.replace("T", " ")} | สิ้นสุด: {ann.end_date.replace("T", " ")}
+                              </div>
+                              <div>
+                                สร้างเมื่อ: {ann.created_at}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1645,7 +2061,7 @@ function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                         <th className="px-6 py-4">ข้อความคำถาม</th>
                         <th className="px-6 py-4 text-center">ถามซ้ำ (จำนวน)</th>
                         <th className="px-6 py-4">ถามล่าสุดเมื่อ</th>
@@ -1656,7 +2072,7 @@ function App() {
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
                       {unanswered.length === 0 ? (
                         <tr>
-                          <td colSpan="5" className="px-6 py-8 text-center text-slate-400 font-bold">
+                          <td colSpan="5" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
                             ไม่มีคำถามที่ค้างการตอบในขณะนี้
                           </td>
                         </tr>
@@ -1671,7 +2087,7 @@ function App() {
                               <td className="px-6 py-4 text-center font-black">
                                 {log.count} ครั้ง
                               </td>
-                              <td className="px-6 py-4 text-xs text-slate-400">
+                              <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                                 {log.timestamp}
                               </td>
                               <td className="px-6 py-4 text-center">
@@ -1732,11 +2148,11 @@ function App() {
                 {/* Metric Card: Questions Count */}
                 <div className="p-6 bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex items-center justify-between col-span-1">
                   <div className="space-y-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-450 dark:text-slate-400">คำถามทั้งหมดที่โดนถาม</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">คำถามทั้งหมดที่โดนถาม</span>
                     <h3 className="text-3xl font-black tracking-tight text-sky-500">
-                      {filteredHistory.length} <span className="text-xs font-bold text-slate-400">คำถาม</span>
+                      {filteredHistory.length} <span className="text-xs font-bold text-slate-500 dark:text-slate-400">คำถาม</span>
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-semibold">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
                       จากคำถามสะสมทั้งหมด {history.length} ในฐานข้อมูล
                     </p>
                   </div>
@@ -1746,8 +2162,8 @@ function App() {
                 {/* Period Switcher Card */}
                 <div className="p-6 bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex flex-col justify-between col-span-2">
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-450 dark:text-slate-400">ฟิลเตอร์สลับช่วงเวลาบันทึกประวัติ</span>
-                    <p className="text-xs text-slate-450 dark:text-slate-400 font-semibold mt-1">เลือกช่วงเวลาเพื่อปรับการแสดงสถิติจำนวนคำถามและการแสดงตารางรายละเอียดด้านล่าง</p>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ฟิลเตอร์สลับช่วงเวลาบันทึกประวัติ</span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">เลือกช่วงเวลาเพื่อปรับการแสดงสถิติจำนวนคำถามและการแสดงตารางรายละเอียดด้านล่าง</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
                     <div className="flex items-center bg-slate-100 dark:bg-tuh-navy/55 p-1 rounded-2xl border border-slate-200/50 dark:border-tuh-purple/10">
@@ -1778,7 +2194,7 @@ function App() {
                     <h3 className="text-lg font-extrabold flex items-center gap-2">
                       <i className="fa-solid fa-clock-rotate-left text-tuh-rose"></i> ตารางรายการประวัติการตอบของบอท
                     </h3>
-                    <p className="text-xs text-slate-450 dark:text-slate-400 font-semibold mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
                       บันทึกรายการคำถาม-คำตอบ อ้างอิงตามระยะเวลาที่เลือก (ดาวน์โหลด CSV เพื่อส่งออกข้อมูลตามฟิลเตอร์ที่เลือก)
                     </p>
                   </div>
@@ -1796,7 +2212,7 @@ function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                         <th className="px-6 py-4 w-44">เวลาที่ตอบ</th>
                         <th className="px-6 py-4 w-64">คำถามจากผู้ใช้</th>
                         <th className="px-6 py-4">คำตอบที่บอทตอบออกไป</th>
@@ -1808,14 +2224,14 @@ function App() {
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
                       {loadingHistory ? (
                         <tr>
-                          <td colSpan="6" className="px-6 py-12 text-center text-slate-450 font-bold">
+                          <td colSpan="6" className="px-6 py-12 text-center text-slate-500 font-bold">
                             <div className="inline-block w-6 h-6 border-2 border-tuh-rose border-t-transparent rounded-full animate-spin mr-2"></div>
                             กำลังโหลดประวัติ...
                           </td>
                         </tr>
                       ) : filteredHistory.length === 0 ? (
                         <tr>
-                          <td colSpan="6" className="px-6 py-12 text-center text-slate-400 font-bold">
+                          <td colSpan="6" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
                             ไม่มีประวัติการตอบคำถามในช่วงเวลาที่เลือก
                           </td>
                         </tr>
@@ -1825,7 +2241,7 @@ function App() {
                           return (
                             <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
                               {/* Time */}
-                              <td className="px-6 py-4 text-xs text-slate-400 align-top whitespace-nowrap">
+                              <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 align-top whitespace-nowrap">
                                 <div className="font-bold text-slate-500 dark:text-slate-300">{log.timestamp.split(" ")[0]}</div>
                                 <div className="text-[10px] mt-0.5">{log.timestamp.split(" ")[1] || ""}</div>
                               </td>
@@ -1858,7 +2274,7 @@ function App() {
                               {/* Chunk ID */}
                               <td className="px-6 py-4 align-top text-center whitespace-nowrap">
                                 {(!log.chunk_ids || log.chunk_ids.length === 0) ? (
-                                  <span className="text-slate-400 text-xs">-</span>
+                                  <span className="text-slate-500 dark:text-slate-400 text-xs">-</span>
                                 ) : (
                                   <div className="flex flex-wrap gap-1 justify-center max-w-[120px]">
                                     {log.chunk_ids.map(cid => (
@@ -1873,7 +2289,7 @@ function App() {
                               {/* Response Time */}
                               <td className="px-6 py-4 align-top text-right whitespace-nowrap text-slate-700 dark:text-slate-300 font-extrabold text-xs">
                                 {isFaq ? (
-                                  <span className="text-slate-400 text-xs">0.0 วินาที</span>
+                                  <span className="text-slate-500 dark:text-slate-400 text-xs">0.0 วินาที</span>
                                 ) : (
                                   <span>{typeof log.response_time === 'number' ? log.response_time.toFixed(3) : log.response_time} วินาที</span>
                                 )}
@@ -1902,7 +2318,7 @@ function App() {
                     <h3 className="text-lg font-extrabold flex items-center gap-2">
                       <i className="fa-solid fa-face-smile text-emerald-500"></i> สถิติความพึงพอใจย้อนหลัง
                     </h3>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
                       เลือกช่วงเวลาเพื่อดูสถิติอัตราไลก์/ดิสไลก์ ข้อเสนอแนะ และสถิติแยกตามหมวดหมู่คำถาม
                     </p>
                   </div>
@@ -1931,43 +2347,43 @@ function App() {
                   {/* Satisfaction rate */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">อัตราความพึงพอใจ</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">อัตราความพึงพอใจ</span>
                       <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-sm"><i className="fa-solid fa-circle-check"></i></span>
                     </div>
                     <h3 className={`text-3xl font-black tracking-tight ${statsObj.satRate >= 80 ? 'text-emerald-500' : statsObj.satRate >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
                       {statsObj.satRate}%
                     </h3>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">อัตราความพึงพอใจในรอบ {satPeriod === 'daily' ? '1 วัน' : satPeriod === 'weekly' ? '1 สัปดาห์' : satPeriod === 'monthly' ? '1 เดือน' : '1 ปี'}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">อัตราความพึงพอใจในรอบ {satPeriod === 'daily' ? '1 วัน' : satPeriod === 'weekly' ? '1 สัปดาห์' : satPeriod === 'monthly' ? '1 เดือน' : '1 ปี'}</p>
                   </div>
 
                   {/* Likes count */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">ประเมินว่าชอบ (Likes)</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ประเมินว่าชอบ (Likes)</span>
                       <span className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-500 flex items-center justify-center text-sm"><i className="fa-solid fa-thumbs-up"></i></span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-teal-500">{statsObj.totalLikes}</h3>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">จำนวนการตอบกลับเชิงบวก</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนการตอบกลับเชิงบวก</p>
                   </div>
 
                   {/* Dislikes count */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">ควรปรับปรุง (Dislikes)</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ควรปรับปรุง (Dislikes)</span>
                       <span className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center text-sm"><i className="fa-solid fa-thumbs-down"></i></span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-rose-500">{statsObj.totalDislikes}</h3>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">จำนวนการตอบกลับเชิงลบ</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนการตอบกลับเชิงลบ</p>
                   </div>
 
                   {/* Total Feedbacks */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">การประเมินทั้งหมด</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">การประเมินทั้งหมด</span>
                       <span className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-sm"><i className="fa-solid fa-comments"></i></span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-indigo-500">{statsObj.totalVotes}</h3>
-                    <p className="text-xs text-slate-400 font-semibold mt-1">จำนวนโหวตความพึงพอใจทั้งหมด</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนโหวตความพึงพอใจทั้งหมด</p>
                   </div>
                 </div>
 
@@ -1987,7 +2403,7 @@ function App() {
                       style={{ width: `${statsObj.totalVotes > 0 ? (statsObj.totalDislikes / statsObj.totalVotes) * 100 : 0}%` }}
                     />
                   </div>
-                  <div className="flex justify-between mt-2 text-[10px] text-slate-400 font-bold">
+                  <div className="flex justify-between mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                     <span>{statsObj.totalVotes > 0 ? Math.round((statsObj.totalLikes / statsObj.totalVotes) * 100) : 100}% ของผู้ใช้ประเมินเป็นบวก</span>
                     <span>{statsObj.totalVotes > 0 ? Math.round((statsObj.totalDislikes / statsObj.totalVotes) * 100) : 0}% ของผู้ใช้ประเมินให้ปรับปรุง</span>
                   </div>
@@ -2003,7 +2419,7 @@ function App() {
 
                     <div className="space-y-4">
                       {statsObj.chartData.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
+                        <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
                           ไม่มีข้อมูลความพึงพอใจในช่วงเวลานี้
                         </div>
                       ) : (
@@ -2011,7 +2427,7 @@ function App() {
                           <div key={item.label} className="space-y-1.5">
                             <div className="flex justify-between items-center text-xs font-semibold">
                               <span className="text-slate-500 dark:text-slate-305">{item.label}</span>
-                              <span className="text-slate-400 flex items-center gap-2">
+                              <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
                                 <span className="text-teal-500">{item.likes} 👍</span>
                                 <span className="text-rose-500">{item.dislikes} 👎</span>
                                 <span className="bg-slate-100 dark:bg-black/25 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-extrabold">{item.rate}%</span>
@@ -2037,7 +2453,7 @@ function App() {
 
                     <div className="space-y-4">
                       {categoryStats.length === 0 ? (
-                        <div className="p-8 text-center text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
+                        <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
                           ยังไม่มีคะแนนประเมินที่ตรงกับหมวดหมู่คำถามในช่วงนี้
                         </div>
                       ) : (
@@ -2045,7 +2461,7 @@ function App() {
                           <div key={cat.name} className="space-y-1.5">
                             <div className="flex justify-between items-center text-xs font-semibold">
                               <span className="text-slate-800 dark:text-slate-100 font-bold">{cat.name}</span>
-                              <span className="text-slate-400 flex items-center gap-2">
+                              <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
                                 <span className="text-teal-500">{cat.likes} 👍</span>
                                 <span className="text-rose-500">{cat.dislikes} 👎</span>
                                 <span className="bg-slate-100 dark:bg-black/25 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-extrabold">{cat.rate}%</span>
@@ -2074,21 +2490,59 @@ function App() {
 
                   <div className="space-y-3">
                     {statsObj.comments.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
+                      <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
                         ยังไม่มีข้อเสนอแนะที่เป็นข้อความในช่วงเวลานี้
                       </div>
                     ) : (
                       [...statsObj.comments].reverse().map(c => (
-                        <div key={c.id} className="p-4 bg-slate-50 dark:bg-tuh-indigo/20 border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl flex gap-3.5 items-start">
-                          <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm ${c.rating === 'like' ? 'bg-teal-500/10 text-teal-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                        <div key={c.id} className="p-5 bg-slate-50 dark:bg-tuh-indigo/10 border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl flex gap-4 items-start shadow-sm hover:shadow-md transition duration-200">
+                          <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-base ${c.rating === 'like' ? 'bg-teal-500/10 text-teal-500' : 'bg-rose-500/10 text-rose-500'}`}>
                             <i className={`fa-solid ${c.rating === 'like' ? 'fa-thumbs-up' : 'fa-thumbs-down'}`}></i>
                           </span>
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-slate-400 font-bold">{c.timestamp}</span>
-                              {c.query && <span className="text-[10px] bg-tuh-pink/40 dark:bg-tuh-purple/25 text-tuh-rose font-bold px-2 py-0.5 rounded-full truncate max-w-[200px]">{c.query}</span>}
+                          <div className="min-w-0 flex-1 space-y-3">
+                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-tuh-purple/10">
+                              <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                                <i className="fa-regular fa-clock"></i> {c.timestamp}
+                              </span>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${c.rating === 'like' ? 'bg-teal-500/10 text-teal-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                                {c.rating === 'like' ? 'ถูกใจ (Like)' : 'ไม่ถูกใจ (Dislike)'}
+                              </span>
                             </div>
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{c.comment}</p>
+
+                            <div className="space-y-2 text-sm leading-relaxed">
+                              {c.query && (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-black text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <i className="fa-solid fa-circle-question"></i> คำถามของผู้ใช้:
+                                  </span>
+                                  <p className="bg-white dark:bg-black/15 p-3 rounded-xl border border-slate-100 dark:border-tuh-purple/5 font-semibold text-slate-700 dark:text-slate-200">
+                                    {c.query}
+                                  </p>
+                                </div>
+                              )}
+
+                              {c.rating === 'dislike' && (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-black text-rose-500 flex items-center gap-1.5">
+                                    <i className="fa-solid fa-robot"></i> คำตอบจากบอทที่ถูกประเมิน:
+                                  </span>
+                                  <p className="bg-rose-500/5 dark:bg-rose-500/10 p-3 rounded-xl border border-rose-500/10 font-semibold text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
+                                    {c.answer || <span className="text-slate-400 italic font-medium">(ไม่มีบันทึกข้อมูลคำตอบสำหรับรายการนี้)</span>}
+                                  </p>
+                                </div>
+                              )}
+
+                              {c.comment && (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-black text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                                    <i className="fa-solid fa-comment-dots"></i> ข้อเสนอแนะ / ความคิดเห็นเพิ่มเติม:
+                                  </span>
+                                  <p className="bg-slate-100/80 dark:bg-tuh-indigo/20 p-3 rounded-xl border border-slate-200/50 dark:border-tuh-purple/10 font-bold text-slate-800 dark:text-white whitespace-pre-wrap">
+                                    {c.comment}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
@@ -2105,13 +2559,13 @@ function App() {
               {/* Predefined 6 Home FAQs */}
               <div className="bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20">
-                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-circle-question text-tuh-rose"></i> คำถามที่พบบ่อย 6 คำถามหลัก (แสดงเป็นปุ่มบนแชทบอทหน้าแรก)</h3>
-                  <p className="text-xs text-slate-400 font-semibold mt-1">คุณสามารถแก้ไขข้อความคำถาม ไอคอน และคำตอบของปุ่มทั้ง 6 ปุ่มที่จะแสดงบนหน้าแรกของแชทบอทฝั่งผู้ใช้ได้ที่นี่</p>
+                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-circle-question text-tuh-rose"></i> คำถามที่พบบ่อย 4 คำถามหลัก (แสดงเป็นปุ่มบนแชทบอทหน้าแรก)</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">คุณสามารถแก้ไขข้อความคำถาม ไอคอน และคำตอบของปุ่มทั้ง 4 ปุ่มที่จะแสดงบนหน้าแรกของแชทบอทฝั่งผู้ใช้ได้ที่นี่</p>
                 </div>
 
                 <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(!settings.predefined_faqs || settings.predefined_faqs.length === 0) ? (
-                    <div className="col-span-2 p-10 text-center text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-3xl">
+                    <div className="col-span-2 p-10 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-3xl">
                       กำลังโหลดหรือไม่มีรายการคำถามที่พบบ่อย...
                     </div>
                   ) : (
@@ -2125,7 +2579,7 @@ function App() {
                             <span className="truncate" title={faq.question}>{faq.question}</span>
                           </h4>
                           <p className="text-xs font-semibold text-slate-500 dark:text-slate-350 pl-8 line-clamp-2 leading-relaxed">
-                            {faq.answer || faq.response}
+                            {faq.answer || faq.response || <span className="italic text-slate-400 font-medium">(ค้นหาคำตอบอัตโนมัติจากไฟล์ PDF)</span>}
                           </p>
                         </div>
                         <button
@@ -2161,7 +2615,7 @@ function App() {
                       onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
                       className="w-full accent-tuh-rose cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-slate-400 font-bold mt-1">
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-bold mt-1">
                       <span>0.0 (ตอบแม่นยำสูงอิงเอกสาร)</span>
                       <span>1.0 (อิสระและมีความคิดสร้างสรรค์)</span>
                     </div>
@@ -2178,7 +2632,7 @@ function App() {
                       onChange={(e) => setSettings({ ...settings, top_k: parseInt(e.target.value, 10) })}
                       className="w-full accent-tuh-rose cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-slate-400 font-bold mt-1">
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-bold mt-1">
                       <span>1 Chunk (ดึงกระชับที่สุด)</span>
                       <span>6 Chunks (ดึงข้อมูลได้ละเอียดครอบคลุม)</span>
                     </div>
@@ -2195,7 +2649,7 @@ function App() {
                       onChange={(e) => setSettings({ ...settings, max_tokens: parseInt(e.target.value, 10) })}
                       className="w-full accent-tuh-rose cursor-pointer"
                     />
-                    <div className="flex justify-between text-xs text-slate-400 font-bold mt-1">
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-bold mt-1">
                       <span>200 (คำตอบสั้นและเร็ว)</span>
                       <span>4000 (คำตอบยาวละเอียด)</span>
                     </div>
@@ -2206,7 +2660,7 @@ function App() {
                     <div className="w-full bg-slate-100 dark:bg-black/20 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 font-semibold text-slate-500 dark:text-slate-400 select-none">
                       Local FAISS & BM25 Hybrid Search (รันบนเครื่อง)
                     </div>
-                    <div className="text-[10px] text-slate-400 font-semibold mt-1">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-1">
                       ระบบประมวลผลและค้นหาข้อมูลแบบไฮบริด (FAISS & BM25) เพื่อความเร็วสูงสุดและไม่ต้องพึ่งพาคลาวด์
                     </div>
                   </div>
@@ -2352,7 +2806,7 @@ function App() {
               </h3>
               <button
                 onClick={() => { setShowFaqModal(false); setCurrentUnanswered(null); }}
-                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
@@ -2361,7 +2815,7 @@ function App() {
             <form onSubmit={handleSubmitFaq} className="p-6 space-y-4">
               {currentUnanswered.query && (
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">คำถามจากผู้ใช้</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">คำถามจากผู้ใช้</label>
                   <div className="p-4 bg-slate-100 dark:bg-[#100220]/60 rounded-2xl font-bold border border-slate-200/50 dark:border-tuh-purple/10">
                     {currentUnanswered.query}
                   </div>
@@ -2370,7 +2824,7 @@ function App() {
 
               {!currentUnanswered.query && (
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">คำถามแอดมินตั้งขึ้น</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">คำถามแอดมินตั้งขึ้น</label>
                   <input
                     type="text"
                     required
@@ -2383,7 +2837,7 @@ function App() {
               )}
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">เขียนคู่มือคำตอบ (บอทจะตอบประโยคนี้ตรงๆ ทันที)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เขียนคู่มือคำตอบ (บอทจะตอบประโยคนี้ตรงๆ ทันที)</label>
                 <textarea
                   rows="4"
                   required
@@ -2426,7 +2880,7 @@ function App() {
               </h3>
               <button
                 onClick={() => { setShowPreUploadModal(false); setSelectedFileForUpload(null); }}
-                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
@@ -2442,7 +2896,7 @@ function App() {
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">ไฟล์ที่เลือก</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">ไฟล์ที่เลือก</label>
                 <div className="p-4 bg-slate-100 dark:bg-[#100220]/60 rounded-2xl font-bold border border-slate-200/50 dark:border-tuh-purple/10 text-sm truncate text-tuh-navy dark:text-white">
                   {selectedFileForUpload.name}
                 </div>
@@ -2459,7 +2913,7 @@ function App() {
                   onChange={(e) => setPreExcludePages(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-tuh-navy dark:text-white"
                 />
-                <p className="text-xs text-slate-400 font-semibold mt-1.5 leading-relaxed">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1.5 leading-relaxed">
                   💡 หน้านโยบายเปล่า, หน้าภาคผนวก, หน้าคำลงท้าย, หรือหน้าปกที่บอทไม่ต้องนำมาสืบค้น สามารถกรอกเพื่อข้ามหน้าเหล่านั้นได้ตั้งแต่แรก
                 </p>
               </div>
@@ -2500,7 +2954,7 @@ function App() {
               </h3>
               <button
                 onClick={() => { setPreviewModalType(null); setPreviewFilename(''); }}
-                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
@@ -2510,7 +2964,7 @@ function App() {
               {loadingPreview ? (
                 <div className="py-20 flex flex-col items-center justify-center space-y-4">
                   <div className="w-12 h-12 rounded-full border-4 border-tuh-rose border-t-transparent animate-spin"></div>
-                  <p className="text-sm text-slate-400 font-bold">กำลังดึงข้อมูลพรีวิว...</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">กำลังดึงข้อมูลพรีวิว...</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -2559,7 +3013,7 @@ function App() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[50vh] pr-1">
                         {previewChunks.map((c, i) => (
                           <div key={i} className={`p-4 bg-slate-50 dark:bg-[#100220]/60 border rounded-2xl flex flex-col space-y-2 hover:border-tuh-rose/30 transition ${selectedChunkIds.has(c.chunk_id) ? 'border-tuh-rose/50 dark:border-tuh-rose/40 shadow-sm' : 'border-slate-200/50 dark:border-tuh-purple/10'}`}>
-                            <div className="flex justify-between items-center text-xs font-bold text-slate-400">
+                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                               <div className="flex items-center gap-2">
                                 <input
                                   type="checkbox"
@@ -2584,7 +3038,7 @@ function App() {
                                 <button
                                   type="button"
                                   onClick={() => setExpandedChunk(c)}
-                                  className="p-1 text-slate-400 hover:text-tuh-rose hover:bg-slate-100/50 dark:hover:bg-white/10 rounded-lg transition"
+                                  className="p-1 text-slate-500 dark:text-slate-400 hover:text-tuh-rose hover:bg-slate-100/50 dark:hover:bg-white/10 rounded-lg transition"
                                   title="ขยายขนาดกล่องข้อความ"
                                 >
                                   <i className="fa-solid fa-expand text-xs"></i>
@@ -2612,7 +3066,7 @@ function App() {
                                 placeholder="เนื้อหาข้อมูลส่วนย่อย..."
                               />
                               <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-white/5">
-                                <span className="text-[10px] text-slate-400 font-bold">
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                                   📏 {c.content?.length || 0} ตัวอักษร
                                 </span>
                                 <button
@@ -2636,7 +3090,7 @@ function App() {
                     </div>
                   ) : (
                     <div>
-                      <div className="text-xs font-bold text-slate-400 mb-2">
+                      <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
                         {previewModalType === 'raw' ? '📝 แก้ไขข้อมูลตัวอักษรดิบที่สกัดจากหน้าเอกสาร:' : '📝 แก้ไขข้อมูลมาร์กดาวน์หลังแปลงรูปแบบและแปลงเลขไทย:'}
                       </div>
                       <textarea
@@ -2690,7 +3144,7 @@ function App() {
               </h4>
               <button
                 onClick={() => setExpandedChunk(null)}
-                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
@@ -2719,7 +3173,7 @@ function App() {
                 className="w-full h-[50vh] p-5 font-semibold text-sm leading-relaxed border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl bg-slate-50 text-slate-800 dark:bg-black/45 dark:text-slate-200 focus:outline-none focus:border-tuh-rose transition resize-none"
                 placeholder="พิมพ์แก้ไขเนื้อหาของ Chunk นี้ในขนาดที่ใหญ่ขึ้น..."
               />
-              <div className="text-xs text-slate-400 font-bold">
+              <div className="text-xs text-slate-500 dark:text-slate-400 font-bold">
                 📏 ความยาวปัจจุบัน: {expandedChunk.content?.length || 0} ตัวอักษร
               </div>
             </div>
@@ -2763,7 +3217,7 @@ function App() {
               </h3>
               <button
                 onClick={() => { setShowEditPredefinedFaqModal(false); setSelectedPredefinedFaq(null); }}
-                className="text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
@@ -2771,7 +3225,7 @@ function App() {
 
             <form onSubmit={handleSavePredefinedFaq} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">หัวข้อคำถาม (ปุ่ม)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">หัวข้อคำถาม (ปุ่ม)</label>
                 <input
                   type="text"
                   required
@@ -2779,6 +3233,38 @@ function App() {
                   value={predefinedFaqQuestion}
                   onChange={(e) => setPredefinedFaqQuestion(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  คลาสไอคอน FontAwesome (เช่น fa-circle-question, fa-eye, fa-hospital)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-tuh-rose flex items-center justify-center">
+                    <i className={`fa-solid ${predefinedFaqIcon || 'fa-circle-question'}`}></i>
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ใส่คลาสไอคอน FontAwesome..."
+                    value={predefinedFaqIcon}
+                    onChange={(e) => setPredefinedFaqIcon(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 pl-10 pr-4 focus:outline-none focus:border-tuh-rose transition font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  คำตอบของคำถามนี้ (หากต้องการระบุคำตอบตายตัว)
+                </label>
+                <textarea
+                  placeholder="พิมพ์ข้อความคำตอบของปุ่มนี้หากต้องการคำตอบที่แน่นอน... (หรือเว้นว่างไว้เพื่อให้ AI ค้นหาจาก PDF)"
+                  value={predefinedFaqAnswer}
+                  onChange={(e) => setPredefinedFaqAnswer(e.target.value)}
+                  rows={4}
+                  className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm whitespace-pre-wrap leading-relaxed"
                 />
               </div>
 
