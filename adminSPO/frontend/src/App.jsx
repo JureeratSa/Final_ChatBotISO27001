@@ -29,7 +29,14 @@ function App() {
 
   // Dashboard Tabs
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   // Application Data States
   const [stats, setStats] = useState({
@@ -789,10 +796,26 @@ function App() {
       showError("รหัสผ่านสั้นเกินไป");
       return;
     }
-    // Simulate password update
-    showSuccess("เปลี่ยนรหัสผ่านแอดมินสำเร็จแล้ว (สำหรับใช้ครั้งถัดไป)");
-    setNewPassword('');
-    setConfirmPassword('');
+    
+    fetch(API_URL + '/api/admin/password/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_password: newPassword })
+    })
+      .then(r => {
+        if (!r.ok) {
+          return r.json().then(data => { throw new Error(data.error || "เปลี่ยนรหัสผ่านล้มเหลว") });
+        }
+        return r.json();
+      })
+      .then(data => {
+        showSuccess("เปลี่ยนรหัสผ่านแอดมินสำเร็จแล้ว (มีผลในการเข้าสู่ระบบครั้งถัดไป)");
+        setNewPassword('');
+        setConfirmPassword('');
+      })
+      .catch(err => {
+        showError(err.message);
+      });
   };
 
   const handleToggleDocStatus = (filename, currentStatus) => {
@@ -1174,31 +1197,46 @@ function App() {
       )}
 
       {/* Sidebar Panel */}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-72 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md transition-all duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'w-72 translate-x-0 opacity-100' : 'w-0 -translate-x-full lg:translate-x-0 lg:opacity-0 lg:border-r-0 overflow-hidden'}`}>
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex items-center gap-3">
-          <img
-            src={dog}
-            alt="TUH Dog Logo"
-            className="w-10 h-10 rounded-xl object-cover shadow-md shrink-0 border border-slate-100 dark:border-tuh-purple/20"
-          />
-          <div>
-            <h2 className="font-extrabold text-xl text-tuh-navy dark:text-white leading-tight font-roboto">TUH Admin Chatbot</h2>
-            <a
-              href="https://intranet.hospital.tu.ac.th/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-tuh-indigo/80 dark:text-slate-200 font-bold block mt-0.5 leading-none transition-colors cursor-pointer font-roboto"
-            >
-              Thammasat University Hospital
-            </a>
+        <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <img
+              src={dog}
+              alt="TUH Dog Logo"
+              className="w-10 h-10 rounded-xl object-cover shadow-md shrink-0 border border-slate-100 dark:border-tuh-purple/20"
+            />
+            <div>
+              <h2 
+                className="font-extrabold text-tuh-navy dark:text-white leading-tight font-roboto"
+                style={{ fontSize: 'calc(1.25rem - 2px)' }}
+              >
+                TUH Admin Chatbot
+              </h2>
+              <a
+                href="https://intranet.hospital.tu.ac.th/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-tuh-indigo/80 dark:text-slate-200 font-bold block mt-0.5 leading-none transition-colors cursor-pointer font-roboto"
+                style={{ fontSize: 'calc(0.75rem - 1px)' }}
+              >
+                Thammasat University Hospital
+              </a>
+            </div>
           </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-1 rounded-lg text-tuh-indigo/40 hover:text-tuh-rose hover:bg-slate-100 dark:text-slate-400 dark:hover:text-tuh-pink dark:hover:bg-tuh-indigo/40 transition shrink-0 active:scale-95"
+            title="ปิดแถบเมนู"
+          >
+            <i className="fa-solid fa-chevron-left text-xs"></i>
+          </button>
         </div>
 
         {/* Menu Navigation */}
         <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar">
           <button
-            onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('dashboard')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'dashboard' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-chart-line text-sm"></i>
@@ -1206,7 +1244,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('satisfaction'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('satisfaction')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'satisfaction' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-face-smile text-sm"></i>
@@ -1214,7 +1252,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('documents'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('documents')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'documents' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-file-pdf text-sm"></i>
@@ -1222,7 +1260,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('announcements'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('announcements')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-bullhorn text-sm"></i>
@@ -1230,25 +1268,25 @@ function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('logs'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('logs')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'logs' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <div className="relative">
               <i className="fa-solid fa-circle-question text-sm"></i>
               {stats.pending_unanswered > 0 && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-tuh-rose rounded-full animate-pulse"></span>
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
               )}
             </div>
             <span>คำถามที่บอทตอบไม่ได้</span>
             {stats.pending_unanswered > 0 && (
-              <span className="ml-auto bg-tuh-rose text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+              <span className="ml-auto bg-red-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                 {stats.pending_unanswered}
               </span>
             )}
           </button>
 
           <button
-            onClick={() => { setActiveTab('history'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('history')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'history' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-clock-rotate-left text-sm"></i>
@@ -1256,7 +1294,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('faqs'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('faqs')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'faqs' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-book text-sm"></i>
@@ -1265,7 +1303,7 @@ function App() {
 
 
           <button
-            onClick={() => { setActiveTab('profile'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('profile')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'profile' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-user-gear text-sm"></i>
@@ -1273,7 +1311,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
+            onClick={() => handleTabClick('settings')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'settings' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
           >
             <i className="fa-solid fa-sliders text-sm"></i>
@@ -1313,12 +1351,15 @@ function App() {
         {/* Top Navbar */}
         <header className="p-4 md:px-6 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/70 dark:bg-tuh-navy/40 backdrop-blur-md flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-tuh-indigo dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-tuh-indigo/50 transition shrink-0"
-            >
-              <i className="fa-solid fa-bars text-lg"></i>
-            </button>
+            {!isSidebarOpen && (
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2.5 rounded-xl text-tuh-indigo dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-tuh-indigo/50 transition active:scale-95 shrink-0 animate-fade-in"
+                title="เปิดแถบเมนู"
+              >
+                <i className="fa-solid fa-bars text-lg"></i>
+              </button>
+            )}
             <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
               <span className="text-tuh-rose shrink-0">
                 {activeTab === 'dashboard' && <i className="fa-solid fa-chart-line"></i>}
@@ -1367,18 +1408,18 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ประวัติการตอบของบอท</span>
-                      <h3 className="text-3xl font-black tracking-tight text-sky-600 dark:text-sky-400">
-                        {stats.total_queries} <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามทั้งหมด</span>
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ประวัติการตอบของบอท</span>
+                      <h3 className="text-[30px] font-black tracking-tight text-sky-600 dark:text-sky-400">
+                        {stats.total_queries} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามทั้งหมด</span>
                       </h3>
                     </div>
                     <span className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center text-base"><i className="fa-solid fa-clock-rotate-left"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       บันทึกคิวรีถามตอบของผู้ใช้ย้อนหลัง ความเร็วตอบสนอง และข้อมูลอ้างอิง
                     </p>
-                    <span className="text-sm text-sky-600 dark:text-sky-400 font-bold flex items-center gap-1">เข้าสู่เมนูประวัติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-[14px] text-sky-600 dark:text-sky-400 font-bold flex items-center gap-1">เข้าสู่เมนูประวัติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1389,18 +1430,18 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>สถิติความพึงพอใจ</span>
-                      <h3 className="text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>สถิติความพึงพอใจ</span>
+                      <h3 className="text-[30px] font-black tracking-tight text-emerald-600 dark:text-emerald-400">
                         {stats.likes + stats.dislikes > 0 ? Math.round((stats.likes / (stats.likes + stats.dislikes)) * 100) : 100}%
                       </h3>
                     </div>
                     <span className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base"><i className="fa-solid fa-face-smile"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       วิเคราะห์ความพึงพอใจย้อนหลังรายวัน/สัปดาห์/เดือน/ปี และสถิติแยกตามหมวดหมู่คำถามหลัก
                     </p>
-                    <span className="text-sm text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">เข้าสู่เมนูสถิติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-[14px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">เข้าสู่เมนูสถิติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1411,18 +1452,18 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามที่บอทตอบไม่ได้</span>
-                      <h3 className={`text-3xl font-black tracking-tight ${stats.pending_unanswered > 0 ? (isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400') : (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>
-                        {stats.pending_unanswered} <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามค้างตอบ</span>
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามที่บอทตอบไม่ได้</span>
+                      <h3 className={`text-[30px] font-black tracking-tight ${stats.pending_unanswered > 0 ? (isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400') : (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>
+                        {stats.pending_unanswered} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามค้างตอบ</span>
                       </h3>
                     </div>
                     <span className={`w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}><i className="fa-solid fa-circle-question"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       คำถามจากผู้ใช้ที่บอทไม่มีความรู้อ้างอิง รอการเพิ่มคู่มือคำตอบจากแอดมินโดยตรง
                     </p>
-                    <span className={`text-sm font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}>เข้าสู่เมนูตอบคำถาม <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className={`text-[14px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}>เข้าสู่เมนูตอบคำถาม <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1433,18 +1474,18 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>จัดการเอกสาร PDF</span>
-                      <h3 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>
-                        {stats.active_documents} / {stats.total_documents} <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>แฟ้มเปิดใช้งาน</span>
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>จัดการเอกสาร PDF</span>
+                      <h3 className={`text-[30px] font-black tracking-tight ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>
+                        {stats.active_documents} / {stats.total_documents} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>แฟ้มเปิดใช้งาน</span>
                       </h3>
                     </div>
                     <span className={`w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}><i className="fa-solid fa-file-pdf"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       อัปโหลดแฟ้มข้อมูล PDF ค้นหา ลบ และจัดการสิทธิ์การข้ามบางหน้าของการเรียนรู้ของระบบ RAG
                     </p>
-                    <span className={`text-sm font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>เข้าสู่เมนูจัดการไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className={`text-[14px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>เข้าสู่เมนูจัดการไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1455,18 +1496,18 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คู่มือตอบกลับ (FAQs)</span>
-                      <h3 className="text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400">
-                        6 <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามด่วนหน้าแรก</span>
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คู่มือตอบกลับ (FAQs)</span>
+                      <h3 className="text-[30px] font-black tracking-tight text-amber-600 dark:text-amber-400">
+                        6 <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามด่วนหน้าแรก</span>
                       </h3>
                     </div>
                     <span className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-base"><i className="fa-solid fa-book"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       จัดการไอคอน คำถาม และคำตอบด่วนสำหรับการคลิกถามยอดฮิต 6 ปุ่มบนหน้าแรกของผู้ใช้
                     </p>
-                    <span className="text-sm text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">เข้าสู่เมนู FAQs <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-[14px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">เข้าสู่เมนู FAQs <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1477,18 +1518,18 @@ function App() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>โปรไฟล์แอดมิน</span>
-                      <h3 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                        ผู้ดูแล <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ระบบไอที</span>
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>โปรไฟล์แอดมิน</span>
+                      <h3 className={`text-[30px] font-black tracking-tight ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                        ผู้ดูแล <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ระบบไอที</span>
                       </h3>
                     </div>
                     <span className={`w-10 h-10 rounded-xl bg-slate-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}><i className="fa-solid fa-user-gear"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
-                    <p className={`text-sm font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
                       ความปลอดภัย ข้อมูลประจำตัว บทบาท อีเมล และระบบเปลี่ยนรหัสผ่านในการเข้าใช้งานแผงจัดการ
                     </p>
-                    <span className={`text-sm font-bold flex items-center gap-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>เข้าสู่เมนูโปรไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className={`text-[14px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>เข้าสู่เมนูโปรไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1578,7 +1619,7 @@ function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20 select-none">
+                      <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20 select-none">
                         <th className="px-6 py-4 cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('filename')}>
                           ชื่อไฟล์
                           {docSortField === 'filename' ? (
@@ -1858,7 +1899,7 @@ function App() {
                   <div className="flex-1 overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                        <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                           <th className="px-6 py-3.5">ชื่อแบบฟอร์ม</th>
                           <th className="px-6 py-3.5">ไฟล์ PDF / หน้าที่ระบุ</th>
                           <th className="px-6 py-3.5 text-center">ดาวน์โหลด</th>
@@ -1885,7 +1926,7 @@ function App() {
                                     <i className="fa-solid fa-file-pdf text-red-500 mr-1.5"></i>
                                     {form.filename ? form.filename.substring(form.filename.indexOf('_') + 1) : 'ไม่มีไฟล์'}
                                   </span>
-                                  {form.page && <span className="text-[10px] text-tuh-rose">หน้า {form.page}</span>}
+                                  {form.page && <span className="text-sm font-extrabold text-tuh-rose">หน้า {form.page}</span>}
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-center">
@@ -1992,7 +2033,7 @@ function App() {
                   </h3>
 
                   {announcements.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400 dark:text-slate-500 font-bold">
+                    <div className="text-center py-12 text-slate-400 dark:text-slate-300 font-bold">
                       <i className="fa-solid fa-bullhorn text-4xl mb-3 block opacity-30"></i>
                       ไม่มีประกาศในระบบขณะนี้
                     </div>
@@ -2031,7 +2072,7 @@ function App() {
                               </button>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between text-xs text-slate-450 dark:text-slate-500 border-t border-slate-100 dark:border-tuh-purple/5 pt-3 font-semibold gap-2">
+                            <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-300 border-t border-slate-100 dark:border-tuh-purple/5 pt-3 font-semibold gap-2">
                               <div>
                                 <i className="fa-regular fa-clock mr-1"></i>
                                 เริ่ม: {ann.start_date.replace("T", " ")} | สิ้นสุด: {ann.end_date.replace("T", " ")}
@@ -2061,7 +2102,7 @@ function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                      <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                         <th className="px-6 py-4">ข้อความคำถาม</th>
                         <th className="px-6 py-4 text-center">ถามซ้ำ (จำนวน)</th>
                         <th className="px-6 py-4">ถามล่าสุดเมื่อ</th>
@@ -2092,7 +2133,7 @@ function App() {
                               </td>
                               <td className="px-6 py-4 text-center">
                                 {isPending ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-tuh-rose">
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20 dark:border-rose-400/20">
                                     <i className="fa-solid fa-clock-rotate-left"></i>
                                     ค้างตอบ
                                   </span>
@@ -2123,7 +2164,7 @@ function App() {
                                 {!isPending && (
                                   <button
                                     onClick={() => handleResolveUnanswered(log.id, "Pending")}
-                                    className="text-xs text-tuh-rose hover:underline"
+                                    className="text-xs text-rose-500 dark:text-rose-400 hover:underline"
                                   >
                                     กู้คืนเป็นค้างตอบ
                                   </button>
@@ -2148,11 +2189,11 @@ function App() {
                 {/* Metric Card: Questions Count */}
                 <div className="p-6 bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex items-center justify-between col-span-1">
                   <div className="space-y-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">คำถามทั้งหมดที่โดนถาม</span>
+                    <span className="text-[15px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">คำถามทั้งหมดที่โดนถาม</span>
                     <h3 className="text-3xl font-black tracking-tight text-sky-500">
-                      {filteredHistory.length} <span className="text-xs font-bold text-slate-500 dark:text-slate-400">คำถาม</span>
+                      {filteredHistory.length} <span className="text-[15px] font-bold text-slate-500 dark:text-slate-400">คำถาม</span>
                     </h3>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                    <p className="text-[13px] text-slate-500 dark:text-slate-400 font-semibold">
                       จากคำถามสะสมทั้งหมด {history.length} ในฐานข้อมูล
                     </p>
                   </div>
@@ -2162,8 +2203,8 @@ function App() {
                 {/* Period Switcher Card */}
                 <div className="p-6 bg-white dark:bg-tuh-indigo/40 border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex flex-col justify-between col-span-2">
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ฟิลเตอร์สลับช่วงเวลาบันทึกประวัติ</span>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">เลือกช่วงเวลาเพื่อปรับการแสดงสถิติจำนวนคำถามและการแสดงตารางรายละเอียดด้านล่าง</p>
+                    <span className="text-[15px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ฟิลเตอร์สลับช่วงเวลาบันทึกประวัติ</span>
+                    <p className="text-[15px] text-slate-500 dark:text-slate-400 font-semibold mt-1">เลือกช่วงเวลาเพื่อปรับการแสดงสถิติจำนวนคำถามและการแสดงตารางรายละเอียดด้านล่าง</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
                     <div className="flex items-center bg-slate-100 dark:bg-tuh-navy/55 p-1 rounded-2xl border border-slate-200/50 dark:border-tuh-purple/10">
@@ -2212,7 +2253,7 @@ function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-tuh-navy/30 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                      <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                         <th className="px-6 py-4 w-44">เวลาที่ตอบ</th>
                         <th className="px-6 py-4 w-64">คำถามจากผู้ใช้</th>
                         <th className="px-6 py-4">คำตอบที่บอทตอบออกไป</th>
@@ -2253,14 +2294,14 @@ function App() {
 
                               {/* Answer */}
                               <td className="px-6 py-4 text-slate-600 dark:text-slate-300 align-top font-normal max-w-md">
-                                <div className="max-h-24 overflow-y-auto text-xs whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-black/10 p-2.5 rounded-xl border border-slate-100 dark:border-white/5 font-semibold">
+                                <div className="max-h-64 overflow-y-auto text-xs whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-black/10 p-2.5 rounded-xl border border-slate-100 dark:border-white/5 font-semibold">
                                   {log.answer}
                                 </div>
                               </td>
 
                               {/* Model */}
                               <td className="px-6 py-4 align-top whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-extrabold ${isFaq
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold ${isFaq
                                     ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
                                     : log.model.includes("Ollama")
                                       ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
@@ -2278,7 +2319,7 @@ function App() {
                                 ) : (
                                   <div className="flex flex-wrap gap-1 justify-center max-w-[120px]">
                                     {log.chunk_ids.map(cid => (
-                                      <span key={cid} className="bg-sky-500/10 text-sky-600 dark:text-sky-400 text-[10px] font-extrabold px-1.5 py-0.5 rounded">
+                                      <span key={cid} className="bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded">
                                         #{cid}
                                       </span>
                                     ))}
@@ -2685,7 +2726,7 @@ function App() {
                   <div>
                     <label className="block text-sm font-bold mb-2">คำสั่งระบบควบคุมพฤติกรรมบอท (System Prompt)</label>
                     <textarea
-                      rows="5"
+                      rows="12"
                       value={settings.system_prompt}
                       onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })}
                       placeholder="เช่น 'คุณคือระบบตอบคำถามสำหรับโรงพยาบาลธรรมศาสตร์...'"

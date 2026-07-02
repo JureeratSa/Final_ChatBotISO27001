@@ -52,6 +52,34 @@ DB_DOCUMENTS_PATH = os.path.join(DB_DIR, "db_documents.json")
 DB_HISTORY_PATH = os.path.join(DB_DIR, "db_history.json")
 DB_FORMS_PATH = os.path.join(DB_DIR, "db_forms.json")
 DB_ANNOUNCEMENTS_PATH = os.path.join(DB_DIR, "db_announcements.json")
+DB_ADMIN_PATH = os.path.join(DB_DIR, "db_admin.json")
+
+
+def init_admin_db():
+    if not os.path.exists(DB_ADMIN_PATH):
+        import hashlib
+        import os as local_os
+        # Default admin credentials: admin / admin1234
+        salt = local_os.urandom(16)
+        key = hashlib.pbkdf2_hmac(
+            'sha256', 
+            "admin1234".encode('utf-8'), 
+            salt, 
+            100000
+        )
+        admin_data = {
+            "username": "admin",
+            "password_salt": salt.hex(),
+            "password_hash": key.hex(),
+            "role": "System Administrator",
+            "name": "แอดมิน สารสนเทศ"
+        }
+        with open(DB_ADMIN_PATH, "w", encoding="utf-8") as f:
+            json.dump(admin_data, f, ensure_ascii=False, indent=2)
+        print("Initialized secure admin credentials database at db_admin.json")
+
+# Initialize admin DB
+init_admin_db()
 
 
 
@@ -240,57 +268,23 @@ def init_databases():
         }
         save_db(DB_SETTINGS_PATH, default_settings)
 
-    if not os.path.exists(DB_DOCUMENTS_PATH):
-        docs = []
-        default_filename = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
-        size = 0
-        try:
-            if os.path.exists(os.path.join(base_dir, default_filename)):
-                size = os.path.getsize(os.path.join(base_dir, default_filename))
-        except Exception:
-            pass
-        docs.append({
-            "filename": default_filename,
-            "status": "Active",
-            "pages": 18,
-            "upload_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "size": size,
-            "exclude_pages": []
-        })
-        save_db(DB_DOCUMENTS_PATH, docs)
-
-def rebuild_vector_indices():
-    """犹犧倨ｸ｣犧扉ｹ犧壟ｸｷ犹霞ｸｭ犧�ｸｫ犧･犧ｱ犧�ｸｪ犧ｱ犹謂ｸ�ｸｪ犧｣犹霞ｸｲ犧� Index 犹�ｸｫ犧｡犹謂ｸｭ犧ｱ犧歩ｹもｸ吭ｸ｡犧ｱ犧歩ｸｴ"""
-    print(" Rebuilding vector database indices...")
-    admin_dir = os.path.join(root_dir, "Admin")
-    rebuild_script = os.path.join(admin_dir, "rebuild_db.py")
-    if not os.path.exists(rebuild_script):
-        print(f" Script not found: {rebuild_script}")
-        return
-        
-    try:
-        import subprocess
-        result = subprocess.run(["py", rebuild_script], capture_output=True, text=True)
-        print("Rebuild stdout:", result.stdout)
-        if result.stderr:
-            print("Rebuild stderr:", result.stderr)
-            
-        global retriever
-        try:
-            from Admin.emb import HybridRetriever
-            new_retriever = HybridRetriever()
-            new_retriever.load()
-            retriever = new_retriever
-            print(" Vector database indices re-loaded in memory successfully!")
-        except Exception as err:
-            print(f" Failed to reload hybrid retriever in memory: {err}")
-    except Exception as e:
-        print(f"Error executing rebuild_db.py: {e}")
-
-init_databases()
-
-
-# --- [ 犧游ｸｱ犧�ｸ≒ｹ呉ｸ癌ｸｱ犧吭ｸ歩ｸｱ犧ｧ犧癌ｹ謂ｸｧ犧｢犧≒ｸｲ犧｣犧伶ｸｳ RAG & AI ] ---
+def clean_appended_metadata(text):
+    if not text:
+        return text
+    # ค้นหาจุดเริ่มต้นของส่วนที่ระบบแนบเพิ่มในรอบก่อนหน้าเพื่อล้างออก
+    markers = [
+        "\n\n🔗 **แบบฟอร์มที่เกี่ยวข้อง",
+        "\n\n🔗 แบบฟอร์มที่เกี่ยวข้อง",
+        "\n\n---\nเอกสารอ้างอิง:",
+        "\n---\nเอกสารอ้างอิง:",
+        "\n\n---\nCitations:",
+        "\n\n---"
+    ]
+    cleaned = text
+    for marker in markers:
+        if marker in cleaned:
+            cleaned = cleaned.split(marker)[0]
+    return cleaned.strip()
 
 def clean_thai_text(text):
     text = re.sub(r'\?+', '', text)
@@ -398,12 +392,15 @@ def generate_response_ai(query, results, config, history=[]):
     if max_tokens < 1000:
         max_tokens = 1000
     api_key = config.get("gemini_api_key") or gemini_api_key
-    model_name = config.get("model_name", "deepseek/deepseek-v4-flash")
+    model_name = config.get("model_name", "google/gemini-2.5-flash")
 
     openai_messages = [{"role": "system", "content": system_prompt}]
     for msg in history:
         role = "user" if msg.get("sender") == "user" else "assistant"
-        openai_messages.append({"role": role, "content": msg.get("text", "")})
+        text_content = msg.get("text", "")
+        if role == "assistant":
+            text_content = clean_appended_metadata(text_content)
+        openai_messages.append({"role": role, "content": text_content})
     openai_messages.append({"role": "user", "content": f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"})
 
     ans = None
@@ -614,6 +611,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             self.handle_announcements_create()
         elif self.path == '/api/admin/announcements/delete':
             self.handle_announcements_delete()
+        elif self.path == '/api/admin/announcements/update':
+            self.handle_announcements_update()
         # 9. Document Approve Step
         elif self.path == '/api/admin/documents/approve':
             self.handle_documents_approve()
@@ -626,6 +625,9 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         # 10. Core search query (RAG)
         elif self.path == '/api/search':
             self.handle_search()
+        # 12. Password update
+        elif self.path == '/api/admin/password/update':
+            self.handle_admin_password_update()
         else:
             self._send_json({"error": "Not Found"}, 404)
 
@@ -693,34 +695,54 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             
             answer = generate_response_ai(query_str, results, config, history)
             
-            # ค้นหาและแนบลิงก์ Google Drive ของแบบฟอร์มสวัสดิการที่เกี่ยวข้อง (รองรับการแมตช์แบบยืดหยุ่น)
+            # ค้นหาและแนบลิงก์แบบฟอร์มสวัสดิการที่เกี่ยวข้อง
+            # เงื่อนไข: แสดงเฉพาะเมื่อ RAG ค้นพบ results จริง และ AI ไม่ได้ตอบว่าไม่มีข้อมูล
+            is_no_info_response = any(k in answer for k in [
+                "ขออภัย", "ไม่พบข้อมูล", "ไม่มีข้อมูล", "ไม่สามารถตอบได้",
+                "ไม่ได้ระบุ", "ไม่มีรายละเอียด", "ไม่ทราบ", "ไม่ได้รับข้อมูล"
+            ])
             forms = load_db(DB_FORMS_PATH, [])
             matched_forms = []
             import re
-            for form in forms:
-                form_name = form.get("name", "").strip()
-                form_link = form.get("link", "").strip()
-                if form_name and form_link:
-                    # หาคำหลักที่เป็นเอกลักษณ์ของแบบฟอร์มนั้น ๆ
-                    core_name = form_name.replace("แบบเสนอขอรับ", "").replace("แบบคำขอเบิก", "").replace("แบบฟอร์ม", "").strip()
-                    is_match = False
-                    matched_term = ""
-                    
-                    if form_name in answer:
-                        is_match = True
-                        matched_term = form_name
-                    elif core_name and len(core_name) > 4 and core_name in answer:
-                        is_match = True
-                        # ค้นหาคำเต็ม ๆ ในคำตอบที่ครอบคลุม core_name
-                        pattern = r"(?:แบบคำขอเบิก|แบบเสนอขอรับ|แบบฟอร์มขอเบิก|แบบฟอร์มขอรับ|แบบฟอร์ม|แบบคำขอ|ใบเสนอขอรับ|ใบคำขอเบิก)\s*" + re.escape(core_name)
-                        m = re.search(pattern, answer)
-                        if m:
-                            matched_term = m.group(0).strip()
-                        else:
-                            matched_term = core_name
-                            
-                    if is_match:
-                        matched_forms.append(form)
+            # แสดงแบบฟอร์มเฉพาะเมื่อ: มี results จาก RAG AND ไม่ใช่คำตอบแบบ "ไม่มีข้อมูล"
+            if results and not is_no_info_response:
+                for form in forms:
+                    form_name = form.get("name", "").strip()
+                    form_link = form.get("link", "").strip()
+                    if form_name and form_link:
+                        # 1. ลบวงเล็บออกเพื่อค้นหาแบบยืดหยุ่น
+                        clean_name = re.sub(r'\(.*?\)', '', form_name).strip()
+
+                        # 2. หาคำหลักที่เป็นเอกลักษณ์ของแบบฟอร์มนั้น ๆ
+                        prefixes = [
+                            "แบบเสนอขอรับ", "แบบคำขอเบิก", "แบบฟอร์มขอเบิก", 
+                            "แบบฟอร์มขอรับ", "แบบฟอร์ม", "แบบคำขอ", 
+                            "ใบเสนอขอรับ", "ใบคำขอเบิก", "ใบรับรอง", "ใบ"
+                        ]
+                        
+                        core_name = clean_name
+                        for pref in sorted(prefixes, key=len, reverse=True):
+                            if core_name.startswith(pref):
+                                core_name = core_name[len(pref):].strip()
+                                break
+
+                        is_match = False
+
+                        # ตรวจสอบ 3 ระดับ:
+                        # 1. ชื่อเต็มของแบบฟอร์มปรากฏในคำตอบ
+                        if form_name in answer:
+                            is_match = True
+                        # 2. ชื่อที่คลีนแล้ว (ไม่มีวงเล็บ) ปรากฏในคำตอบ
+                        elif clean_name in answer:
+                            is_match = True
+                        # 3. คำหลักปรากฏในคำตอบ และต้องมีคำนำหน้าที่สื่อถึงแบบฟอร์ม/เอกสารจริงๆ
+                        elif core_name and len(core_name) > 3 and core_name in answer:
+                            pattern = r"(?:" + "|".join(re.escape(p) for p in prefixes) + r")\s*" + re.escape(core_name)
+                            if re.search(pattern, answer):
+                                is_match = True
+
+                        if is_match:
+                            matched_forms.append(form)
             
             if matched_forms:
                 form_bullets = []
@@ -735,7 +757,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             response_time = time.perf_counter() - start_time
             
             # 犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ犹≒ｸ･犧ｰ犧歩ｸｱ犧ｧ犧謂ｸｳ犧･犧ｭ犧�
-            model_name = config.get("model_name", "deepseek/deepseek-v4-flash")
+            model_name = config.get("model_name", "google/gemini-2.5-flash")
             model_tag = f"OpenRouter ({model_name})"
             
             # 犹犧癌ｹ�ｸ�ｸｧ犹謂ｸｲ犧�ｸｳ犧歩ｸｭ犧壟ｹ犧巵ｹ�ｸ吭ｸ�ｸｳ犹犧歩ｸｷ犧ｭ犧吭ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｸｫ犧｣犧ｷ犧ｭ犹�ｸ｡犹� 犹犧樅ｸｷ犹謂ｸｭ犹犧�ｸ･犧ｵ犧｢犧｣犹呉ｸ憫ｸ･犧･犧ｱ犧樅ｸ倨ｹ呉ｹ≒ｸ･犧ｰ犧巵ｹ霞ｸｭ犧�ｸ≒ｸｱ犧吭ｸ≒ｸｲ犧｣犧扉ｸｶ犧�ｹ犧ｭ犧≒ｸｪ犧ｲ犧｣犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�
@@ -764,16 +786,70 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             username = data.get("username", "")
             password = data.get("password", "")
             
-            if username == "admin" and password == "admin1234":
+            admin_data = load_db(DB_ADMIN_PATH, {})
+            if not admin_data:
+                init_admin_db()
+                admin_data = load_db(DB_ADMIN_PATH, {})
+                
+            stored_username = admin_data.get("username", "admin")
+            stored_salt_hex = admin_data.get("password_salt", "")
+            stored_hash_hex = admin_data.get("password_hash", "")
+            
+            import hashlib
+            is_valid = False
+            if username == stored_username and stored_salt_hex and stored_hash_hex:
+                salt = bytes.fromhex(stored_salt_hex)
+                stored_hash = bytes.fromhex(stored_hash_hex)
+                
+                new_key = hashlib.pbkdf2_hmac(
+                    'sha256',
+                    password.encode('utf-8'),
+                    salt,
+                    100000
+                )
+                is_valid = (new_key == stored_hash)
+                
+            if is_valid:
                 self._send_json({
                     "success": True,
                     "token": "tuh-admin-session-token-998877",
-                    "username": "admin",
-                    "role": "System Administrator",
-                    "name": "แอดมิน สารสนเทศ"
+                    "username": stored_username,
+                    "role": admin_data.get("role", "System Administrator"),
+                    "name": admin_data.get("name", "แอดมิน สารสนเทศ")
                 })
             else:
                 self._send_json({"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}, 401)
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_admin_password_update(self):
+        try:
+            data = self._get_json_payload()
+            new_password = data.get("new_password", "")
+            if not new_password or len(new_password) < 4:
+                self._send_json({"error": "รหัสผ่านสั้นเกินไป"}, 400)
+                return
+                
+            admin_data = load_db(DB_ADMIN_PATH, {})
+            if not admin_data:
+                init_admin_db()
+                admin_data = load_db(DB_ADMIN_PATH, {})
+                
+            import hashlib
+            import os as local_os
+            salt = local_os.urandom(16)
+            key = hashlib.pbkdf2_hmac(
+                'sha256', 
+                new_password.encode('utf-8'), 
+                salt, 
+                100000
+            )
+            admin_data["password_salt"] = salt.hex()
+            admin_data["password_hash"] = key.hex()
+            
+            save_db(DB_ADMIN_PATH, admin_data)
+            print("Successfully updated admin password hash in db_admin.json")
+            self._send_json({"success": True, "message": "เปลี่ยนรหัสผ่านแอดมินสำเร็จแล้ว"})
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
 
@@ -1049,6 +1125,39 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             new_announcements = [a for a in announcements if a.get("id") != ann_id]
             save_db(DB_ANNOUNCEMENTS_PATH, new_announcements)
             self._send_json({"success": True, "message": "ลบประกาศสำเร็จ"})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_announcements_update(self):
+        try:
+            data = self._get_json_payload()
+            ann_id = data.get("id", "")
+            title = data.get("title", "").strip()
+            content = data.get("content", "").strip()
+            start_date = data.get("start_date", "").strip()
+            end_date = data.get("end_date", "").strip()
+            
+            if not ann_id or not title or not content or not start_date or not end_date:
+                self._send_json({"error": "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง"}, 400)
+                return
+                
+            announcements = load_db(DB_ANNOUNCEMENTS_PATH, [])
+            found = False
+            for a in announcements:
+                if a.get("id") == ann_id:
+                    a["title"] = title
+                    a["content"] = content
+                    a["start_date"] = start_date
+                    a["end_date"] = end_date
+                    found = True
+                    break
+            
+            if not found:
+                self._send_json({"error": "ไม่พบประกาศที่ต้องการแก้ไข"}, 404)
+                return
+                
+            save_db(DB_ANNOUNCEMENTS_PATH, announcements)
+            self._send_json({"success": True, "message": "แก้ไขประกาศสำเร็จ"})
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
 

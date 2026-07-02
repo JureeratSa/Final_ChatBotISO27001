@@ -4,34 +4,7 @@ import dog from './dog.png';
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
-// คำถามที่พบบ่อยและคำตอบที่เตรียมไว้
-const FAQS = [
-  {
-    id: 1,
-    question: "ใครที่สามารถเบิกสวัสดิการได้บ้าง",
-    icon: "fa-eye-slash",
-    response: `สำหรับการดูแลดวงตาระหว่างทำงานหน้าจอคอมพิวเตอร์เป็นเวลานาน ทางงานสารสนเทศและศูนย์จักษุวิทยา รพ.ธรรมศาสตร์เฉลิมพระเกียรติ แนะนำกฎ **20-20-20** ดังนี้ครับ:\n\n1. 👀 **พักสายตา:** ทุกๆ 20 นาที ให้หยุดจ้องหน้าจอคอมพิวเตอร์\n2. 🌳 **มองระยะไกล:** มองออกไปที่วัตถุระยะ 20 ฟุต (ประมาณ 6 เมตร)\n3. ⏱️ **เวลาพัก:** มองเป็นเวลาอย่างน้อย 20 วินาที เพื่อผ่อนคลายกล้ามเนื้อตา\n\nนอกจากนี้ควรปรับความสว่างของหน้าจอให้เหมาะสม (เช่น การสลับใช้โหมดมืด (Dark Mode) สำหรับการถนอมสายตาที่เราออกแบบไว้) ปรับระดับสายตาให้อยู่ห่างจากหน้าจอ 50-70 ซม. และกระพริบตาบ่อยๆ หรือใช้น้ำตาเทียมหยอดตาระหว่างวันหากมีอาการตาแห้งครับ`
-  },
-  {
-    id: 2,
-    question: "ขั้นตอนการทำบัตรประจำตัวผู้ป่วยใหม่ต้องใช้เอกสารอะไรบ้าง?",
-    icon: "fa-id-card",
-    response: `การทำบัตรผู้ป่วยใหม่ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ สามารถทำได้ผ่าน 2 ช่องทางสะดวกดังนี้ครับ:\n\n🌐 **ช่องทางที่ 1: ออนไลน์ (แนะนำและรวดเร็วที่สุด)**\n- ดำเนินการผ่านแอปพลิเคชัน **TUH Easy App** (เมนู: ลงทะเบียนผู้ป่วยใหม่)\n- ถ่ายรูปบัตรประชาชนและใบหน้าเพื่อยืนยันตัวตนล่วงหน้า\n\n🏥 **ช่องทางที่ 2: ดำเนินการที่โรงพยาบาล**\n- ติดต่อที่ **แผนกเวชระเบียน (ตึกผู้ป่วยนอก ชั้น 1 ประตู 1)**\n- **เอกสารที่ต้องใช้:** บัตรประจำตัวประชาชนตัวจริง (สำหรับคนไทย) หรือหนังสือเดินทาง Passport (สำหรับชาวต่างชาติ)\n- กรอกข้อมูลในแบบฟอร์มเปิดสิทธิ์และรอเจ้าหน้าที่ถ่ายรูปทำบัตรประจำตัวผู้ป่วยครับ`
-  },
-  {
-    id: 3,
-    question: "ติดต่อศูนย์ไอที (งานสารสนเทศ) รพ.ธรรมศาสตร์ฯ ได้ช่องทางไหนบ้าง?",
-    icon: "fa-network-wired",
-    response: `ท่านสามารถติดต่อ **งานสารสนเทศ (IT Department)** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ได้ในวันและเวลาราชการ (จันทร์-ศุกร์ เวลา 08:00 - 16:00 น.) ครับ:\n\n📞 **เบอร์โทรศัพท์ภายใน:** โทร. 02-926-9999 ต่อ 7120 - 7124\n✉️ **อีเมล:** it@tuh.ac.th\n🏢 **สถานที่ตั้ง:** อาคารกิตติวัฒนา ชั้น 4 (แผนกงานสารสนเทศ)\n💻 **แจ้งปัญหาออนไลน์:** สำหรับเจ้าหน้าที่ สามารถสแกนแจ้งผ่านระบบ IT Service Portal บนเครือข่ายอินทราเน็ตโรงพยาบาลได้โดยตรงครับ`
-  },
-  {
-    id: 4,
-    question: "เวลาทำการของคลินิกนอกเวลาราชการคือช่วงเวลาใด?",
-    icon: "fa-clock",
-    response: `**คลินิกนอกเวลาราชการ (Specialty Clinic)** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ เปิดให้บริการรักษาพยาบาลนอกเวลาปกติเพื่ออำนวยความสะดวกดังนี้ครับ:\n\n📅 **วันจันทร์ - วันศุกร์:** เวลา 16:00 - 20:00 น.\n📅 **วันเสาร์ - วันอาทิตย์ และวันหยุดนักขัตฤกษ์:** เวลา 08:00 - 12:00 น. (บางแผนกคลินิกเฉพาะทางอาจให้บริการถึง 16:00 น.)\n\n📢 *ข้อแนะนำ:* ควรโทรนัดหมายล่วงหน้าที่แผนกที่ต้องการรักษา หรือเบอร์ประชาสัมพันธ์หลัก 02-926-9999 หรือตรวจสอบแพทย์เวรและทำนัดล่วงหน้าผ่านแอปพลิเคชัน **TUH Easy App** ครับ`
-  },
 
-];
 
 // สถานะเวลาปัจจุบันสำหรับการอัปเดตการนับถอยหลังแบบเรียลไทม์
 function App() {
@@ -249,11 +222,11 @@ function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
   const [showFaqs, setShowFaqs] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
-  const [faqsList, setFaqsList] = useState(FAQS);
+  const [faqsList, setFaqsList] = useState([]);
 
   // สถานะของฟอร์มแสดงความคิดเห็น
   const [feedbackRating, setFeedbackRating] = useState(5);
@@ -295,12 +268,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem('tuh_font_size', fontSize);
     if (fontSize === 'large') {
-      document.documentElement.style.fontSize = '25px';
+      document.documentElement.style.fontSize = '19px';
     } else if (fontSize === 'xl') {
-      document.documentElement.style.fontSize = '28px';
+      document.documentElement.style.fontSize = '22px';
     } else {
       // 'normal'
-      document.documentElement.style.fontSize = '22px';
+      document.documentElement.style.fontSize = '16px';
     }
   }, [fontSize]);
 
@@ -336,43 +309,7 @@ function App() {
     }
   }, [currentTime, sessions, activeSessionId]);
 
-  // ตรวจสอบการไม่ใช้งาน: ตรวจสอบทุก 30 วินาทีว่าการแชทล่าสุดนานกว่า 1 ชั่วโมงหรือไม่
-  useEffect(() => {
-    const defaultSession = {
-      id: 'session-1',
-      title: 'สอบถามข้อมูลเบื้องต้น',
-      createdAt: Date.now(),
-      messages: [
-        {
-          id: 'm1',
-          sender: 'bot',
-          text: welcomeMessage,
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]
-    };
 
-    const checkInactivity = () => {
-      const lastChatTime = localStorage.getItem('tuh_last_chat_time');
-      if (lastChatTime) {
-        const now = Date.now();
-        const oneHourInMs = 60 * 60 * 1000;
-        if (now - parseInt(lastChatTime, 10) > oneHourInMs) {
-          console.log("Inactivity detected (> 1 hour). Clearing chat history.");
-          localStorage.removeItem('tuh_chats');
-          localStorage.removeItem('tuh_last_chat_time');
-          setSessions([defaultSession]);
-          setActiveSessionId('session-1');
-        }
-      }
-    };
-
-    // ให้รันการตรวจสอบทันทีเมื่อ [Component] ถูกโหลดขึ้นมา (Mount) หรือเมื่อมีการอัปเดตข้อมูล
-    checkInactivity();
-
-    const interval = setInterval(checkInactivity, 30000);
-    return () => clearInterval(interval);
-  }, [welcomeMessage]);
 
   // โหลดข้อความต้อนรับแบบกำหนดเองและการตั้งค่าเมื่อเริ่มต้นระบบ
   useEffect(() => {
@@ -483,7 +420,7 @@ function App() {
   const handleDeleteSession = (id, e) => {
     e.stopPropagation();
     if (sessions.length === 1) {
-      alert("ไม่สามารถลบการสนทนาทั้งหมดได้ ต้องมีอย่างน้อย 1 รายการ");
+      alert("ขาหมูขอชีแจงว่าคุณผู้ใช้ไม่สามารถลบการสนทนาทั้งหมดได้ ต้องมีอย่างน้อย 1 รายการครับ");
       return;
     }
     const filtered = sessions.filter(s => s.id !== id);
@@ -886,12 +823,12 @@ function App() {
 
         <aside
           style={{
-            '--sidebar-width': `${fontSize === 'xl' ? Math.max(385, sidebarWidth + 60) :
+            '--sidebar-width': isSidebarOpen ? `${fontSize === 'xl' ? Math.max(385, sidebarWidth + 60) :
               fontSize === 'large' ? Math.max(355, sidebarWidth + 30) :
                 sidebarWidth
-              }px`
+              }px` : '0px'
           }}
-          className={`fixed inset-y-0 left-0 z-30 w-80 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md shadow-sm transition-transform duration-300 ease-in-out md:static md:relative md:translate-x-0 tuh-resizable-sidebar ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md shadow-sm transition-all duration-300 md:static md:relative tuh-resizable-sidebar ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full md:translate-x-0 md:opacity-0 md:border-r-0 overflow-hidden'
             }`}
         >
 
@@ -909,15 +846,15 @@ function App() {
               </a>
               <div>
                 <h2 className="font-extrabold text-tuh-navy dark:text-white leading-none font-roboto" style={{ fontSize: '1.5rem' }}>TUH</h2>
-                <span className="text-black dark:text-white font-bold block mt-0.5 font-roboto" style={{ fontSize: '0.6rem' }}>Thammasat University Hospital</span>
+                <span className="text-black dark:text-white font-bold block mt-0.5 font-roboto" style={{ fontSize: '0.9rem' }}>Thammasat University Hospital</span>
               </div>
             </div>
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="md:hidden p-2 rounded-xl text-tuh-indigo/40 hover:text-tuh-navy dark:text-slate-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-tuh-indigo transition active:scale-95"
-              title="ปิดเมนู"
+              className="p-1 rounded-lg text-tuh-indigo/40 hover:text-tuh-rose hover:bg-slate-100 dark:text-slate-400 dark:hover:text-tuh-pink dark:hover:bg-tuh-indigo/40 transition shrink-0 active:scale-95"
+              title="ปิดแถบเมนู"
             >
-              <i className="fa-solid fa-xmark text-lg"></i>
+              <i className="fa-solid fa-chevron-left text-xs"></i>
             </button>
           </div>
 
@@ -925,7 +862,7 @@ function App() {
           <div className="p-4">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-tuh-gradient-2 hover:shadow-lg hover:shadow-tuh-rose/30 hover:scale-[1.02] text-white text-base font-semibold transition-all duration-300 active:scale-[0.98] group"
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-tuh-gradient-2 hover:shadow-lg hover:shadow-tuh-rose/30 hover:scale-[1.02] text-white text-sm font-semibold transition-all duration-300 active:scale-[0.98] group"
             >
               <i className="fa-solid fa-plus transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110"></i>
               เริ่มบทสนทนาใหม่
@@ -934,9 +871,12 @@ function App() {
 
           {/* ประวัติการสนทนา */}
           <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
-            <div className="px-3 mb-2 flex items-center justify-between">
+            <div className="px-3 mb-2 flex items-baseline gap-1.5 select-none">
               <span className="text-sm font-bold text-tuh-indigo/50 dark:text-slate-450 uppercase tracking-wider">
                 ประวัติการสนทนา
+              </span>
+              <span className="text-[0.6875rem] font-semibold text-tuh-rose/70 dark:text-tuh-pink/70">
+                (หมดอายุใน 1 ชม.)
               </span>
             </div>
             <div className="space-y-1">
@@ -964,8 +904,8 @@ function App() {
                   >
                     <div className="flex items-center gap-2 overflow-hidden flex-1">
                       <i className={`fa-solid ${isActive ? 'fa-message text-tuh-rose dark:text-tuh-coral' : 'fa-comment text-tuh-indigo/40 dark:text-slate-400'} text-sm shrink-0`}></i>
-                      <span className="text-base truncate flex-1 min-w-0 pr-1">{s.title}</span>
-                       {s.id !== sessions[0]?.id && (
+                      <span className="text-sm truncate flex-1 min-w-0 pr-1">{s.title}</span>
+                      {s.id !== sessions[0]?.id && (
                         <span className={`text-xs font-bold shrink-0 px-2 py-0.5 rounded-lg bg-slate-100/80 dark:bg-white/15 text-tuh-indigo/70 dark:text-slate-200 flex items-center gap-1 ${isActive ? 'text-tuh-rose dark:text-tuh-pink bg-tuh-rose/10 dark:bg-tuh-rose/20' : ''}`}>
                           <i className="fa-regular fa-clock text-[11px]"></i>
                           {countdownText}
@@ -995,7 +935,7 @@ function App() {
             >
               <div className="flex items-center gap-3">
                 <i className={`fa-solid ${isDarkMode ? 'fa-sun text-amber-500' : 'fa-moon text-tuh-rose'} text-base transition-transform duration-300 group-hover:scale-120 group-hover:rotate-12`}></i>
-                <span className="text-base font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">ปรับโหมดหน้าจอ</span>
+                <span className="text-sm font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">ปรับโหมดหน้าจอ</span>
               </div>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-white/10 text-tuh-navy/60 dark:text-slate-200 font-semibold group-hover:bg-tuh-rose/10 group-hover:text-tuh-rose dark:group-hover:text-white transition-all">
                 {isDarkMode ? 'โหมดสว่าง' : 'โหมดมืด'}
@@ -1003,27 +943,27 @@ function App() {
             </button>
 
             {/* ปรับขนาดตัวอักษร */}
-            <div className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-100/50 dark:hover:bg-tuh-indigo/20 text-tuh-navy dark:text-slate-100 transition-all duration-300">
-              <div className="flex items-center gap-2.5 select-none shrink-0">
-                <i className="fa-solid fa-font text-base text-tuh-purple dark:text-purple-300"></i>
-                <span className="text-base font-medium">ขนาดตัวอักษร</span>
+            <div className="w-full flex flex-col gap-2 p-3 rounded-xl hover:bg-slate-100/50 dark:hover:bg-tuh-indigo/20 text-tuh-navy dark:text-slate-100 transition-all duration-300">
+              <div className="flex items-center gap-3 select-none">
+                <i className="fa-solid fa-font text-tuh-purple dark:text-purple-300 text-base"></i>
+                <span className="text-sm font-medium">ขนาดตัวอักษร</span>
               </div>
-              <div className="flex items-center gap-1 bg-slate-200/55 dark:bg-white/5 p-1 rounded-lg shrink-0">
+              <div className="flex items-center gap-1 bg-slate-200/55 dark:bg-white/5 p-0.5 rounded-lg w-full">
                 <button
                   onClick={() => setFontSize('normal')}
-                  className={`text-xs md:text-sm px-2 py-0.5 rounded-md font-semibold transition ${fontSize === 'normal' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                  className={`flex-1 text-center text-[0.65rem] px-2 py-1 rounded-md font-semibold transition ${fontSize === 'normal' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
                 >
                   ปกติ
                 </button>
                 <button
                   onClick={() => setFontSize('large')}
-                  className={`text-xs md:text-sm px-2 py-0.5 rounded-md font-semibold transition ${fontSize === 'large' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                  className={`flex-1 text-center text-[0.65rem] px-2 py-1 rounded-md font-semibold transition ${fontSize === 'large' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
                 >
                   ใหญ่
                 </button>
                 <button
                   onClick={() => setFontSize('xl')}
-                  className={`text-xs md:text-sm px-2 py-0.5 rounded-md font-semibold transition ${fontSize === 'xl' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                  className={`flex-1 text-center text-[0.65rem] px-2 py-1 rounded-md font-semibold transition ${fontSize === 'xl' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
                 >
                   ใหญ่สุด
                 </button>
@@ -1036,7 +976,7 @@ function App() {
               className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-tuh-indigo/40 text-tuh-navy dark:text-slate-100 transition-all duration-300 hover:translate-x-1 active:scale-[0.98] group"
             >
               <i className="fa-solid fa-book-open text-tuh-purple dark:text-purple-300 text-base transition-transform duration-300 group-hover:scale-120 group-hover:-rotate-6"></i>
-              <span className="text-base font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">คู่มือการใช้งาน</span>
+              <span className="text-sm font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">คู่มือการใช้งาน</span>
             </button>
 
             {/* ปุ่มข้อเสนอแนะ */}
@@ -1045,20 +985,22 @@ function App() {
               className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-tuh-indigo/40 text-tuh-navy dark:text-slate-100 transition-all duration-300 hover:translate-x-1 active:scale-[0.98] group"
             >
               <i className="fa-solid fa-comment-dots text-tuh-purple dark:text-purple-300 text-base transition-transform duration-300 group-hover:scale-120 group-hover:translate-y-[-2px]"></i>
-              <span className="text-base font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">ข้อเสนอแนะ</span>
+              <span className="text-sm font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">ข้อเสนอแนะ</span>
             </button>
 
           </div>
 
           {/* แถบปรับขนาด (ทั้งเมาส์และสัมผัส) */}
-          <div
-            onMouseDown={startResizing}
-            onTouchStart={startTouchResizing}
-            className="absolute top-0 right-0 bottom-0 w-3 -mr-1.5 cursor-col-resize z-50 group"
-            title="ลากเพื่อปรับขนาดเมนู"
-          >
-            <div className="w-1 h-full mx-auto bg-transparent group-hover:bg-tuh-rose/40 dark:group-hover:bg-tuh-purple/40 transition-colors duration-150" />
-          </div>
+          {isSidebarOpen && (
+            <div
+              onMouseDown={startResizing}
+              onTouchStart={startTouchResizing}
+              className="absolute top-0 right-0 bottom-0 w-3 -mr-1.5 cursor-col-resize z-50 group"
+              title="ลากเพื่อปรับขนาดเมนู"
+            >
+              <div className="w-1 h-full mx-auto bg-transparent group-hover:bg-tuh-rose/40 dark:group-hover:bg-tuh-purple/40 transition-colors duration-150" />
+            </div>
+          )}
         </aside>
 
         {/* 2. หน้าต่างขวา */}
@@ -1075,13 +1017,15 @@ function App() {
               <div className="absolute top-0 left-0 right-0 p-5 md:p-7 flex items-center justify-between z-10">
                 {/* ส่วนซ้าย: ปุ่มเมนูแฮมเบอร์เกอร์และเมนูแบบเลื่อนลง */}
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="md:hidden p-2.5 rounded-xl text-tuh-indigo dark:text-slate-300 hover:bg-white/50 dark:hover:bg-tuh-indigo/50 transition active:scale-95 shrink-0 bg-white/30 backdrop-blur-sm border border-white/40 dark:border-white/5 shadow-sm"
-                    title="เปิดเมนู"
-                  >
-                    <i className="fa-solid fa-bars text-lg"></i>
-                  </button>
+                  {!isSidebarOpen && (
+                    <button
+                      onClick={() => setIsSidebarOpen(true)}
+                      className="p-2.5 rounded-xl text-tuh-indigo dark:text-slate-300 hover:bg-white/50 dark:hover:bg-tuh-indigo/50 transition active:scale-95 shrink-0 bg-white/30 backdrop-blur-sm border border-white/40 dark:border-white/5 shadow-sm animate-fade-in"
+                      title="เปิดแถบเมนู"
+                    >
+                      <i className="fa-solid fa-bars text-lg"></i>
+                    </button>
+                  )}
                   <div className="flex items-center gap-1.5 px-5 py-2 rounded-2xl bg-white/55 dark:bg-tuh-indigo/40 backdrop-blur-md border border-slate-300 dark:border-white/25 shadow-sm">
                     <span className="font-black tracking-tight text-tuh-gradient font-roboto" style={{ fontSize: '0.8rem' }}>TUH Chatbot AI</span>
                   </div>
@@ -1169,13 +1113,15 @@ function App() {
               {/* ส่วนหัวของหน้าต่างแชท */}
               <header className="p-4 md:px-6 md:py-4 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/50 dark:bg-[#1B2062]/50 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0">
                 <div className="flex items-center gap-3 w-full lg:w-auto">
-                  <button
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="md:hidden p-2.5 rounded-xl text-tuh-indigo dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-tuh-indigo/50 transition active:scale-95 shrink-0"
-                    title="เปิดเมนู"
-                  >
-                    <i className="fa-solid fa-bars text-lg"></i>
-                  </button>
+                  {!isSidebarOpen && (
+                    <button
+                      onClick={() => setIsSidebarOpen(true)}
+                      className="p-2.5 rounded-xl text-tuh-indigo dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-tuh-indigo/50 transition active:scale-95 shrink-0 animate-fade-in"
+                      title="เปิดแถบเมนู"
+                    >
+                      <i className="fa-solid fa-bars text-lg"></i>
+                    </button>
+                  )}
                   <div className="min-w-0 flex-1 lg:flex-initial">
                     <h1 className="text-lg md:text-xl font-extrabold tracking-tight text-tuh-navy dark:text-white flex items-center gap-2">
                       <span className="text-tuh-coral shrink-0"><i className="fa-solid fa-circle-nodes"></i></span>
@@ -1599,13 +1545,13 @@ function App() {
               {/* Announcements List Container */}
               <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4 custom-scrollbar">
                 {activeAnnouncements.map((ann) => (
-                  <div 
-                    key={ann.id} 
+                  <div
+                    key={ann.id}
                     className="p-5 rounded-2xl border border-slate-100 dark:border-tuh-purple/20 bg-slate-50/70 dark:bg-[#100220]/40 space-y-2.5 shadow-sm relative overflow-hidden text-left"
                   >
                     {/* Decorative color strip on left side */}
                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-tuh-rose to-tuh-pink"></div>
-                    
+
                     <div className="pl-2">
                       <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2">
                         {ann.title}

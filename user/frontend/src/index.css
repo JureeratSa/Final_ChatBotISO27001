@@ -12,7 +12,7 @@ html {
     @apply antialiased transition-colors duration-300;
     font-weight: 500;
     /* เปลี่ยนฟอนต์หลักที่นี่ */
-    font-family: 'Chonburi', cursive !important;
+    font-family: 'Roboto', sans-serif !important;
   }
 
   html:not(.dark) body {
@@ -293,7 +293,7 @@ html {
 
 /* แก้ไขบรรทัดนี้: ลบ !important และใช้ขนาดที่อ้างอิงจาก html base ได้เลย */
 *:not(i):not([class*="fa-"]) {
-  font-family: 'TH Sarabun New', 'Sarabun', sans-serif !important;
+  font-family: 'Roboto', sans-serif !important;
 }
 
 /* ขนาดตัวอักษร */
@@ -320,11 +320,11 @@ body [class*="text-5xl"] {
 
 /* Custom Font classes override wildcard rules */
 .font-lily, *:not(i):not([class*="fa-"]).font-lily {
-  font-family: 'Lily Script One', 'LilyUPC', 'Lily', cursive, sans-serif !important;
+  font-family: 'Roboto', sans-serif !important;
 }
 
 .font-chonburi, *:not(i):not([class*="fa-"]).font-chonburi {
-  font-family: 'Chonburi', cursive !important;
+  font-family: 'Roboto', sans-serif !important;
 }
 
 .font-bebas, *:not(i):not([class*="fa-"]).font-bebas {

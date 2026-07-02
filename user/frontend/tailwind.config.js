@@ -18,7 +18,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['TH Sarabun New', 'Sarabun', 'Inter', 'Outfit', 'sans-serif'],
+        sans: ['Roboto', 'Inter', 'Outfit', 'sans-serif'],
       },
     },
   },

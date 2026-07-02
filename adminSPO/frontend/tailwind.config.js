@@ -9,16 +9,16 @@ export default {
     extend: {
       colors: {
         tuh: {
-          pink: '#FFF0F5',
-          coral: '#FF7540',
-          rose: '#FF4D80',
-          purple: '#8B5CF6',
-          indigo: '#321154',
-          navy: '#100220',
+          pink: '#F4D6FB',
+          coral: '#809BFE',
+          rose: '#8B5CF6',
+          purple: '#A78BFA',
+          indigo: '#0d1235',
+          navy: '#04081c',
         }
       },
       fontFamily: {
-        sans: ['TH Sarabun New', 'Sarabun', 'Inter', 'Outfit', 'sans-serif'],
+        sans: ['Roboto', 'Inter', 'Outfit', 'sans-serif'],
       },
     },
   },

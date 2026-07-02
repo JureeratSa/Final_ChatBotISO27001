@@ -16,6 +16,7 @@ uploads/
 
 # Vector database index files (FAISS/BM25 output)
 index_db/
+index_db_backup/
 
 # Environments and credentials
 .env
