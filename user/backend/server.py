@@ -22,6 +22,21 @@ sys.path.append(root_dir)
 
 # 犧吭ｸｳ犹犧もｹ霞ｸｲ犹もｸ｡犧扉ｸｹ犧･犧ｪ犧ｷ犧壟ｸ�ｹ霞ｸ吭ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧｣犧ｰ犹犧壟ｸｵ犧｢犧� RAG
 retriever = None
+
+def rebuild_vector_indices():
+    try:
+        from Admin.rebuild_db import rebuild
+        print("Rebuilding vector indices in background thread...")
+        rebuild()
+        print("Successfully rebuilt vector indices. Reloading retriever in memory...")
+        global retriever
+        from Admin.emb import HybridRetriever
+        new_retriever = HybridRetriever()
+        new_retriever.load()
+        retriever = new_retriever
+        print("Successfully reloaded retriever in memory.")
+    except Exception as e:
+        print(f"Failed to rebuild vector indices: {e}")
 try:
     from Admin.emb import HybridRetriever
 except Exception as e:
@@ -146,7 +161,7 @@ def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name
 
 def run_weekly_exporter():
     """犹犧杳ｹ霞ｸｲ犧歩ｸ｣犧ｧ犧謂ｹ犧癌ｹ�ｸ�ｹ犧樅ｸｷ犹謂ｸｭ犧ｪ犹謂ｸ�ｸｭ犧ｭ犧≒ｹ�ｸ游ｸ･犹呉ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ犧≒ｸｲ犧｣犧歩ｸｭ犧壟ｸ｣犧ｲ犧｢犧ｪ犧ｱ犧巵ｸ扉ｸｲ犧ｫ犹呉ｸ歩ｸｱ犧扉ｸ｣犧ｭ犧壟ｸｧ犧ｱ犧吭ｸｭ犧ｲ犧伶ｸｴ犧歩ｸ｢犹呉ｸｭ犧ｱ犧歩ｹもｸ吭ｸ｡犧ｱ犧歩ｸｴ"""
-    export_dir = r"Z:\Intern\2026\犧｡犧ｧ犧･\test_log"
+    export_dir = os.path.join(os.path.dirname(root_dir), "test_log")
     while True:
         try:
             now = datetime.datetime.now()
@@ -460,16 +475,100 @@ def generate_response_ai(query, results, config, history=[]):
     return ans
 
 
+import base64
+import hmac
+import hashlib
+
+JWT_SECRET = "tuh-chatbot-secret-key-2026"
+
+def base64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('utf-8')
+
+def base64url_decode(data: str) -> bytes:
+    padding = '=' * (4 - len(data) % 4)
+    return base64.urlsafe_b64decode(data + padding)
+
+def create_jwt(payload: dict) -> str:
+    header = {"alg": "HS256", "typ": "JWT"}
+    header_b64 = base64url_encode(json.dumps(header).encode('utf-8'))
+    
+    payload_copy = payload.copy()
+    if "exp" not in payload_copy:
+        payload_copy["exp"] = int(time.time()) + 86400  # 24 hours
+        
+    payload_b64 = base64url_encode(json.dumps(payload_copy).encode('utf-8'))
+    
+    signing_input = f"{header_b64}.{payload_b64}".encode('utf-8')
+    signature = hmac.new(JWT_SECRET.encode('utf-8'), signing_input, hashlib.sha256).digest()
+    sig_b64 = base64url_encode(signature)
+    
+    return f"{header_b64}.{payload_b64}.{sig_b64}"
+
+def verify_jwt(token: str) -> dict:
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+        header_b64, payload_b64, sig_b64 = parts
+        
+        signing_input = f"{header_b64}.{payload_b64}".encode('utf-8')
+        expected_sig = hmac.new(JWT_SECRET.encode('utf-8'), signing_input, hashlib.sha256).digest()
+        actual_sig = base64url_decode(sig_b64)
+        
+        if not hmac.compare_digest(expected_sig, actual_sig):
+            return None
+            
+        payload = json.loads(base64url_decode(payload_b64).decode('utf-8'))
+        
+        if "exp" in payload and time.time() > payload["exp"]:
+            return None
+            
+        return payload
+    except Exception:
+        return None
+
 
 class SearchAPIHandler(BaseHTTPRequestHandler):
     
+    def check_admin_auth(self):
+        if self.command == 'OPTIONS':
+            return True
+
+        from urllib.parse import urlparse
+        path = urlparse(self.path).path
+        
+        public_paths = [
+            '/',
+            '/api/admin/login',
+            '/api/admin/feedback/submit',
+            '/api/admin/unanswered/submit',
+            '/api/search'
+        ]
+        
+        if path in public_paths or path.startswith('/api/forms/download/') or path == '/api/announcements/active':
+            return True
+            
+        auth_header = self.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            self._send_json({"error": "Unauthorized: Missing token"}, 401)
+            return False
+            
+        token = auth_header.split(' ')[1]
+        payload = verify_jwt(token)
+        if not payload:
+            self._send_json({"error": "Unauthorized: Invalid or expired token"}, 401)
+            return False
+            
+        self.admin_user = payload
+        return True
+
     def _set_headers(self, status=200):
         """犧歩ｸｱ犹霞ｸ�ｸ�ｹ謂ｸｲ Header 犧｣犧ｭ犧�ｸ｣犧ｱ犧� CORS 犧ｪ犧ｳ犧ｫ犧｣犧ｱ犧壟ｸ杳ｸｱ犹謂ｸ� Frontend"""
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-File-Name, X-Exclude-Pages, X-Form-Name, X-Form-Page')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-File-Name, X-Exclude-Pages, X-Form-Name, X-Form-Page')
         self.end_headers()
 
     def _send_json(self, data, status=200):
@@ -489,6 +588,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
 
     def do_GET(self):
+        if not self.check_admin_auth():
+            return
         from urllib.parse import urlparse, parse_qs, unquote
         parsed_url = urlparse(self.path)
         path = parsed_url.path
@@ -579,6 +680,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "Not Found"}, 404)
 
     def do_POST(self):
+        if not self.check_admin_auth():
+            return
         # 1. Login
         if self.path == '/api/admin/login':
             self.handle_admin_login()
@@ -810,9 +913,15 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 is_valid = (new_key == stored_hash)
                 
             if is_valid:
+                token_payload = {
+                    "username": stored_username,
+                    "role": admin_data.get("role", "System Administrator"),
+                    "name": admin_data.get("name", "แอดมิน สารสนเทศ")
+                }
+                token = create_jwt(token_payload)
                 self._send_json({
                     "success": True,
-                    "token": "tuh-admin-session-token-998877",
+                    "token": token,
                     "username": stored_username,
                     "role": admin_data.get("role", "System Administrator"),
                     "name": admin_data.get("name", "แอดมิน สารสนเทศ")

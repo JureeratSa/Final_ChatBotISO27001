@@ -872,10 +872,10 @@ function App() {
           {/* ประวัติการสนทนา */}
           <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
             <div className="px-3 mb-2 flex items-baseline gap-1.5 select-none">
-              <span className="text-sm font-bold text-tuh-indigo/50 dark:text-slate-450 uppercase tracking-wider">
+              <span className="text-sm font-bold text-tuh-indigo/50 dark:text-slate-300 uppercase tracking-wider">
                 ประวัติการสนทนา
               </span>
-              <span className="text-[0.6875rem] font-semibold text-tuh-rose/70 dark:text-tuh-pink/70">
+              <span className="text-[0.6875rem] font-semibold text-tuh-rose/70">
                 (หมดอายุใน 1 ชม.)
               </span>
             </div>
@@ -934,7 +934,7 @@ function App() {
               className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-tuh-indigo/40 text-tuh-navy dark:text-slate-100 transition-all duration-300 hover:translate-x-1 active:scale-[0.98] group"
             >
               <div className="flex items-center gap-3">
-                <i className={`fa-solid ${isDarkMode ? 'fa-sun text-amber-500' : 'fa-moon text-tuh-rose'} text-base transition-transform duration-300 group-hover:scale-120 group-hover:rotate-12`}></i>
+                <i className={`fa-solid ${isDarkMode ? 'fa-sun text-amber-500' : 'fa-moon text-blue-500'} text-base transition-transform duration-300 group-hover:scale-120 group-hover:rotate-12`}></i>
                 <span className="text-sm font-medium group-hover:text-tuh-rose dark:group-hover:text-tuh-pink transition-colors">ปรับโหมดหน้าจอ</span>
               </div>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-white/10 text-tuh-navy/60 dark:text-slate-200 font-semibold group-hover:bg-tuh-rose/10 group-hover:text-tuh-rose dark:group-hover:text-white transition-all">
@@ -1179,7 +1179,7 @@ function App() {
                         {/* ฟองคำพูด */}
                         <div className="space-y-1 min-w-0">
                           <div className={`text-base leading-relaxed break-words ${isBot
-                            ? 'py-1 px-2 text-tuh-navy dark:text-white'
+                            ? 'py-1 px-2 text-tuh-navy dark:text-white text-justify'
                             : 'p-3 rounded-2xl shadow-md bg-[#f8bbd0] text-black dark:bg-[#ad1457] dark:text-white rounded-tr-sm'
                             }`}>
                             {parseMarkdown(msg.text)}
@@ -1251,29 +1251,59 @@ function App() {
               {/* ส่วนรับข้อความ */}
               <div className="p-3 border-t border-slate-200/60 dark:border-tuh-purple/15 bg-white/50 dark:bg-[#1B2062]/50 shrink-0">
                 {isActiveSessionLatest ? (
-                  <div className="flex items-end gap-2.5 w-full">
-                    <textarea
-                      value={inputValue}
-                      disabled={isTyping}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage(inputValue);
-                        }
-                      }}
-                      rows={1}
-                      placeholder={isTyping ? "กำลังประมวลผล..." : "พิมพ์ข้อความของคุณที่นี่..."}
-                      className="floating-textarea flex-1 py-3 px-4 rounded-xl bg-slate-50 dark:bg-[#07010f] border border-slate-250 dark:border-tuh-purple/25 text-tuh-navy dark:text-white placeholder-slate-400 dark:placeholder-white/40 focus:outline-none text-xs md:text-sm resize-none overflow-y-auto leading-normal focus:ring-2 focus:ring-tuh-rose/30 dark:focus:ring-tuh-rose/50 transition-all duration-300"
-                    />
+                  <div className="flex flex-col w-full">
+                    {/* ปุ่มเปิดปิดคำถามที่พบบ่อย (FAQs) */}
+                    <div className="flex items-center mb-2">
+                      <button
+                        onClick={() => setShowFaqs(!showFaqs)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-[#07010f] border border-slate-200 dark:border-tuh-purple/20 text-tuh-indigo/70 dark:text-slate-300 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-indigo/60 transition active:scale-95 shadow-sm"
+                      >
+                        <i className="fa-solid fa-circle-question text-tuh-rose dark:text-tuh-pink"></i>
+                        <span>คำถามที่พบบ่อย (FAQs)</span>
+                        <i className={`fa-solid ${showFaqs ? 'fa-chevron-down' : 'fa-chevron-up'} text-[10px] ml-1`}></i>
+                      </button>
+                    </div>
 
-                    <button
-                      onClick={() => handleSendMessage(inputValue)}
-                      disabled={isTyping}
-                      className="h-[46px] w-[46px] rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-all shrink-0 shadow-md hover:shadow-tuh-rose/20"
-                    >
-                      <i className="fa-solid fa-paper-plane text-sm"></i>
-                    </button>
+                    {/* รายการคำถามที่พบบ่อย (FAQs List) */}
+                    {showFaqs && faqsList.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto custom-scrollbar p-1.5 bg-slate-50/50 dark:bg-[#07010f]/30 rounded-xl border border-slate-200/40 dark:border-white/5 animate-slide-in">
+                        {faqsList.map(faq => (
+                          <button
+                            key={faq.id}
+                            onClick={() => handleSendMessage(faq.question)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-[#1B2062]/55 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/60 dark:border-white/5 shadow-sm transition active:scale-[0.97]"
+                          >
+                            <i className={`fa-solid ${faq.icon || 'fa-lightbulb'} text-tuh-rose text-[11px] shrink-0`}></i>
+                            <span className="truncate max-w-[200px]">{faq.question}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-end gap-2.5 w-full">
+                      <textarea
+                        value={inputValue}
+                        disabled={isTyping}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage(inputValue);
+                          }
+                        }}
+                        rows={1}
+                        placeholder={isTyping ? "กำลังประมวลผล..." : "พิมพ์ข้อความของคุณที่นี่..."}
+                        className="floating-textarea flex-1 py-3 px-4 rounded-xl bg-slate-50 dark:bg-[#07010f] border border-slate-250 dark:border-tuh-purple/25 text-tuh-navy dark:text-white placeholder-slate-400 dark:placeholder-white/40 focus:outline-none text-xs md:text-sm resize-none overflow-y-auto leading-normal focus:ring-2 focus:ring-tuh-rose/30 dark:focus:ring-tuh-rose/50 transition-all duration-300"
+                      />
+
+                      <button
+                        onClick={() => handleSendMessage(inputValue)}
+                        disabled={isTyping}
+                        className="h-[46px] w-[46px] rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-all shrink-0 shadow-md hover:shadow-tuh-rose/20"
+                      >
+                        <i className="fa-solid fa-paper-plane text-sm"></i>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="w-full flex items-center justify-center p-3 rounded-xl bg-slate-100/80 dark:bg-tuh-navy/40 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400 font-bold text-center text-xs md:text-sm select-none gap-2">
