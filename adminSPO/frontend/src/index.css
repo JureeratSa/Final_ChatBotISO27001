@@ -405,3 +405,55 @@ aside .border-t button i {
   color: #f43f5e !important; /* tuh-rose color */
   text-decoration: underline !important;
 }
+
+/* Style CKEditor container to match the theme */
+.cke_chrome {
+  border-radius: 1rem !important;
+  border: 1px solid rgba(139, 92, 246, 0.25) !important; /* tuh-purple */
+  overflow: hidden !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+.cke_inner {
+  background: #f8fafc !important;
+}
+
+.dark .cke_inner {
+  background: #2c0548 !important; /* Dark purple background */
+}
+
+.dark .cke_top {
+  background: #2c0548 !important; /* Darker purple for toolbar */
+  border-bottom: 1px solid rgba(139, 92, 246, 0.25) !important;
+}
+
+.dark .cke_bottom {
+  background: #2c0548 !important; /* Darker purple for status bar */
+  border-top: 1px solid rgba(139, 92, 246, 0.25) !important;
+}
+
+/* Hide CKEditor notifications / banner warnings */
+.cke_notifications_area {
+  display: none !important;
+}
+
+.dark .cke_button_icon {
+  filter: invert(1) !important; /* Make white icons in dark mode */
+}
+
+.dark .cke_combo_text {
+  color: #ffffff !important;
+}
+
+.dark .cke_combo_open {
+  border-left-color: rgba(139, 92, 246, 0.25) !important;
+}
+
+.dark .cke_combo_button {
+  background: #100220 !important;
+  border: 1px solid rgba(139, 92, 246, 0.25) !important;
+}
+
+.dark .cke_path_item {
+  color: #ffffff !important;
+}

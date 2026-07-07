@@ -3,17 +3,53 @@ import dog from './dog.png'; // Rebuild trigger
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
-const CKEditorWrapper = ({ value, onChange }) => {
+const CKEditorWrapper = ({ value, onChange, isDarkMode }) => {
   const containerRef = React.useRef(null);
   const editorRef = React.useRef(null);
+  const [isLoaded, setIsLoaded] = React.useState(!!window.CKEDITOR);
 
   React.useEffect(() => {
     if (window.CKEDITOR) {
+      setIsLoaded(true);
+      return;
+    }
+
+    let script = document.querySelector('script[src="https://cdn.ckeditor.com/4.22.1/full/ckeditor.js"]');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = "https://cdn.ckeditor.com/4.22.1/full/ckeditor.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    const onLoad = () => setIsLoaded(true);
+    script.addEventListener('load', onLoad);
+    return () => {
+      script.removeEventListener('load', onLoad);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (isLoaded && window.CKEDITOR && containerRef.current) {
       window.CKEDITOR.config.language = 'th';
       window.CKEDITOR.config.allowedContent = true;
-      
+      window.CKEDITOR.config.versionCheck = false; // Disable security warnings
+
       const editor = window.CKEDITOR.replace(containerRef.current, {
-        height: 250,
+        height: 200,
+        versionCheck: false,
+        toolbar: [
+          { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike', '-', 'RemoveFormat' ] },
+          { name: 'paragraph', items: [ 'NumberedList', 'BulletedList', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
+          { name: 'links', items: [ 'Link', 'Unlink' ] },
+          { name: 'insert', items: [ 'Table' ] },
+          { name: 'styles', items: [ 'FontSize' ] },
+          { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
+          { name: 'document', items: [ 'Source' ] }
+        ],
+        contentsCss: isDarkMode 
+          ? 'data:text/css,body{background-color:#2c0548 !important;color:#ffffff !important;font-family:sans-serif;padding:10px;}'
+          : 'data:text/css,body{background-color:#ffffff !important;color:#0f172a !important;font-family:sans-serif;padding:10px;}'
       });
 
       editorRef.current = editor;
@@ -33,7 +69,7 @@ const CKEditorWrapper = ({ value, onChange }) => {
         }
       };
     }
-  }, []);
+  }, [isLoaded, isDarkMode]);
 
   React.useEffect(() => {
     if (editorRef.current && editorRef.current.getData() !== value) {
@@ -43,7 +79,8 @@ const CKEditorWrapper = ({ value, onChange }) => {
 
   return (
     <div className="text-black dark:text-black">
-      <textarea ref={containerRef} style={{ visibility: 'hidden' }} />
+      {!isLoaded && <div className="p-4 text-center text-slate-500">กำลังโหลดตัวแก้ไขข้อความ...</div>}
+      <textarea ref={containerRef} style={{ display: isLoaded ? 'block' : 'none', visibility: 'hidden' }} />
     </div>
   );
 };
@@ -2131,6 +2168,7 @@ function App() {
                     <CKEditorWrapper
                       value={annContent}
                       onChange={(data) => setAnnContent(data)}
+                      isDarkMode={isDarkMode}
                     />
                   </div>
 
