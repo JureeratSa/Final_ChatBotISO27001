@@ -1586,9 +1586,10 @@ function App() {
                       <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2">
                         {ann.title}
                       </h4>
-                      <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed whitespace-pre-wrap mt-1">
-                        {ann.content}
-                      </p>
+                      <div 
+                        className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 html-content"
+                        dangerouslySetInnerHTML={{ __html: ann.content }}
+                      />
                     </div>
                   </div>
                 ))}

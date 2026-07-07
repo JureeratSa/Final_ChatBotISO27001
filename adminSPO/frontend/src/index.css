@@ -376,3 +376,32 @@ aside nav button i,
 aside .border-t button i {
   font-size: 1rem !important; /* ~16px (increased from 0.8rem / 12.8px) */
 }
+
+/* Styling for Rich Text Content */
+.html-content ul {
+  list-style-type: disc !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.html-content ol {
+  list-style-type: decimal !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.html-content table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.html-content th, .html-content td {
+  border: 1px solid rgba(226, 232, 240, 0.4) !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+.html-content a {
+  color: #f43f5e !important; /* tuh-rose color */
+  text-decoration: underline !important;
+}

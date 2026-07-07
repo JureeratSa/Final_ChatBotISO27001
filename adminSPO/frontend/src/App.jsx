@@ -3,6 +3,51 @@ import dog from './dog.png'; // Rebuild trigger
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
+const CKEditorWrapper = ({ value, onChange }) => {
+  const containerRef = React.useRef(null);
+  const editorRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (window.CKEDITOR) {
+      window.CKEDITOR.config.language = 'th';
+      window.CKEDITOR.config.allowedContent = true;
+      
+      const editor = window.CKEDITOR.replace(containerRef.current, {
+        height: 250,
+      });
+
+      editorRef.current = editor;
+
+      // Set initial value
+      editor.setData(value || '');
+
+      // Listen to change event
+      editor.on('change', () => {
+        const data = editor.getData();
+        onChange(data);
+      });
+
+      return () => {
+        if (editor) {
+          editor.destroy();
+        }
+      };
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (editorRef.current && editorRef.current.getData() !== value) {
+      editorRef.current.setData(value || '');
+    }
+  }, [value]);
+
+  return (
+    <div className="text-black dark:text-black">
+      <textarea ref={containerRef} style={{ visibility: 'hidden' }} />
+    </div>
+  );
+};
+
 function App() {
   let logoutRef = () => {};
 
@@ -2083,14 +2128,10 @@ function App() {
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เนื้อหาประกาศ</label>
-                    <textarea
-                      rows="4"
-                      placeholder="กรอกรายละเอียดประกาศ..."
+                    <CKEditorWrapper
                       value={annContent}
-                      onChange={(e) => setAnnContent(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
-                      required
-                    ></textarea>
+                      onChange={(data) => setAnnContent(data)}
+                    />
                   </div>
 
                   <div>
@@ -2232,7 +2273,10 @@ function App() {
                                     <h4 className="font-extrabold text-tuh-navy dark:text-white text-base">{ann.title}</h4>
                                     {statusBadge}
                                   </div>
-                                  <p className="text-sm font-semibold text-slate-650 dark:text-slate-350 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
+                                  <div 
+                                    className="text-sm font-semibold text-slate-650 dark:text-slate-350 leading-relaxed html-content"
+                                    dangerouslySetInnerHTML={{ __html: ann.content }}
+                                  />
                                 </div>
                                 <div className="flex gap-1 shrink-0">
                                   <button
