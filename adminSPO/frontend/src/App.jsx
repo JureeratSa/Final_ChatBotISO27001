@@ -38,14 +38,14 @@ const CKEditorWrapper = ({ value, onChange, isDarkMode }) => {
       const editor = window.CKEDITOR.replace(containerRef.current, {
         height: 200,
         versionCheck: false,
+        removePlugins: 'elementspath',
         toolbar: [
           { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike', '-', 'RemoveFormat' ] },
           { name: 'paragraph', items: [ 'NumberedList', 'BulletedList', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
           { name: 'links', items: [ 'Link', 'Unlink' ] },
           { name: 'insert', items: [ 'Table' ] },
           { name: 'styles', items: [ 'FontSize' ] },
-          { name: 'colors', items: [ 'TextColor', 'BGColor' ] },
-          { name: 'document', items: [ 'Source' ] }
+          { name: 'colors', items: [ 'TextColor', 'BGColor' ] }
         ],
         contentsCss: isDarkMode 
           ? 'data:text/css,body{background-color:#2c0548 !important;color:#ffffff !important;font-family:sans-serif;padding:10px;}'

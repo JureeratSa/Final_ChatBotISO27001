@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import logo from './logo.png';
 import dog from './dog.png';
+import dog_light from './dog_light.png';
 
 const API_URL = `http://${window.location.hostname}:8000`;
+
+const stripHtml = (html) => {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || "";
+};
 
 
 
@@ -25,6 +32,8 @@ function App() {
     // ตั้งค่าเริ่มต้นเป็นโหมดสว่าง
     return false;
   });
+
+  const currentMascot = isDarkMode ? dog : dog_light;
 
   // สถานะความกว้างของแถบด้านข้าง
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -246,9 +255,13 @@ function App() {
   const [dislikeReason, setDislikeReason] = useState('');
   const [dislikeSuccess, setDislikeSuccess] = useState(false);
 
-  // Announcement States
   const [activeAnnouncements, setActiveAnnouncements] = useState([]);
   const [showAnnModal, setShowAnnModal] = useState(false);
+
+  const handleCloseAnnModal = () => {
+    setShowAnnModal(false);
+    sessionStorage.setItem('tuh_announcements_seen', 'true');
+  };
 
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -350,7 +363,10 @@ function App() {
       .then(data => {
         if (data && data.length > 0) {
           setActiveAnnouncements(data);
-          setShowAnnModal(true);
+          const hasSeen = sessionStorage.getItem('tuh_announcements_seen');
+          if (hasSeen !== 'true') {
+            setShowAnnModal(true);
+          }
         }
       })
       .catch(err => console.error("Error fetching active announcements:", err));
@@ -1043,8 +1059,12 @@ function App() {
               {/* เนื้อหาตรงกลาง */}
               <div className="flex flex-col items-center justify-center text-center max-w-2xl mx-auto my-auto z-10 px-4 select-none animate-fade-in">
                 <img
-                  src={dog}
-                  className="w-24 h-24 md:w-30 md:h-30 rounded-full object-cover shadow-lg border-4 border-white/50 dark:border-tuh-purple/30 animate-mascot-float mb-5"
+                  src={currentMascot}
+                  className={`${isDarkMode ? "w-64 md:w-80" : "w-44 md:w-52"} h-auto object-cover animate-mascot-float mb-5`}
+                  style={isDarkMode ? {
+                    WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
+                    maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
+                  } : {}}
                   alt="Mascot"
                 />
                 <div className="mb-8 max-w-xl text-center leading-relaxed">
@@ -1161,14 +1181,14 @@ function App() {
                     return (
                       <div
                         key={msg.id || index}
-                        className={`flex gap-2 ${isBot ? 'max-w-[50%] mr-auto' : 'max-w-[90%] ml-auto flex-row-reverse'} animate-slide-in`}
+                        className={`flex gap-2 max-w-[90%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
                       >
                         {/* ไอคอนอวาตาร์ */}
                         {isBot ? (
                           <img
-                            src={dog}
+                            src={currentMascot}
                             alt="Bot Icon"
-                            className="w-7 h-7 rounded-lg object-cover shrink-0 shadow-sm"
+                            className="w-7 h-7 rounded-sm border border-white object-cover shrink-0 shadow-sm"
                           />
                         ) : (
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] shrink-0 shadow-sm text-white bg-tuh-gradient-1">
@@ -1179,7 +1199,7 @@ function App() {
                         {/* ฟองคำพูด */}
                         <div className="space-y-1 min-w-0">
                           <div className={`text-base leading-relaxed break-words ${isBot
-                            ? 'py-1 px-2 text-tuh-navy dark:text-white text-justify'
+                            ? 'p-3 rounded-2xl shadow-sm bg-slate-100 dark:bg-[#07010f] border border-slate-200/60 dark:border-tuh-purple/20 text-tuh-navy dark:text-white rounded-tl-sm'
                             : 'p-3 rounded-2xl shadow-md bg-[#f8bbd0] text-black dark:bg-[#ad1457] dark:text-white rounded-tr-sm'
                             }`}>
                             {parseMarkdown(msg.text)}
@@ -1234,9 +1254,9 @@ function App() {
                 {isTyping && (
                   <div className="flex gap-2 max-w-[90%] mr-auto animate-slide-in">
                     <img
-                      src={dog}
+                      src={currentMascot}
                       alt="Bot Icon"
-                      className="w-7 h-7 rounded-lg object-cover shrink-0 shadow-sm"
+                      className="w-7 h-7 rounded-sm border border-white object-cover shrink-0 shadow-sm"
                     />
                     <div className="bg-slate-100 dark:bg-[#07010f] border border-slate-200/60 dark:border-tuh-purple/20 p-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-tuh-rose/60 dark:bg-tuh-pink/60 animate-bounce" style={{ animationDelay: '0ms' }}></span>
@@ -1266,15 +1286,15 @@ function App() {
 
                     {/* รายการคำถามที่พบบ่อย (FAQs List) */}
                     {showFaqs && faqsList.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto custom-scrollbar p-1.5 bg-slate-50/50 dark:bg-[#07010f]/30 rounded-xl border border-slate-200/40 dark:border-white/5 animate-slide-in">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 max-h-40 overflow-y-auto custom-scrollbar p-1.5 bg-slate-50/50 dark:bg-[#07010f]/30 rounded-xl border border-slate-200/40 dark:border-white/5 animate-slide-in">
                         {faqsList.map(faq => (
                           <button
                             key={faq.id}
                             onClick={() => handleSendMessage(faq.question)}
-                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-[#1B2062]/55 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/60 dark:border-white/5 shadow-sm transition active:scale-[0.97]"
+                            className="flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-[#1B2062]/55 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/60 dark:border-white/5 shadow-sm transition active:scale-[0.97] w-full text-left"
                           >
                             <i className={`fa-solid ${faq.icon || 'fa-lightbulb'} text-tuh-rose text-[11px] shrink-0`}></i>
-                            <span className="truncate max-w-[200px]">{faq.question}</span>
+                            <span className="leading-snug">{faq.question}</span>
                           </button>
                         ))}
                       </div>
@@ -1427,7 +1447,7 @@ function App() {
                           onClick={() => setFeedbackRating(star)}
                           className="text-2xl transition hover:scale-110 focus:outline-none"
                         >
-                          <i className={`fa-solid fa-star ${star <= feedbackRating ? 'text-amber-400' : 'text-slate-200 dark:text-tuh-indigo/60'}`}></i>
+                          <i className={`fa-solid fa-star ${star <= feedbackRating ? 'text-amber-400' : 'text-slate-200 dark:text-white'}`}></i>
                         </button>
                       ))}
                       <span className="text-xs text-tuh-indigo/40 dark:text-tuh-pink/40 font-bold ml-2">
@@ -1562,10 +1582,10 @@ function App() {
               <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
                 <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
                   <i className="fa-solid fa-bullhorn text-tuh-rose animate-bounce"></i>
-                  ประกาศข่าวสารสำคัญ
+                  ประกาศข่าวสารสำคัญ ({activeAnnouncements.length})
                 </h3>
                 <button
-                  onClick={() => setShowAnnModal(false)}
+                  onClick={handleCloseAnnModal}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-tuh-indigo/50 hover:text-tuh-navy dark:text-tuh-pink/50 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-tuh-indigo/80 transition"
                 >
                   <i className="fa-solid fa-xmark"></i>
@@ -1586,10 +1606,9 @@ function App() {
                       <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2">
                         {ann.title}
                       </h4>
-                      <div 
-                        className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 html-content"
-                        dangerouslySetInnerHTML={{ __html: ann.content }}
-                      />
+                      <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 whitespace-pre-line">
+                        {stripHtml(ann.content)}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -1598,7 +1617,7 @@ function App() {
               {/* Footer */}
               <div className="p-4 bg-slate-50 dark:bg-tuh-navy/35 border-t border-slate-100 dark:border-tuh-purple/25 flex justify-end">
                 <button
-                  onClick={() => setShowAnnModal(false)}
+                  onClick={handleCloseAnnModal}
                   className="px-6 py-2.5 rounded-xl bg-tuh-gradient-2 text-white font-bold text-sm transition hover:shadow-lg active:scale-[0.98] shadow-md shadow-tuh-rose/15"
                 >
                   รับทราบและปิดประกาศ

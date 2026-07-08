@@ -20,7 +20,7 @@ user_dir = os.path.dirname(backend_dir)
 root_dir = os.path.dirname(user_dir)
 sys.path.append(root_dir)
 
-# 犧吭ｸｳ犹犧もｹ霞ｸｲ犹もｸ｡犧扉ｸｹ犧･犧ｪ犧ｷ犧壟ｸ�ｹ霞ｸ吭ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧｣犧ｰ犹犧壟ｸｵ犧｢犧� RAG
+
 retriever = None
 
 def rebuild_vector_indices():
@@ -99,7 +99,7 @@ init_admin_db()
 
 
 def load_db(path, default=None):
-    """犹もｸｫ犧･犧扉ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧謂ｸｲ犧≒ｹ�ｸ游ｸ･犹� JSON"""
+    """ฟังก์ชันการทำงานหลัก"""
     if default is None:
         default = []
     if not os.path.exists(path):
@@ -111,7 +111,7 @@ def load_db(path, default=None):
         return default
 
 def save_db(path, data):
-    """犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧･犧�ｹ�ｸ游ｸ･犹� JSON"""
+    """ฟังก์ชันการทำงานหลัก"""
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -119,7 +119,7 @@ def save_db(path, data):
         print(f"犹犧≒ｸｴ犧扉ｸもｹ霞ｸｭ犧憫ｸｴ犧扉ｸ樅ｸ･犧ｲ犧扉ｹ�ｸ吭ｸ≒ｸｲ犧｣犧壟ｸｱ犧吭ｸ伶ｸｶ犧� JSON {path}: {e}")
 
 def log_unanswered_query(query_str):
-    """犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸ�ｸｳ犧籾ｸｲ犧｡犧伶ｸｵ犹謂ｹ�ｸ｡犹謂ｸ樅ｸ壟ｸもｹ霞ｸｭ犧｡犧ｹ犧･犹�ｸ� RAG 犹犧樅ｸｷ犹謂ｸｭ犧｣犧ｭ犧≒ｸｲ犧｣犹≒ｸ≒ｹ霞ｹ�ｸもｸ謂ｸｲ犧≒ｹ≒ｸｭ犧扉ｸ｡犧ｴ犧�"""
+    """ฟังก์ชันการทำงานหลัก"""
     path = DB_UNANSWERED_PATH
     logs = load_db(path, [])
     q = query_str.strip()
@@ -143,7 +143,7 @@ def log_unanswered_query(query_str):
     save_db(path, logs)
 
 def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name):
-    """犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ犧≒ｸｲ犧｣犧｣犧ｱ犧吭ｸ歩ｸｭ犧壟ｸ�ｸｳ犧籾ｸｲ犧｡犧もｸｭ犧�ｸ壟ｸｭ犧�"""
+    """ฟังก์ชันการทำงานหลัก"""
     path = DB_HISTORY_PATH
     history = load_db(path, [])
     history.append({
@@ -160,7 +160,7 @@ def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name
     save_db(path, history)
 
 def run_weekly_exporter():
-    """犹犧杳ｹ霞ｸｲ犧歩ｸ｣犧ｧ犧謂ｹ犧癌ｹ�ｸ�ｹ犧樅ｸｷ犹謂ｸｭ犧ｪ犹謂ｸ�ｸｭ犧ｭ犧≒ｹ�ｸ游ｸ･犹呉ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ犧≒ｸｲ犧｣犧歩ｸｭ犧壟ｸ｣犧ｲ犧｢犧ｪ犧ｱ犧巵ｸ扉ｸｲ犧ｫ犹呉ｸ歩ｸｱ犧扉ｸ｣犧ｭ犧壟ｸｧ犧ｱ犧吭ｸｭ犧ｲ犧伶ｸｴ犧歩ｸ｢犹呉ｸｭ犧ｱ犧歩ｹもｸ吭ｸ｡犧ｱ犧歩ｸｴ"""
+    """ฟังก์ชันการทำงานหลัก"""
     export_dir = os.path.join(os.path.dirname(root_dir), "test_log")
     while True:
         try:
@@ -179,7 +179,7 @@ def run_weekly_exporter():
                         continue
                     try:
                         ts_dt = datetime.datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
-                        # 犧�ｸｳ犧吭ｸｧ犧内ｸｧ犧ｱ犧吭ｸ謂ｸｱ犧吭ｸ伶ｸ｣犹呉ｸ伶ｸｵ犹謂ｹ犧巵ｹ�ｸ吭ｸｧ犧ｱ犧吭ｹ犧｣犧ｴ犹謂ｸ｡犧歩ｹ霞ｸ吭ｸもｸｭ犧�ｸｪ犧ｱ犧巵ｸ扉ｸｲ犧ｫ犹呉ｸ吭ｸｵ犹�
+                        
                         item_week_start = ts_dt - datetime.timedelta(days=ts_dt.weekday())
                         item_week_start = item_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
                         
@@ -189,7 +189,7 @@ def run_weekly_exporter():
                     except Exception:
                         continue
                 
-                # 犧歩ｸ｣犧ｧ犧謂ｹ犧癌ｹ�ｸ�ｹ≒ｸ歩ｹ謂ｸ･犧ｰ犧ｪ犧ｱ犧巵ｸ扉ｸｲ犧ｫ犹呉ｸ伶ｸｵ犹謂ｸ歩ｸｱ犧扉ｸ｣犧ｭ犧壟ｹ≒ｸ･犹霞ｸｧ (犧ｧ犧ｱ犧吭ｸｭ犧ｲ犧伶ｸｴ犧歩ｸ｢犹呉ｸもｸｭ犧�ｸｪ犧ｱ犧巵ｸ扉ｸｲ犧ｫ犹呉ｸ吭ｸｱ犹霞ｸ吭ｸ憫ｹ謂ｸｲ犧吭ｹ�ｸ巵ｹ≒ｸ･犹霞ｸｧ)
+                
                 for week_start, items in weeks_data.items():
                     week_end = week_start + datetime.timedelta(days=6, hours=23, minutes=59, seconds=59)
                     if now > week_end:
@@ -224,64 +224,9 @@ def run_weekly_exporter():
         except Exception as e:
             print(f"[Weekly Exporter] Error: {e}")
         
-        # 犧ｫ犧･犧ｱ犧� 1 犧癌ｸｱ犹謂ｸｧ犹もｸ｡犧�ｸ≒ｹ謂ｸｭ犧吭ｸ歩ｸ｣犧ｧ犧謂ｹ犧癌ｹ�ｸ�ｸ｣犧ｭ犧壟ｸ籾ｸｱ犧扉ｹ�ｸ�
+        
         time.sleep(3600)
 
-
-def init_databases():
-    """犹犧歩ｸ｣犧ｵ犧｢犧｡犧説ｸｲ犧吭ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧ｪ犧ｳ犧ｫ犧｣犧ｱ犧壟ｸ≒ｸｲ犧｣犧｣犧ｱ犧吭ｸ�ｸ｣犧ｱ犹霞ｸ�ｹ≒ｸ｣犧�"""
-    default_faqs = [
-        {
-            "id": 1,
-            "question": "犹≒ｸ吭ｸｰ犧吭ｸｳ犧ｧ犧ｴ犧倨ｸｵ犧扉ｸｹ犹≒ｸ･犧扉ｸｧ犧�ｸ歩ｸｲ犹犧｡犧ｷ犹謂ｸｭ犧歩ｹ霞ｸｭ犧�ｸ謂ｹ霞ｸｭ犧�ｸｫ犧吭ｹ霞ｸｲ犧謂ｸｭ犧�ｸｭ犧｡犧樅ｸｴ犧ｧ犹犧歩ｸｭ犧｣犹呉ｹ犧巵ｹ�ｸ吭ｹ犧ｧ犧･犧ｲ犧吭ｸｲ犧�",
-            "icon": "fa-eye-slash",
-            "answer": "犹≒ｸ吭ｸｰ犧吭ｸｳ犧≒ｸ� 20-20-20:\n1. �操 犧樅ｸｱ犧≒ｸｪ犧ｲ犧｢犧歩ｸｲ犧伶ｸｸ犧� 20 犧吭ｸｲ犧伶ｸｵ\n2. �元 犧｡犧ｭ犧�ｹ�ｸ≒ｸ･犧ｭ犧ｭ犧≒ｹ�ｸ� 20 犧游ｸｸ犧表n3. 竢ｱ�� 犧樅ｸｱ犧≒ｸｪ犧ｲ犧｢犧歩ｸｲ犧吭ｸｲ犧吭ｸｭ犧｢犹謂ｸｲ犧�ｸ吭ｹ霞ｸｭ犧｢ 20 犧ｧ犧ｴ犧吭ｸｲ犧伶ｸｵ\n犧巵ｸ｣犧ｱ犧壟ｸ｣犧ｰ犧扉ｸｱ犧壟ｸ謂ｸｭ犧ｫ犹謂ｸｲ犧� 50-70 犧金ｸ｡. 犹≒ｸ･犧ｰ犧≒ｸ｣犧ｰ犧樅ｸ｣犧ｴ犧壟ｸ歩ｸｲ犧壟ｹ謂ｸｭ犧｢犹� 犧�ｸ｣犧ｱ犧�"
-        },
-        {
-            "id": 2,
-            "question": "犧もｸｱ犹霞ｸ吭ｸ歩ｸｭ犧吭ｸ≒ｸｲ犧｣犧伶ｸｳ犧壟ｸｱ犧歩ｸ｣犧巵ｸ｣犧ｰ犧謂ｸｳ犧歩ｸｱ犧ｧ犧憫ｸｹ犹霞ｸ巵ｹ謂ｸｧ犧｢犹�ｸｫ犧｡犹謂ｸ歩ｹ霞ｸｭ犧�ｹ�ｸ癌ｹ霞ｹ犧ｭ犧≒ｸｪ犧ｲ犧｣犧ｭ犧ｰ犹�ｸ｣犧壟ｹ霞ｸｲ犧�?",
-            "question": "犧もｸｱ犹霞ｸ吭ｸ歩ｸｭ犧吭ｸ≒ｸｲ犧｣犧伶ｸｳ犧壟ｸｱ犧歩ｸ｣犧巵ｸ｣犧ｰ犧謂ｸｳ犧歩ｸｱ犧ｧ犧憫ｸｹ犹霞ｸ巵ｹ謂ｸｧ犧｢犹ｸｫ犧｡犹謂ｸ歩ｹ霞ｸｭ犧ｹｸ癌ｹ霞ｹ€犧ｭ犧≒ｸｪ犧ｲ犧｣犧ｭ犧ｰ犹ｸ｣犧壟ｹ霞ｸｲ犧?",
-            "icon": "fa-id-card",
-            "answer": "犧ｪ犧ｲ犧｡犧ｲ犧｣犧籾ｸ･犧ｸ伶ｸｰ犹€犧壟ｸｵ犧｢犧吭ｸ･犹謂ｸｧ犧ｸｫ犧吭ｹ霞ｸｲ犧憫ｹ謂ｸｲ犧吭ｹ≒ｸｭ犧 TUH Easy App 犧ｫ犧｣犧ｷ犧ｭ犧｢犧ｷ犹謂ｸ吭ｸ壟ｸｱ犧歩ｸ｣犧巵ｸ｣犧ｰ犧癌ｸｲ犧癌ｸ吭ｸ歩ｸｱ犧ｧ犧謂ｸ｣犧ｴ犧ｸ伶ｸｵ犹謂ｹ≒ｸ憫ｸ吭ｸ≒ｹ€犧ｧ犧癌ｸ｣犧ｰ犹€犧壟ｸｵ犧｢犧 犧歩ｸｶ犧≒ｸ憫ｸｹ犹霞ｸ巵ｹ謂ｸｧ犧｢犧吭ｸｭ犧 犧癌ｸｱ犹霞ｸ 1 犧巵ｸ｣犧ｰ犧歩ｸｹ 1 犧ｸ｣犧ｱ犧"
-        },
-        {
-            "id": 3,
-            "question": "犧歩ｸｴ犧扉ｸ歩ｹ謂ｸｭ犧ｨ犧ｹ犧吭ｸ｢犹呉ｹｸｭ犧伶ｸｵ (犧ｸｲ犧吭ｸｪ犧ｲ犧｣犧ｪ犧吭ｹ€犧伶ｸｨ) 犧｣犧.犧倨ｸ｣犧｣犧｡犧ｨ犧ｲ犧ｪ犧歩ｸ｣犹呉ｸｯ 犹ｸ扉ｹ霞ｸ癌ｹ謂ｸｭ犧ｸ伶ｸｲ犧ｹｸｫ犧吭ｸ壟ｹ霞ｸｲ犧?",
-            "icon": "fa-network-wired",
-            "answer": "到 犹€犧壟ｸｭ犧｣犹呉ｸ犧ｲ犧｢犹ｸ: 犧歩ｹ謂ｸｭ 7120 - 7124\n笨会ｸ 犧ｭ犧ｵ犹€犧｡犧･: it@tuh.ac.th\n召 犧ｪ犧籾ｸｲ犧吭ｸ伶ｸｵ犹: 犧ｭ犧ｲ犧ｸｲ犧｣犧≒ｸｴ犧歩ｸ歩ｸｴ犧ｧ犧ｱ犧亭ｸ吭ｸｲ 犧癌ｸｱ犹霞ｸ 4 犹ｸ吭ｸｧ犧ｱ犧吭ｹ€犧ｧ犧･犧ｲ犧｣犧ｲ犧癌ｸ≒ｸｲ犧｣犧ｸ｣犧ｱ犧"
-        },
-        {
-            "id": 4,
-            "question": "犹€犧ｧ犧･犧ｲ犧伶ｸｳ犧≒ｸｲ犧｣犧もｸｭ犧ｸｸ･犧ｴ犧吭ｸｴ犧≒ｸ吭ｸｭ犧≒ｹ€犧ｧ犧･犧ｲ犧｣犧ｲ犧癌ｸ≒ｸｲ犧｣犧ｸｷ犧ｭ犧癌ｹ謂ｸｧ犧ｹ€犧ｧ犧･犧ｲ犹ｸ?",
-            "icon": "fa-clock",
-            "answer": "�套 犧謂ｸｱ犧吭ｸ伶ｸ｣犹� - 犧ｨ犧ｸ犧≒ｸ｣犹�: 16:00 - 20:00 犧�.\n�套 犹犧ｪ犧ｲ犧｣犹� - 犧ｭ犧ｲ犧伶ｸｴ犧歩ｸ｢犹� 犹≒ｸ･犧ｰ犧ｧ犧ｱ犧吭ｸｫ犧｢犧ｸ犧扉ｸ吭ｸｱ犧≒ｸもｸｱ犧歩ｸ､犧≒ｸｩ犹�: 08:00 - 12:00 犧�. 犧�ｸ｣犧ｱ犧�"
-        },
-        {
-            "id": 5,
-            "question": "犧ｪ犧ｲ犧｡犧ｲ犧｣犧籾ｸ歩ｸ｣犧ｧ犧謂ｸｪ犧ｭ犧壟ｸｪ犧ｴ犧伶ｸ倨ｸｴ犹呉ｸ≒ｸｲ犧｣犧｣犧ｱ犧≒ｸｩ犧ｲ犧樅ｸ｢犧ｲ犧壟ｸｲ犧･ (犹犧癌ｹ謂ｸ� 犧壟ｸｱ犧歩ｸ｣犧伶ｸｭ犧�, 犧巵ｸ｣犧ｰ犧≒ｸｱ犧吭ｸｪ犧ｱ犧�ｸ�ｸ｡) 犹�ｸ扉ｹ霞ｸｭ犧｢犹謂ｸｲ犧�ｹ�ｸ｣?",
-            "icon": "fa-hand-holding-medical",
-            "answer": "1. 犧歩ｸ｣犧ｧ犧謂ｸｪ犧ｭ犧壟ｹ�ｸ吭ｹ≒ｸｭ犧巵ｹ犧巵ｹ金ｸｲ犧歩ｸｱ犧Ⅸn2. 犹≒ｸｭ犧扉ｹ�ｸ･犧吭ｹ� 犧ｪ犧巵ｸｪ犧�. @nhso\n3. 犧歩ｸ｣犧ｧ犧謂ｸ伶ｸｵ犹謂ｹ犧�ｸ｣犧ｷ犹謂ｸｭ犧� Kiosk 犧歩ｸｶ犧� OPD 犧癌ｸｱ犹霞ｸ� 1 犧ｫ犧｣犧ｷ犧ｭ犹もｸ伶ｸ｣犧ｪ犧ｲ犧｢犧扉ｹ謂ｸｧ犧� 犧ｪ犧巵ｸｪ犧�. 1330 犧�ｸ｣犧ｱ犧�"
-        },
-        {
-            "id": 6,
-            "question": "犧もｸｭ犧･犧ｴ犧�ｸ≒ｹ呉ｸ扉ｸｲ犧ｧ犧吭ｹ呉ｹもｸｫ犧･犧扉ｹ≒ｸｭ犧巵ｸ樅ｸ･犧ｴ犹犧�ｸ癌ｸｱ犧� TUH Easy App 犧ｪ犧ｳ犧ｫ犧｣犧ｱ犧壟ｸ謂ｸｭ犧�ｸ�ｸｴ犧ｧ犧≒ｸｲ犧｣犧｣犧ｱ犧≒ｸｩ犧ｲ",
-            "icon": "fa-mobile-screen-button",
-            "answer": "�憧 犧扉ｸｲ犧ｧ犧吭ｹ呉ｹもｸｫ犧･犧扉ｹ�ｸ扉ｹ霞ｸ伶ｸｵ犹�:\n- iOS: https://apps.apple.com/th/app/tuh-easy/id1527718210\n- Android: https://play.google.com/store/apps/details?id=th.ac.tuh.easyapp"
-        }
-    ]
-
-    # 犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧歩ｸｱ犹霞ｸ�ｸ�ｹ謂ｸｲ犹犧壟ｸｷ犹霞ｸｭ犧�ｸ歩ｹ霞ｸ�
-    if not os.path.exists(DB_SETTINGS_PATH):
-        default_settings = {
-            "gemini_api_key": gemini_api_key or "",
-            "model_name": "gemini-2.5-flash" if gemini_api_key else "qwen2.5:3b",
-            "temperature": 0.2,
-            "max_tokens": 1000,
-            "top_k": 3,
-            "system_prompt": "คุณคือ TUH Chatbot AI ผู้ช่วยที่รอบรู้และพร้อมช่วยเหลือตอบคำถามของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ยินดีให้บริการตอบคำถามทางการพยาบาล สวัสดิการและข้อมูลต่างๆ อย่างสุภาพที่สุด (ความยาวไม่เกิน 3-4 บรรทัด หรือสรุปกระชับที่สุด) ห้ามกล่าวอ้างว่าข้อมูลมาจากที่ใด หรืออ้างอิงถึงคำว่า 'ข้อมูลที่กำหนดให้', 'เอกสาร', 'แหล่งข้อมูล' ใดๆ เด็ดขาด ตอบเป็นภาษาไทยอย่างเป็นธรรมชาติและสุภาพที่สุดเสมอ หากไม่มีข้อมูลให้ตอบผู้ใช้อย่างสุภาพว่าไม่มีข้อมูลในระบบ",
-            "welcome_message": "สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** ยินดีให้บริการครับ\n\nหากต้องการสอบถามข้อมูลสวัสดิการ สามารถพิมพ์คำถามได้เลยครับ"
-        }
-        save_db(DB_SETTINGS_PATH, default_settings)
 
 def clean_appended_metadata(text):
     if not text:
@@ -366,7 +311,7 @@ def get_fallback_vector_answer(results):
     return ans
 
 def make_http_post(url, payload, headers=None, timeout=15):
-    """犧伶ｸｳ犧ｫ犧吭ｹ霞ｸｲ犧伶ｸｵ犹謂ｸｪ犹謂ｸ�ｸ�ｸｳ犧もｸｭ犧扉ｸｶ犧� API 犹犧�ｸ｣犧ｷ犧ｭ犧もｹ謂ｸｲ犧｢犹≒ｸ壟ｸ壟ｹ犧｣犧ｵ犧｢犧�ｸ歩ｸｱ犧ｧ犹犧扉ｸｵ犧｢犧ｧ犧癌ｹ謂ｸｧ犧｢犧･犧扉ｸ�ｸｧ犧ｲ犧｡犧｢犧ｸ犹謂ｸ�ｹ犧ｫ犧｢犧ｴ犧�ｸもｸｭ犧� urllib"""
+    """ฟังก์ชันการทำงานหลัก"""
     import urllib.request
     if headers is None:
         headers = {"Content-Type": "application/json"}
@@ -380,7 +325,7 @@ def make_http_post(url, payload, headers=None, timeout=15):
         return json.loads(response.read().decode("utf-8"))
 
 def generate_response_ai(query, results, config, history=[]):
-    """犧ｪ犹謂ｸ�ｸ�ｸｳ犧籾ｸｲ犧｡犹≒ｸ･犧ｰ犧もｹ霞ｸｭ犧｡犧ｹ犧･ RAG 犹�ｸ巵ｸ巵ｸ｣犧ｰ犧｡犧ｧ犧･犧憫ｸ･犧�ｸｳ犧歩ｸｭ犧壟ｸ憫ｹ謂ｸｲ犧� OpenRouter API"""
+    """สร้างคำตอบโดยใช้ OpenRouter API และข้อมูลบริบทจาก RAG"""
     context = ""
     if results:
         context_parts = []
@@ -542,7 +487,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             '/api/admin/login',
             '/api/admin/feedback/submit',
             '/api/admin/unanswered/submit',
-            '/api/search'
+            '/api/search',
+            '/api/admin/settings'
         ]
         
         if path in public_paths or path.startswith('/api/forms/download/') or path == '/api/announcements/active':
@@ -563,7 +509,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         return True
 
     def _set_headers(self, status=200):
-        """犧歩ｸｱ犹霞ｸ�ｸ�ｹ謂ｸｲ Header 犧｣犧ｭ犧�ｸ｣犧ｱ犧� CORS 犧ｪ犧ｳ犧ｫ犧｣犧ｱ犧壟ｸ杳ｸｱ犹謂ｸ� Frontend"""
+        """ตั้งค่า CORS Headers สำหรับการตอบกลับ API"""
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -572,12 +518,12 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _send_json(self, data, status=200):
-        """犧ｪ犹謂ｸ�ｸ�ｸｳ犧歩ｸｭ犧壟ｸ≒ｸ･犧ｱ犧壟ｸ≒ｸ･犧ｱ犧壟ｹ�ｸ吭ｸ｣犧ｹ犧巵ｹもｸ�ｸ｣犧�ｸｪ犧｣犹霞ｸｲ犧� JSON"""
+        """จัดส่งข้อมูล JSON กลับไปยัง Frontend"""
         self._set_headers(status)
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
     def _get_json_payload(self):
-        """犧ｭ犹謂ｸｲ犧吭ｸもｹ霞ｸｭ犧｡犧ｹ犧･ JSON Payload 犧伶ｸｵ犹謂ｸｫ犧吭ｹ霞ｸｲ犧壟ｹ霞ｸｲ犧吭ｸ｢犧ｷ犹謂ｸ吭ｸ�ｸｳ犧もｸｭ犧｡犧ｲ"""
+        """อ่านและถอดรหัส JSON Payload จาก POST Request"""
         content_length = int(self.headers.get('Content-Length', 0))
         if content_length == 0:
             return {}
@@ -660,7 +606,19 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             self._send_json(load_db(DB_DOCUMENTS_PATH, []))
         # 6. Admin Panel settings Get
         elif path == '/api/admin/settings':
-            self._send_json(load_db(DB_SETTINGS_PATH, {}))
+            settings = load_db(DB_SETTINGS_PATH, {})
+            # Security check: do not return API key to public requests
+            is_admin = False
+            auth_header = self.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                if verify_jwt(token):
+                    is_admin = True
+            if not is_admin:
+                settings = settings.copy()
+                if "gemini_api_key" in settings:
+                    settings["gemini_api_key"] = ""
+            self._send_json(settings)
         # 7. Statistics History logs
         elif path == '/api/admin/history':
             self._send_json(load_db(DB_HISTORY_PATH, []))
@@ -748,14 +706,14 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Query string is empty"}, 400)
                 return
 
-            # 犧歩ｸ｣犧ｧ犧謂ｸｪ犧ｭ犧壟ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｸ≒ｹ謂ｸｭ犧吭ｸ巵ｸ｣犧ｰ犧｡犧ｧ犧･犧憫ｸ･
+            
             if contains_profanity(query_str):
                 profanity_warning = "ขออภัยด้วยครับ กรุณาใช้คำสุภาพในการสนทนาด้วยนะครับ 😊"
                 log_bot_response(query_str, profanity_warning, [], 0.0, "Profanity Filter")
                 self._send_json({"answer": profanity_warning, "results": []})
                 return
 
-            # 犧�ｹ霞ｸ吭ｸｫ犧ｲ犹�ｸ吭ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ FAQ 犧歩ｸ｣犧�ｸ≒ｹ謂ｸｭ犧吭ｹ犧樅ｸｷ犹謂ｸｭ犧歩ｸｭ犧壟ｸ伶ｸｱ犧吭ｸ伶ｸｵ
+            
             custom_faqs = config.get("custom_faqs", [])
             predefined_faqs = config.get("predefined_faqs", [])
             for faq in (custom_faqs + predefined_faqs):
@@ -773,11 +731,11 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 print(f"History context provided: {len(history)} messages")
             start_time = time.perf_counter()
             
-            # 犧歩ｸ｣犧ｧ犧謂ｸｪ犧ｭ犧壟ｸ｣犧ｲ犧｢犧≒ｸｲ犧｣犹犧ｭ犧≒ｸｪ犧ｲ犧｣犧伶ｸｵ犹謂ｹ犧巵ｸｴ犧扉ｹ犧巵ｹ�ｸ� Active
+            
             docs = load_db(DB_DOCUMENTS_PATH, [])
             active_docs = {d["filename"] for d in docs if d.get("status") == "Active"}
             
-            # 犹≒ｸ｡犧巵ｸ癌ｸｷ犹謂ｸｭ犧�ｸｹ犹謂ｸｪ犧ｱ犧財ｸ財ｸｲ犧｣犧ｭ犧�ｸ｣犧ｱ犧壟ｹ�ｸ游ｸ･犹呉ｸ｣犧ｰ犧壟ｸ壟ｹ犧≒ｹ謂ｸｲ
+            
             default_pdf = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
             if default_pdf in active_docs:
                 active_docs.update(["sample_cleaned.md", "sample_cleaned.json"])
@@ -785,7 +743,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             results = []
             if retriever is not None:
                 try:
-                    # 犧�ｹ霞ｸ吭ｸｫ犧ｲ犹犧憫ｸｷ犹謂ｸｭ犹犧･犧ｷ犧ｭ犧� 3 犹犧伶ｹ謂ｸｲ犧ｪ犧ｳ犧ｫ犧｣犧ｱ犧壟ｸ伶ｸｳ犧≒ｸｲ犧｣犧�ｸｱ犧扉ｸ≒ｸ｣犧ｭ犧�ｸ�ｸｧ犧ｲ犧｡犹犧巵ｸｴ犧扉ｸ巵ｸｴ犧�
+                    
                     raw_results = retriever.query(query_str, top_k=top_k * 3)
                     for res in raw_results:
                         source = res['metadata'].get('source', '')
@@ -859,11 +817,11 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     answer += form_section
             response_time = time.perf_counter() - start_time
             
-            # 犧壟ｸｱ犧吭ｸ伶ｸｶ犧≒ｸ巵ｸ｣犧ｰ犧ｧ犧ｱ犧歩ｸｴ犹≒ｸ･犧ｰ犧歩ｸｱ犧ｧ犧謂ｸｳ犧･犧ｭ犧�
+            
             model_name = config.get("model_name", "google/gemini-2.5-flash")
             model_tag = f"OpenRouter ({model_name})"
             
-            # 犹犧癌ｹ�ｸ�ｸｧ犹謂ｸｲ犧�ｸｳ犧歩ｸｭ犧壟ｹ犧巵ｹ�ｸ吭ｸ�ｸｳ犹犧歩ｸｷ犧ｭ犧吭ｸ�ｸｳ犧ｫ犧｢犧ｲ犧壟ｸｫ犧｣犧ｷ犧ｭ犹�ｸ｡犹� 犹犧樅ｸｷ犹謂ｸｭ犹犧�ｸ･犧ｵ犧｢犧｣犹呉ｸ憫ｸ･犧･犧ｱ犧樅ｸ倨ｹ呉ｹ≒ｸ･犧ｰ犧巵ｹ霞ｸｭ犧�ｸ≒ｸｱ犧吭ｸ≒ｸｲ犧｣犧扉ｸｶ犧�ｹ犧ｭ犧≒ｸｪ犧ｲ犧｣犧ｭ犹霞ｸｲ犧�ｸｭ犧ｴ犧�
+            
             has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
             is_profanity_warning = has_profanity_in_history or any(k in answer for k in ["คำไม่สุภาพ", "ไม่สุภาพ", "คำสุภาพ", "กรุณาใช้คำสุภาพ"])
             
@@ -873,7 +831,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             chunk_ids = [res['chunk_id'] for res in results if 'chunk_id' in res]
             log_bot_response(query_str, answer, chunk_ids, response_time, model_tag)
 
-            # 犧�ｸｱ犧扉ｸ≒ｸ｣犧ｭ犧�ｸ籾ｹ霞ｸｲ犧ｫ犧ｲ犧�ｸｧ犧ｲ犧｡犧｣犧ｹ犹霞ｹ�ｸ｡犹謂ｸ樅ｹ霞ｸ�
+            
             is_unanswered = len(results) == 0 or any(k in answer for k in ["ไม่พบข้อมูล", "ขออภัย", "ไม่มีข้อมูล", "ไม่สามารถตอบได้"])
             if is_unanswered and not is_profanity_warning:
                 log_unanswered_query(query_str)
@@ -1577,7 +1535,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             filename = unquote(self.headers.get('X-File-Name', 'uploaded_document.pdf'))
             post_data = self.rfile.read(content_length)
             
-            # 犧扉ｸｶ犧�ｸもｹ霞ｸｭ犧｡犧ｹ犧･犧ｫ犧吭ｹ霞ｸｲ犧伶ｸｵ犹謂ｸ歩ｹ霞ｸｭ犧�ｸ≒ｸｲ犧｣犧･犧ｰ犹犧ｧ犹霞ｸ吭ｸ謂ｸｲ犧� header
+            
             exclude_pages_header = self.headers.get('X-Exclude-Pages', '')
             exclude_pages = []
             if exclude_pages_header:
@@ -1596,7 +1554,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 
             print(f"Uploaded and wrote PDF document file: {filepath} with exclude_pages: {exclude_pages}")
             
-            # 犧ｪ犧≒ｸｱ犧扉ｸ�ｸｳ犧扉ｸｴ犧壟ｹ≒ｸ壟ｸ壟ｸ伶ｸｵ犧･犧ｰ犧ｫ犧吭ｹ霞ｸｲ (Step 1)
+            
             pages_count = 1
             raw_text_blocks = []
             try:
