@@ -10,6 +10,7 @@ html {
   body {
     @apply antialiased transition-colors duration-300;
     font-weight: 500;
+    font-family: 'Sarabun', sans-serif !important;
   }
 
   html:not(.dark) body {
@@ -74,7 +75,7 @@ html {
 
 /* Premium Glassmorphism and Cards */
 .tuh-sidebar-active {
-  background-color: rgba(167, 139, 250, 0.1);
+  background-color: rgba(167, 139, 250, 0.22);
   color: #B03060;
   border-left-color: #B03060 !important;
   @apply font-semibold border-l-4 shadow-inner;
@@ -324,8 +325,8 @@ html.dark .dark\:bg-tuh-indigo\/25 {
 }
 
 /* Force font globally for all text elements, excluding icons */
-*:not(i):not([class*="fa-"]) {
-  font-family: 'Roboto', sans-serif !important;
+*:not(i):not([class*="fa-"]):not(.font-roboto) {
+  font-family: 'Sarabun', sans-serif !important;
 }
 
 /* Allow larger headings/stats to keep their relative scaling */

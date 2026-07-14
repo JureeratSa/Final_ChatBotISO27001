@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import dog from './dog.png'; // Rebuild trigger 
+import botAvatar from './bot_avatar.jpg';
 
 const API_URL = `http://${window.location.hostname}:8000`;
 
@@ -167,6 +168,7 @@ function App() {
     top_k: 3,
     system_prompt: '',
     welcome_message: '',
+    chat_greeting: '',
     custom_faqs: [],
     predefined_faqs: [],
     embedding_tech: 'local_faiss'
@@ -181,6 +183,10 @@ function App() {
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [currentUnanswered, setCurrentUnanswered] = useState(null);
   const [faqAnswer, setFaqAnswer] = useState('');
+
+  // AI Query Analysis States
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
 
   // Predefined FAQs Edit States
   const [showEditPredefinedFaqModal, setShowEditPredefinedFaqModal] = useState(false);
@@ -218,6 +224,8 @@ function App() {
   const [formName, setFormName] = useState('');
   const [formFile, setFormFile] = useState(null);
   const [formPage, setFormPage] = useState('');
+  const [deleteModalState, setDeleteModalState] = useState({ show: false, type: null, targetId: null, targetName: null });
+  const [formSearchQuery, setFormSearchQuery] = useState('');
 
   // Announcement States
   const [announcements, setAnnouncements] = useState([]);
@@ -524,24 +532,51 @@ function App() {
       .catch(err => showError("เกิดข้อผิดพลาดในการอัปโหลดแบบฟอร์ม"));
   };
 
-  const handleDeleteForm = (formId) => {
-    if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบแบบฟอร์มนี้?")) return;
-    fetch(API_URL + '/api/admin/forms/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: formId })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          showSuccess("ลบแบบฟอร์มสำเร็จ");
-          fetchForms();
-        } else {
-          showError("ลบไม่สำเร็จ");
-        }
+  const confirmDelete = () => {
+    if (!deleteModalState.type) return;
+    if (deleteModalState.type === 'document') {
+      fetch(API_URL + '/api/admin/documents/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: deleteModalState.targetId })
       })
-      .catch(err => showError("เกิดข้อผิดพลาดในการลบ"));
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            showSuccess("ลบเอกสารและเริ่มปรับปรุงฐานข้อมูลดัชนีเรียบร้อยแล้ว");
+            fetchDocuments();
+            fetchStats();
+          } else {
+            showError("เกิดข้อผิดพลาดในการลบเอกสาร");
+          }
+        })
+        .catch(err => showError("ลบเอกสารไม่สำเร็จ"))
+        .finally(() => {
+          setDeleteModalState({ show: false, type: null, targetId: null, targetName: null });
+        });
+    } else if (deleteModalState.type === 'form') {
+      fetch(API_URL + '/api/admin/forms/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteModalState.targetId })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            showSuccess("ลบแบบฟอร์มสำเร็จ");
+            fetchForms();
+          } else {
+            showError("ลบไม่สำเร็จ");
+          }
+        })
+        .catch(err => showError("เกิดข้อผิดพลาดในการลบ"))
+        .finally(() => {
+          setDeleteModalState({ show: false, type: null, targetId: null, targetName: null });
+        });
+    }
   };
+
+
 
   const fetchAnnouncements = () => {
     fetch(API_URL + '/api/admin/announcements')
@@ -744,13 +779,15 @@ function App() {
         groupings[label] = { likes: 0, dislikes: 0 };
       }
       filtered.forEach(fb => {
-        const d = parseTimestamp(fb.timestamp);
-        const hour = d.getHours();
-        const block = Math.floor(hour / 2) * 2;
-        const label = `${String(block).padStart(2, '0')}:00 - ${String(block + 2).padStart(2, '0')}:00`;
-        if (groupings[label]) {
-          if (fb.rating === 'like') groupings[label].likes++;
-          else groupings[label].dislikes++;
+        if (fb.answer && fb.answer.trim() !== "") {
+          const d = parseTimestamp(fb.timestamp);
+          const hour = d.getHours();
+          const block = Math.floor(hour / 2) * 2;
+          const label = `${String(block).padStart(2, '0')}:00 - ${String(block + 2).padStart(2, '0')}:00`;
+          if (groupings[label]) {
+            if (fb.rating === 'like') groupings[label].likes++;
+            else groupings[label].dislikes++;
+          }
         }
       });
     } else if (period === 'weekly') {
@@ -768,12 +805,14 @@ function App() {
         groupings[label] = { likes: 0, dislikes: 0, keyDateStr: tempDate.toDateString() };
       }
       filtered.forEach(fb => {
-        const fbDate = parseTimestamp(fb.timestamp);
-        const fbDateStr = fbDate.toDateString();
-        for (const [label, data] of Object.entries(groupings)) {
-          if (data.keyDateStr === fbDateStr) {
-            if (fb.rating === 'like') data.likes++;
-            else data.dislikes++;
+        if (fb.answer && fb.answer.trim() !== "") {
+          const fbDate = parseTimestamp(fb.timestamp);
+          const fbDateStr = fbDate.toDateString();
+          for (const [label, data] of Object.entries(groupings)) {
+            if (data.keyDateStr === fbDateStr) {
+              if (fb.rating === 'like') data.likes++;
+              else data.dislikes++;
+            }
           }
         }
       });
@@ -786,15 +825,17 @@ function App() {
         groupings[`สัปดาห์ที่ ${i}`] = { likes: 0, dislikes: 0 };
       }
       filtered.forEach(fb => {
-        const fbDate = parseTimestamp(fb.timestamp);
-        const diffDays = Math.floor((now - fbDate) / (24 * 60 * 60 * 1000));
-        let weekIndex = 4 - Math.floor(diffDays / 7);
-        if (weekIndex < 1) weekIndex = 1;
-        if (weekIndex > 4) weekIndex = 4;
-        const label = `สัปดาห์ที่ ${weekIndex}`;
-        if (groupings[label]) {
-          if (fb.rating === 'like') groupings[label].likes++;
-          else groupings[label].dislikes++;
+        if (fb.answer && fb.answer.trim() !== "") {
+          const fbDate = parseTimestamp(fb.timestamp);
+          const diffDays = Math.floor((now - fbDate) / (24 * 60 * 60 * 1000));
+          let weekIndex = 4 - Math.floor(diffDays / 7);
+          if (weekIndex < 1) weekIndex = 1;
+          if (weekIndex > 4) weekIndex = 4;
+          const label = `สัปดาห์ที่ ${weekIndex}`;
+          if (groupings[label]) {
+            if (fb.rating === 'like') groupings[label].likes++;
+            else groupings[label].dislikes++;
+          }
         }
       });
     } else if (period === 'yearly') {
@@ -810,12 +851,14 @@ function App() {
         groupings[label] = { likes: 0, dislikes: 0, yearMonthKey: `${tempDate.getFullYear()}-${tempDate.getMonth()}` };
       }
       filtered.forEach(fb => {
-        const fbDate = parseTimestamp(fb.timestamp);
-        const ymKey = `${fbDate.getFullYear()}-${fbDate.getMonth()}`;
-        for (const [label, data] of Object.entries(groupings)) {
-          if (data.yearMonthKey === ymKey) {
-            if (fb.rating === 'like') data.likes++;
-            else data.dislikes++;
+        if (fb.answer && fb.answer.trim() !== "") {
+          const fbDate = parseTimestamp(fb.timestamp);
+          const ymKey = `${fbDate.getFullYear()}-${fbDate.getMonth()}`;
+          for (const [label, data] of Object.entries(groupings)) {
+            if (data.yearMonthKey === ymKey) {
+              if (fb.rating === 'like') data.likes++;
+              else data.dislikes++;
+            }
           }
         }
       });
@@ -823,9 +866,20 @@ function App() {
 
     let totalLikes = 0;
     let totalDislikes = 0;
+    let starCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let totalStarsCount = 0;
+
     filtered.forEach(fb => {
-      if (fb.rating === 'like') totalLikes++;
-      else totalDislikes++;
+      if (fb.answer && fb.answer.trim() !== "") {
+        if (fb.rating === 'like') totalLikes++;
+        else totalDislikes++;
+      } else {
+        const starsVal = fb.stars !== undefined && fb.stars !== null ? parseInt(fb.stars) : (fb.rating === 'like' ? 5 : 2);
+        if (starCounts[starsVal] !== undefined) {
+          starCounts[starsVal]++;
+          totalStarsCount++;
+        }
+      }
     });
 
     const satRate = totalLikes + totalDislikes > 0 ? Math.round((totalLikes / (totalLikes + totalDislikes)) * 100) : 100;
@@ -843,6 +897,8 @@ function App() {
     });
 
     const comments = filtered.filter(fb => fb.comment.trim() !== "");
+    const starComments = filtered.filter(fb => fb.comment.trim() !== "" && (!fb.answer || fb.answer.trim() === ""));
+    const dislikeComments = filtered.filter(fb => fb.comment.trim() !== "" && (fb.answer && fb.answer.trim() !== ""));
 
     return {
       filtered,
@@ -851,7 +907,11 @@ function App() {
       totalVotes: totalLikes + totalDislikes,
       satRate,
       chartData: list,
-      comments
+      comments,
+      starCounts,
+      totalStarsCount,
+      starComments,
+      dislikeComments
     };
   };
 
@@ -1070,6 +1130,24 @@ function App() {
     setCurrentUnanswered(log);
     setFaqAnswer('');
     setShowFaqModal(true);
+    if (log && log.query) {
+      setAnalysisLoading(true);
+      setAnalysisResult(null);
+      fetch(API_URL + '/api/admin/unanswered/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: log.query })
+      })
+        .then(r => r.json())
+        .then(data => {
+          setAnalysisResult(data);
+          setAnalysisLoading(false);
+        })
+        .catch(err => {
+          console.error("Error analyzing query:", err);
+          setAnalysisLoading(false);
+        });
+    }
   };
 
   const handleSubmitFaq = (e) => {
@@ -1348,7 +1426,7 @@ function App() {
 
   // Dashboard Main View
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 text-tuh-navy dark:bg-[#100220] dark:text-white transition-colors duration-300 font-sans">
+    <div className="flex h-screen overflow-hidden bg-[#faf7ff] text-tuh-navy dark:bg-[#100220] dark:text-white transition-colors duration-300 font-sans">
 
       {/* Dynamic Floating Background Elements */}
       <div className="absolute top-20 right-20 w-80 h-80 rounded-full bg-tuh-purple/5 dark:bg-tuh-purple/10 blur-[100px] pointer-events-none animate-float-slow"></div>
@@ -1377,9 +1455,9 @@ function App() {
       )}
 
       {/* Sidebar Panel */}
-      <aside className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md transition-all duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'w-72 translate-x-0 opacity-100' : 'w-0 -translate-x-full lg:translate-x-0 lg:opacity-0 lg:border-r-0 overflow-hidden'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-[#f5f0ff] dark:bg-tuh-indigo/90 backdrop-blur-md transition-all duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? 'w-72 translate-x-0 opacity-100' : 'w-0 -translate-x-full lg:translate-x-0 lg:opacity-0 lg:border-r-0 overflow-hidden'}`}>
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex items-center justify-between gap-3">
+        <div className="h-[76px] px-5 border-b border-purple-100 dark:border-tuh-purple/20 flex items-center justify-between gap-3 bg-white dark:bg-tuh-indigo/90">
           <div className="flex items-center gap-3">
             <img
               src={dog}
@@ -1529,7 +1607,7 @@ function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Top Navbar */}
-        <header className="p-4 md:px-6 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/70 dark:bg-tuh-navy/40 backdrop-blur-md flex items-center justify-between z-10">
+        <header className="h-[76px] px-4 md:px-6 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/70 dark:bg-tuh-navy/40 backdrop-blur-md flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
             {!isSidebarOpen && (
               <button
@@ -1567,7 +1645,7 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-tuh-pink/30 text-tuh-rose border border-tuh-rose/20 dark:bg-tuh-rose/25 dark:text-white dark:border-none shadow-sm">
-              <img src={dog} alt="Avatar" className="w-5 h-5 rounded-full object-cover shadow-sm border border-white/40" />
+              <img src={botAvatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover shadow-sm" />
               {adminUser.name} ({adminUser.role})
             </span>
           </div>
@@ -1679,38 +1757,41 @@ function App() {
                     <div className="space-y-1">
                       <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คู่มือตอบกลับ (FAQs)</span>
                       <h3 className="text-[30px] font-black tracking-tight text-amber-600 dark:text-amber-400">
-                        6 <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามด่วนหน้าแรก</span>
+                        {settings.predefined_faqs?.length || 0} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามด่วนหน้าแรก</span>
                       </h3>
                     </div>
                     <span className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-base"><i className="fa-solid fa-book"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
                     <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      จัดการไอคอน คำถาม และคำตอบด่วนสำหรับการคลิกถามยอดฮิต 6 ปุ่มบนหน้าแรกของผู้ใช้
+                      จัดการไอคอน คำถาม และคำตอบด่วนสำหรับการคลิกถามยอดฮิต {settings.predefined_faqs?.length || 0} ปุ่มบนหน้าแรกของผู้ใช้
                     </p>
                     <span className="text-[14px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">เข้าสู่เมนู FAQs <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
-                {/* 6. Admin Profile Portal */}
+                {/* 6. System Announcements Portal */}
                 <div
-                  onClick={() => setActiveTab('profile')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-slate-500/40 dark:hover:border-slate-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
+                  onClick={() => setActiveTab('announcements')}
+                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-pink-500/40 dark:hover:border-pink-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
                 >
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>โปรไฟล์แอดมิน</span>
-                      <h3 className={`text-[30px] font-black tracking-tight ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                        ผู้ดูแล <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ระบบไอที</span>
+                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>สร้างและจัดการประกาศ</span>
+                      <h3 className="text-[30px] font-black tracking-tight text-pink-600 dark:text-pink-400">
+                        {announcements.filter(ann => {
+                          const now = new Date();
+                          return now >= new Date(ann.start_date) && now <= new Date(ann.end_date);
+                        }).length} / {announcements.length} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>เปิดใช้งาน</span>
                       </h3>
                     </div>
-                    <span className={`w-10 h-10 rounded-xl bg-slate-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}><i className="fa-solid fa-user-gear"></i></span>
+                    <span className="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center text-base"><i className="fa-solid fa-bullhorn"></i></span>
                   </div>
                   <div className="space-y-2 mt-3">
                     <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      ความปลอดภัย ข้อมูลประจำตัว บทบาท อีเมล และระบบเปลี่ยนรหัสผ่านในการเข้าใช้งานแผงจัดการ
+                      สร้างข่าวประชาสัมพันธ์ ตั้งเวลาแสดงผล และเปิด/ปิดป้ายประกาศข่าวสารถึงผู้ใช้แชทบอท
                     </p>
-                    <span className={`text-[14px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>เข้าสู่เมนูโปรไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
+                    <span className="text-[14px] text-pink-600 dark:text-pink-400 font-bold flex items-center gap-1">เข้าสู่เมนูจัดการประกาศ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
                   </div>
                 </div>
 
@@ -1997,7 +2078,7 @@ function App() {
                                 ) : null}
                                 <button
                                   disabled={approvingFilename === doc.filename}
-                                  onClick={() => handleDeleteDoc(doc.filename)}
+                                  onClick={() => setDeleteModalState({ show: true, type: 'document', targetId: doc.filename, targetName: doc.filename })}
                                   className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition active:scale-95 flex items-center justify-center disabled:opacity-50"
                                   title="ลบเอกสาร"
                                 >
@@ -2071,10 +2152,23 @@ function App() {
 
                 {/* 2. Forms List Panel */}
                 <div className="lg:col-span-2 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm flex flex-col">
-                  <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20">
+                  <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2">
                       <i className="fa-solid fa-folder-open text-tuh-rose"></i> แฟ้มแบบฟอร์มทั้งหมด ({forms.length} รายการ)
                     </h3>
+                    {/* Search Bar for Forms */}
+                    <div className="relative w-full md:w-60">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 dark:text-slate-400">
+                        <i className="fa-solid fa-magnifying-glass text-xs"></i>
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="ค้นหาชื่อแบบฟอร์ม..."
+                        value={formSearchQuery}
+                        onChange={(e) => setFormSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 text-xs font-bold bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl focus:outline-none focus:border-tuh-rose transition text-tuh-navy dark:text-white"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex-1 overflow-x-auto">
@@ -2088,14 +2182,22 @@ function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
-                        {forms.length === 0 ? (
-                          <tr>
-                            <td colSpan="4" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
-                              ยังไม่มีแบบฟอร์มที่ลงทะเบียนไว้ในแฟ้มข้อมูล
-                            </td>
-                          </tr>
-                        ) : (
-                          forms.map((form) => (
+                        {(() => {
+                          const filtered = forms.filter(form =>
+                            form.name.toLowerCase().includes(formSearchQuery.toLowerCase())
+                          );
+
+                          if (filtered.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="4" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
+                                  {forms.length === 0 ? 'ยังไม่มีแบบฟอร์มที่ลงทะเบียนไว้ในแฟ้มข้อมูล' : 'ไม่พบแบบฟอร์มที่ตรงกับการค้นหา'}
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return filtered.map((form) => (
                             <tr key={form.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
                               <td className="px-6 py-4 font-bold text-tuh-navy dark:text-white">
                                 <i className="fa-regular fa-file-lines text-teal-500 mr-2"></i>
@@ -2123,7 +2225,7 @@ function App() {
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <button
-                                  onClick={() => handleDeleteForm(form.id)}
+                                  onClick={() => setDeleteModalState({ show: true, type: 'form', targetId: form.id, targetName: form.name })}
                                   className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition active:scale-95 inline-flex items-center justify-center"
                                   title="ลบแบบฟอร์ม"
                                 >
@@ -2131,8 +2233,8 @@ function App() {
                                 </button>
                               </td>
                             </tr>
-                          ))
-                        )}
+                          ));
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -2368,9 +2470,9 @@ function App() {
                       <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                         <th className="px-6 py-4">ข้อความคำถาม</th>
                         <th className="px-6 py-4 text-center">ถามซ้ำ (จำนวน)</th>
-                        <th className="px-6 py-4">ถามล่าสุดเมื่อ</th>
+                        <th className="px-6 py-4 whitespace-nowrap">ถามล่าสุดเมื่อ</th>
                         <th className="px-6 py-4 text-center">สถานะ</th>
-                        <th className="px-6 py-4 text-right">เครื่องมือแก้ไข</th>
+                        <th className="px-6 py-4 text-center">เครื่องมือแก้ไข</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
@@ -2391,25 +2493,25 @@ function App() {
                               <td className="px-6 py-4 text-center font-black">
                                 {log.count} ครั้ง
                               </td>
-                              <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
+                              <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                 {log.timestamp}
                               </td>
                               <td className="px-6 py-4 text-center">
                                 {isPending ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20 dark:border-rose-400/20">
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20 dark:border-rose-400/20 whitespace-nowrap">
                                     <i className="fa-solid fa-clock-rotate-left"></i>
                                     ค้างตอบ
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500">
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500 whitespace-nowrap">
                                     <i className="fa-solid fa-circle-check"></i>
                                     แก้ไขแล้ว
                                   </span>
                                 )}
                               </td>
-                              <td className="px-6 py-4 text-right space-x-2">
+                              <td className="px-6 py-4 text-center">
                                 {isPending && (
-                                  <>
+                                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                                     <button
                                       onClick={() => handleOpenFaqModal(log)}
                                       className="inline-flex items-center gap-1 bg-emerald-500 text-white font-bold py-1.5 px-3 rounded-xl hover:bg-emerald-600 transition active:scale-95 text-xs"
@@ -2422,12 +2524,12 @@ function App() {
                                     >
                                       ละเว้น
                                     </button>
-                                  </>
+                                  </div>
                                 )}
                                 {!isPending && (
                                   <button
                                     onClick={() => handleResolveUnanswered(log.id, "Pending")}
-                                    className="text-xs text-rose-500 dark:text-rose-400 hover:underline"
+                                    className="text-xs text-rose-500 dark:text-rose-400 hover:underline whitespace-nowrap"
                                   >
                                     กู้คืนเป็นค้างตอบ
                                   </button>
@@ -2651,70 +2753,228 @@ function App() {
                   {/* Satisfaction rate */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">อัตราความพึงพอใจ</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">พึงพอใจการตอบคำถาม</span>
                       <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-sm"><i className="fa-solid fa-circle-check"></i></span>
                     </div>
                     <h3 className={`text-3xl font-black tracking-tight ${statsObj.satRate >= 80 ? 'text-emerald-500' : statsObj.satRate >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
                       {statsObj.satRate}%
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">อัตราความพึงพอใจในรอบ {satPeriod === 'daily' ? '1 วัน' : satPeriod === 'weekly' ? '1 สัปดาห์' : satPeriod === 'monthly' ? '1 เดือน' : '1 ปี'}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">อัตราความพึงพอใจคำตอบรอบนี้</p>
                   </div>
 
                   {/* Likes count */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ประเมินว่าชอบ (Likes)</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ถูกใจคำตอบ (Likes)</span>
                       <span className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-500 flex items-center justify-center text-sm"><i className="fa-solid fa-thumbs-up"></i></span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-teal-500">{statsObj.totalLikes}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนการตอบกลับเชิงบวก</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนที่กดถูกใจคำตอบบอท</p>
                   </div>
 
                   {/* Dislikes count */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ควรปรับปรุง (Dislikes)</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ไม่ถูกใจคำตอบ (Dislikes)</span>
                       <span className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center text-sm"><i className="fa-solid fa-thumbs-down"></i></span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-rose-500">{statsObj.totalDislikes}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนการตอบกลับเชิงลบ</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนที่กดไม่ถูกใจคำตอบบอท</p>
                   </div>
 
                   {/* Total Feedbacks */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">การประเมินทั้งหมด</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">การประเมินคำตอบทั้งหมด</span>
                       <span className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-sm"><i className="fa-solid fa-comments"></i></span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-indigo-500">{statsObj.totalVotes}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนโหวตความพึงพอใจทั้งหมด</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">จำนวนโหวตคำตอบบอททั้งหมด</p>
                   </div>
                 </div>
 
-                {/* Progress bar of Likes vs Dislikes */}
-                <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
-                  <div className="flex justify-between items-center mb-3 text-xs font-bold">
-                    <span className="text-teal-500 flex items-center gap-1.5"><i className="fa-solid fa-thumbs-up"></i> ชอบ ({statsObj.totalLikes})</span>
-                    <span className="text-rose-500 flex items-center gap-1.5">ควรปรับปรุง ({statsObj.totalDislikes}) <i className="fa-solid fa-thumbs-down"></i></span>
-                  </div>
-                  <div className="w-full h-4 bg-rose-500/20 dark:bg-rose-500/10 rounded-full overflow-hidden flex">
-                    <div
-                      className="h-full bg-emerald-500 transition-all duration-500"
-                      style={{ width: `${statsObj.totalVotes > 0 ? (statsObj.totalLikes / statsObj.totalVotes) * 100 : 100}%` }}
-                    />
-                    <div
-                      className="h-full bg-rose-500 transition-all duration-500"
-                      style={{ width: `${statsObj.totalVotes > 0 ? (statsObj.totalDislikes / statsObj.totalVotes) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                    <span>{statsObj.totalVotes > 0 ? Math.round((statsObj.totalLikes / statsObj.totalVotes) * 100) : 100}% ของผู้ใช้ประเมินเป็นบวก</span>
-                    <span>{statsObj.totalVotes > 0 ? Math.round((statsObj.totalDislikes / statsObj.totalVotes) * 100) : 0}% ของผู้ใช้ประเมินให้ปรับปรุง</span>
-                  </div>
-                </div>
-
-                {/* Custom Charts & Category Analysis */}
+                {/* Grid: Likes vs Dislikes progress AND Star Ratings */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Progress bar of Likes vs Dislikes */}
+                  <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-base font-extrabold mb-4 flex items-center gap-2">
+                        <i className="fa-solid fa-thumbs-up text-teal-500"></i> สัดส่วนความพึงพอใจต่อคำตอบของแชทบอท
+                      </h3>
+                      <div className="flex justify-between items-center mb-3 text-xs font-bold">
+                        <span className="text-teal-500 flex items-center gap-1.5"><i className="fa-solid fa-thumbs-up"></i> ถูกใจ ({statsObj.totalLikes})</span>
+                        <span className="text-rose-500 flex items-center gap-1.5">ไม่ถูกใจ ({statsObj.totalDislikes}) <i className="fa-solid fa-thumbs-down"></i></span>
+                      </div>
+                      <div className="w-full h-4 bg-rose-500/20 dark:bg-rose-500/10 rounded-full overflow-hidden flex">
+                        <div
+                          className="h-full bg-emerald-500 transition-all duration-500"
+                          style={{ width: `${statsObj.totalVotes > 0 ? (statsObj.totalLikes / statsObj.totalVotes) * 100 : 100}%` }}
+                        />
+                        <div
+                          className="h-full bg-rose-500 transition-all duration-500"
+                          style={{ width: `${statsObj.totalVotes > 0 ? (statsObj.totalDislikes / statsObj.totalVotes) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between mt-4 text-[10px] text-slate-500 dark:text-slate-400 font-bold pt-3 border-t border-slate-100 dark:border-tuh-purple/10">
+                      <span>{statsObj.totalVotes > 0 ? Math.round((statsObj.totalLikes / statsObj.totalVotes) * 100) : 100}% ประเมินเป็นบวก</span>
+                      <span>{statsObj.totalVotes > 0 ? Math.round((statsObj.totalDislikes / statsObj.totalVotes) * 100) : 0}% ประเมินควรปรับปรุง</span>
+                    </div>
+                  </div>
+
+                  {/* Star rating distribution (Overall experience) */}
+                  <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-base font-extrabold flex items-center gap-2">
+                        <i className="fa-solid fa-star text-amber-500"></i> ระดับคะแนนดาวประเมินบริการภาพรวม ({statsObj.totalStarsCount} การประเมิน)
+                      </h3>
+                      {statsObj.totalStarsCount > 0 && (
+                        <span className="text-sm font-black text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
+                          {(
+                            (statsObj.starCounts[5] * 5 +
+                              statsObj.starCounts[4] * 4 +
+                              statsObj.starCounts[3] * 3 +
+                              statsObj.starCounts[2] * 2 +
+                              statsObj.starCounts[1] * 1) /
+                            statsObj.totalStarsCount
+                          ).toFixed(1)}{' '}
+                          / 5.0
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-2.5">
+                      {[5, 4, 3, 2, 1].map((star) => {
+                        const count = statsObj.starCounts[star] || 0;
+                        const percentage = statsObj.totalStarsCount > 0 ? Math.round((count / statsObj.totalStarsCount) * 100) : 0;
+                        return (
+                          <div key={star} className="flex items-center gap-4 text-xs font-bold">
+                            <span className="w-12 text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                              {star} ดาว <i className="fa-solid fa-star text-amber-400 text-[10px]"></i>
+                            </span>
+                            <div className="flex-1 h-3 bg-slate-100 dark:bg-tuh-indigo/20 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-amber-400 transition-all duration-500"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <span className="w-16 text-right text-slate-700 dark:text-slate-200">
+                              {count} คน ({percentage}%)
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid: 2 Comment Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Comments from Thumbs-Down clicks */}
+                  <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex flex-col">
+                    <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-tuh-purple/10">
+                      <h3 className="text-base font-extrabold flex items-center gap-2">
+                        <i className="fa-solid fa-thumbs-down text-rose-500"></i> รายงานข้อเสนอแนะคำตอบที่ควรปรับปรุง ({statsObj.dislikeComments.length} ข้อความ)
+                      </h3>
+                    </div>
+
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                      {statsObj.dislikeComments.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
+                          ยังไม่มีข้อเสนอแนะจากคำตอบที่ควรปรับปรุงในช่วงเวลานี้
+                        </div>
+                      ) : (
+                        [...statsObj.dislikeComments].reverse().map(c => (
+                          <div key={c.id} className="p-4 bg-slate-50 dark:bg-tuh-indigo/10 border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl flex gap-3 items-start shadow-sm hover:shadow-md transition duration-200">
+                            <span className="w-9 h-9 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0 text-base">
+                              <i className="fa-solid fa-thumbs-down"></i>
+                            </span>
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-tuh-purple/10">
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                                  <i className="fa-regular fa-clock"></i> {c.timestamp}
+                                </span>
+                              </div>
+
+                              <div className="space-y-2 text-sm leading-relaxed">
+                                {c.query && (
+                                  <div className="space-y-1">
+                                    <span className="text-xs font-black text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
+                                      <i className="fa-solid fa-circle-question"></i> คำถามของผู้ใช้:
+                                    </span>
+                                    <p className="bg-white dark:bg-black/15 p-3 rounded-xl border border-slate-100 dark:border-tuh-purple/5 font-semibold text-slate-700 dark:text-slate-200 text-sm">
+                                      {c.query}
+                                    </p>
+                                  </div>
+                                )}
+                                {c.answer && (
+                                  <div className="space-y-1">
+                                    <span className="text-xs font-black text-rose-500 flex items-center gap-1.5">
+                                      <i className="fa-solid fa-robot"></i> คำตอบจากบอท:
+                                    </span>
+                                    <p className="bg-rose-500/5 dark:bg-rose-500/10 p-3 rounded-xl border border-rose-500/10 font-semibold text-slate-600 dark:text-slate-300 text-sm whitespace-pre-wrap">
+                                      {c.answer}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="space-y-1">
+                                  <span className="text-xs font-black text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                                    <i className="fa-solid fa-comment-dots"></i> เหตุผลที่ควรปรับปรุง:
+                                  </span>
+                                  <p className="bg-slate-100/80 dark:bg-tuh-indigo/20 p-3 rounded-xl border border-slate-200/50 dark:border-tuh-purple/10 font-bold text-slate-800 dark:text-white text-sm whitespace-pre-wrap">
+                                    {c.comment}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Comments from Star Ratings */}
+                  <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm flex flex-col">
+                    <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-tuh-purple/10">
+                      <h3 className="text-base font-extrabold flex items-center gap-2">
+                        <i className="fa-solid fa-star text-amber-500"></i> ความคิดเห็นจากคะแนนดาวภาพรวม ({statsObj.starComments.length} ข้อความ)
+                      </h3>
+                    </div>
+
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                      {statsObj.starComments.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
+                          ยังไม่มีความคิดเห็นจากคะแนนดาวในช่วงเวลานี้
+                        </div>
+                      ) : (
+                        [...statsObj.starComments].reverse().map(c => {
+                          const starsVal = c.stars !== undefined && c.stars !== null ? c.stars : (c.rating === 'like' ? 5 : 2);
+                          return (
+                            <div key={c.id} className="p-4 bg-slate-50 dark:bg-tuh-indigo/10 border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl flex gap-3 items-start shadow-sm hover:shadow-md transition duration-200">
+                              <span className="w-16 px-1.5 py-1.5 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center gap-1 font-black text-xs shrink-0 border border-amber-500/20">
+                                <i className="fa-solid fa-star"></i> {starsVal} ดาว
+                              </span>
+                              <div className="min-w-0 flex-1 space-y-2">
+                                <div className="flex justify-between items-center pb-1.5 border-b border-slate-100 dark:border-tuh-purple/10">
+                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                                    <i className="fa-regular fa-clock"></i> {c.timestamp}
+                                  </span>
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="bg-white dark:bg-black/15 p-3 rounded-xl border border-slate-100 dark:border-tuh-purple/5 font-bold text-slate-800 dark:text-white whitespace-pre-wrap text-sm">
+                                    {c.comment}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Charts */}
+                <div className="w-full">
                   {/* Period chart data representation */}
                   <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
                     <h3 className="text-base font-extrabold mb-5 flex items-center gap-2">
@@ -2747,110 +3007,6 @@ function App() {
                         ))
                       )}
                     </div>
-                  </div>
-
-                  {/* Category Analysis */}
-                  <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
-                    <h3 className="text-base font-extrabold mb-5 flex items-center gap-2">
-                      <i className="fa-solid fa-tags text-tuh-rose"></i> ความพึงพอใจแยกตามหมวดหมู่คำถามหลัก
-                    </h3>
-
-                    <div className="space-y-4">
-                      {categoryStats.length === 0 ? (
-                        <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
-                          ยังไม่มีคะแนนประเมินที่ตรงกับหมวดหมู่คำถามในช่วงนี้
-                        </div>
-                      ) : (
-                        categoryStats.map(cat => (
-                          <div key={cat.name} className="space-y-1.5">
-                            <div className="flex justify-between items-center text-xs font-semibold">
-                              <span className="text-slate-800 dark:text-slate-100 font-bold">{cat.name}</span>
-                              <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                <span className="text-teal-500">{cat.likes} 👍</span>
-                                <span className="text-rose-500">{cat.dislikes} 👎</span>
-                                <span className="bg-slate-100 dark:bg-black/25 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded font-extrabold">{cat.rate}%</span>
-                              </span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 dark:bg-tuh-navy/55 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full transition-all duration-500 ${cat.rate >= 80 ? 'bg-teal-500' : cat.rate >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                                style={{ width: `${cat.total > 0 ? (cat.likes / cat.total) * 100 : 0}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Written Feedbacks/Comments for this period */}
-                <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm">
-                  <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-base font-extrabold flex items-center gap-2">
-                      <i className="fa-solid fa-comment-dots text-tuh-rose"></i> ความคิดเห็นและข้อเสนอแนะในช่วงเวลานี้ ({statsObj.comments.length} ข้อความ)
-                    </h3>
-                  </div>
-
-                  <div className="space-y-3">
-                    {statsObj.comments.length === 0 ? (
-                      <div className="p-8 text-center text-slate-500 dark:text-slate-400 font-bold border border-dashed border-slate-200 dark:border-tuh-purple/20 rounded-2xl">
-                        ยังไม่มีข้อเสนอแนะที่เป็นข้อความในช่วงเวลานี้
-                      </div>
-                    ) : (
-                      [...statsObj.comments].reverse().map(c => (
-                        <div key={c.id} className="p-5 bg-slate-50 dark:bg-tuh-indigo/10 border border-slate-200/50 dark:border-tuh-purple/10 rounded-2xl flex gap-4 items-start shadow-sm hover:shadow-md transition duration-200">
-                          <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-base ${c.rating === 'like' ? 'bg-teal-500/10 text-teal-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                            <i className={`fa-solid ${c.rating === 'like' ? 'fa-thumbs-up' : 'fa-thumbs-down'}`}></i>
-                          </span>
-                          <div className="min-w-0 flex-1 space-y-3">
-                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-tuh-purple/10">
-                              <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
-                                <i className="fa-regular fa-clock"></i> {c.timestamp}
-                              </span>
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${c.rating === 'like' ? 'bg-teal-500/10 text-teal-600' : 'bg-rose-500/10 text-rose-600'}`}>
-                                {c.rating === 'like' ? 'ถูกใจ (Like)' : 'ไม่ถูกใจ (Dislike)'}
-                              </span>
-                            </div>
-
-                            <div className="space-y-2 text-sm leading-relaxed">
-                              {c.query && (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-black text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
-                                    <i className="fa-solid fa-circle-question"></i> คำถามของผู้ใช้:
-                                  </span>
-                                  <p className="bg-white dark:bg-black/15 p-3 rounded-xl border border-slate-100 dark:border-tuh-purple/5 font-semibold text-slate-700 dark:text-slate-200">
-                                    {c.query}
-                                  </p>
-                                </div>
-                              )}
-
-                              {c.rating === 'dislike' && (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-black text-rose-500 flex items-center gap-1.5">
-                                    <i className="fa-solid fa-robot"></i> คำตอบจากบอทที่ถูกประเมิน:
-                                  </span>
-                                  <p className="bg-rose-500/5 dark:bg-rose-500/10 p-3 rounded-xl border border-rose-500/10 font-semibold text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
-                                    {c.answer || <span className="text-slate-400 italic font-medium">(ไม่มีบันทึกข้อมูลคำตอบสำหรับรายการนี้)</span>}
-                                  </p>
-                                </div>
-                              )}
-
-                              {c.comment && (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-black text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
-                                    <i className="fa-solid fa-comment-dots"></i> ข้อเสนอแนะ / ความคิดเห็นเพิ่มเติม:
-                                  </span>
-                                  <p className="bg-slate-100/80 dark:bg-tuh-indigo/20 p-3 rounded-xl border border-slate-200/50 dark:border-tuh-purple/10 font-bold text-slate-800 dark:text-white whitespace-pre-wrap">
-                                    {c.comment}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
                   </div>
                 </div>
               </div>
@@ -2987,6 +3143,17 @@ function App() {
                   </div>
 
                   <div>
+                    <label className="block text-sm font-bold mb-2">คำทักทายเริ่มต้นบทสนทนาใหม่ในแชท (Chat Greeting)</label>
+                    <textarea
+                      rows="3"
+                      value={settings.chat_greeting}
+                      onChange={(e) => setSettings({ ...settings, chat_greeting: e.target.value })}
+                      placeholder="เขียนประโยคทักทายครั้งแรกในห้องแชท..."
+                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold"
+                    ></textarea>
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-bold mb-2">คำสั่งระบบควบคุมพฤติกรรมบอท (System Prompt)</label>
                     <textarea
                       rows="12"
@@ -3017,7 +3184,7 @@ function App() {
               {/* Profile Card */}
               <div className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm text-center space-y-4">
                 <div className="w-24 h-24 rounded-full mx-auto shadow-md overflow-hidden border-4 border-white dark:border-tuh-purple/30 bg-slate-100 flex items-center justify-center">
-                  <img src={dog} alt="Admin Profile" className="w-full h-full object-cover" />
+                  <img src={botAvatar} alt="Admin Profile" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h3 className="text-xl font-black">{adminUser.name}</h3>
@@ -3140,6 +3307,55 @@ function App() {
                 </div>
               )}
 
+              {/* AI Query Analysis Recommendations */}
+              {(analysisLoading || analysisResult) && (
+                <div className="p-4 rounded-2xl border border-dashed border-tuh-purple/20 bg-slate-50 dark:bg-[#100220]/25 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <i className="fa-solid fa-wand-magic-sparkles text-tuh-rose animate-pulse"></i>
+                      วิเคราะห์ประโยคและคำค้นหาแนะนำโดย AI
+                    </span>
+                    {analysisLoading && (
+                      <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                        <i className="fa-solid fa-spinner animate-spin text-[10px]"></i> กำลังวิเคราะห์...
+                      </span>
+                    )}
+                  </div>
+
+                  {analysisResult && (
+                    <div className="space-y-2">
+                      {analysisResult.is_valid_query === false ? (
+                        <div className="text-xs font-semibold text-rose-500 dark:text-rose-455 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                          ⚠️ AI ประเมินว่าเป็นข้อความขยะหรือคำทักทายทั่วไป (ไม่ใช่คำถามเกี่ยวกับสวัสดิการ)
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1.5">
+                            {analysisResult.suggested_keywords && analysisResult.suggested_keywords.map((kw, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(kw);
+                                  showSuccess(`คัดลอกคำว่า "${kw}" แล้ว`);
+                                }}
+                                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-tuh-rose/10 text-tuh-rose hover:bg-tuh-rose/20 transition active:scale-95 flex items-center gap-1"
+                              >
+                                {kw}
+                                <i className="fa-regular fa-copy text-[10px] opacity-60"></i>
+                              </button>
+                            ))}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-450 font-semibold">
+                            💡 คลิกที่คำสำคัญแนะนำด้านบนเพื่อคัดลอกและนำไปใช้ในการแต่งประโยค FAQ เพื่อการค้นหาที่แม่นยำขึ้น
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เขียนคู่มือคำตอบ (บอทจะตอบประโยคนี้ตรงๆ ทันที)</label>
                 <textarea
@@ -3172,6 +3388,39 @@ function App() {
         </div>
       )}
 
+
+
+      {/* MODAL: CUSTOM CONFIRM DELETE MODAL */}
+      {deleteModalState.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#1C1950] rounded-3xl border border-slate-200 dark:border-2 dark:border-[#93ABD9] shadow-2xl overflow-hidden p-6 text-center animate-scale-up">
+            <div className="w-16 h-16 rounded-full bg-[#E97D30]/15 dark:bg-[#E7BEF8]/20 text-[#E97D30] dark:text-[#F2619C] text-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#E97D30]/10 dark:shadow-[#F2619C]/10">
+              <i className="fa-solid fa-triangle-exclamation animate-bounce"></i>
+            </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2.5">
+              {deleteModalState.type === 'document' ? 'ยืนยันการลบเอกสาร' : 'ยืนยันการลบแบบฟอร์ม'}
+            </h3>
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-200 mb-6 leading-relaxed whitespace-pre-line">
+              คุณแน่ใจหรือไม่ว่าต้องการลบ <span className="font-extrabold text-[#E97D30] dark:text-[#F2619C]">"{deleteModalState.targetName}"</span>?
+              {deleteModalState.type === 'document' && '\nข้อมูลใน Vector Index ของเอกสารนี้จะถูกนำออกทั้งหมด'}
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setDeleteModalState({ show: false, type: null, targetId: null, targetName: null })}
+                className="px-6 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#93ABD9] dark:hover:opacity-90 dark:text-white font-bold transition active:scale-95 text-sm"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-6 py-2.5 rounded-2xl bg-[#E97D30] dark:bg-[#F2619C] hover:opacity-90 text-white font-bold transition active:scale-[0.98] shadow-lg shadow-[#E97D30]/25 dark:shadow-[#F2619C]/25 text-sm"
+              >
+                ลบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* MODAL: PRE-UPLOAD CONFIGURE EXCLUDE PAGES MODAL */}

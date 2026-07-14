@@ -12,7 +12,7 @@ html {
     @apply antialiased transition-colors duration-300;
     font-weight: 500;
     /* เปลี่ยนฟอนต์หลักที่นี่ */
-    font-family: 'Roboto', sans-serif !important;
+    font-family: 'Sarabun', sans-serif !important;
   }
 
   html:not(.dark) body {
@@ -292,8 +292,8 @@ html {
 }
 
 /* แก้ไขบรรทัดนี้: ลบ !important และใช้ขนาดที่อ้างอิงจาก html base ได้เลย */
-*:not(i):not([class*="fa-"]) {
-  font-family: 'Roboto', sans-serif !important;
+*:not(i):not([class*="fa-"]):not(.font-roboto) {
+  font-family: 'Sarabun', sans-serif !important;
 }
 
 /* ขนาดตัวอักษร */

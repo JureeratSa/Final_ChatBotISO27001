@@ -3,7 +3,6 @@ import sys
 import json
 import re
 import time
-import shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import datetime
 import threading
@@ -40,7 +39,7 @@ def rebuild_vector_indices():
 try:
     from Admin.emb import HybridRetriever
 except Exception as e:
-    print(f"犧�ｸｳ犹犧歩ｸｷ犧ｭ犧�: 犹�ｸ｡犹謂ｸｪ犧ｲ犧｡犧ｲ犧｣犧籾ｸ吭ｸｳ犹犧もｹ霞ｸｲ HybridRetriever 犧もｸ内ｸｰ犹犧｣犧ｴ犹謂ｸ｡犧歩ｹ霞ｸ吭ｸ｣犧ｰ犧壟ｸ�: {e}")
+    print(f"คำเตือน: ไม่สามารถนำเข้า HybridRetriever ได้ จะรันในโหมดสำรอง: {e}")
 
 gemini_api_key = os.environ.get("GEMINI_API_KEY")
 if not gemini_api_key:
@@ -116,7 +115,7 @@ def save_db(path, data):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"犹犧≒ｸｴ犧扉ｸもｹ霞ｸｭ犧憫ｸｴ犧扉ｸ樅ｸ･犧ｲ犧扉ｹ�ｸ吭ｸ≒ｸｲ犧｣犧壟ｸｱ犧吭ｸ伶ｸｶ犧� JSON {path}: {e}")
+        print(f"เกิดข้อผิดพลาดในการบันทึก JSON {path}: {e}")
 
 def log_unanswered_query(query_str):
     """ฟังก์ชันการทำงานหลัก"""
@@ -203,11 +202,11 @@ def run_weekly_exporter():
                                 writer = csv.writer(f)
                                 writer.writerow([
                                     "ID", 
-                                    "犹犧ｧ犧･犧ｲ犧伶ｸｵ犹謂ｸ歩ｸｭ犧� (Timestamp)", 
-                                    "犧�ｸｳ犧籾ｸｲ犧｡犧謂ｸｲ犧≒ｸ憫ｸｹ犹霞ｹ�ｸ癌ｹ� (User Query)", 
-                                    "犧�ｸｳ犧歩ｸｭ犧壟ｸ伶ｸｵ犹謂ｸ壟ｸｭ犧伶ｸ歩ｸｭ犧� (Bot Response)", 
-                                    "犹もｸ｡犹犧扉ｸ･ AI (AI Model)", 
-                                    "犹犧ｧ犧･犧ｲ犧歩ｸｭ犧壟ｸｪ犧吭ｸｭ犧� (Response Time sec)", 
+                                    "เวลา (Timestamp)", 
+                                    "คำถาม (User Query)", 
+                                    "คำตอบ (Bot Response)", 
+                                    "โมเดล AI (AI Model)", 
+                                    "เวลาในการตอบสนอง (Response Time sec)", 
                                     "Chunk IDs"
                                 ])
                                 for row in items:
@@ -246,13 +245,6 @@ def clean_appended_metadata(text):
             cleaned = cleaned.split(marker)[0]
     return cleaned.strip()
 
-def clean_thai_text(text):
-    text = re.sub(r'\?+', '', text)
-    text = text.replace('|', ' ')
-    text = re.sub(r' +', ' ', text)
-    text = re.sub(r'\n+', '\n', text)
-    return text.strip()
-
 def contains_profanity(text):
     """ตรวจสอบคำหยาบคายเพื่อสกัดและงดตอบคำถามที่ไม่สุภาพ"""
     if not text:
@@ -283,11 +275,11 @@ def contains_profanity(text):
     return False
 
 def get_fallback_vector_answer(results):
-    """ส่งคืนข้อมูลคำตอบสำรองจากฐานข้อมูลเวกเตอร์เมื่อเซิร์ฟเวอร์ AI ออฟไลน์หรือพบข้อผิดพลาด"""
+    """คำสั่งดึงเนื้อหาอ้างอิงตรงขึ้นตอบ กรณีระบบ AI ออฟไลน์หรืออินเทอร์เน็ตล่ม"""
     if results:
         top_res = results[0]
         top_content = top_res['metadata']['raw_table'] if top_res['metadata'].get('type') == 'table' and 'raw_table' in top_res['metadata'] else top_res['content']
-        source = top_res['metadata'].get('source', 'เอกสารอ้างอิง')
+        source = top_res['metadata'].get('source', 'เอกสาร')
         page = top_res['metadata'].get('page', '')
         page_str = f" หน้า {page}" if page else ""
         
@@ -305,13 +297,13 @@ def get_fallback_vector_answer(results):
             ans += f"\n\n💡 *คุณสามารถสืบค้นหัวข้อที่เกี่ยวข้องเพิ่มเติมได้ที่: {', '.join(other_pages)}*"
     else:
         ans = (
-            "สวัสดีครับ ยินดีให้บริการครับ ขณะนี้ระบบค้นหาของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติออฟไลน์อยู่ "
-            "หรือไม่พบข้อมูลที่เกี่ยวข้องกับคำถามของคุณครับ"
+            "สวัสดีครับ ผมเป็นระบบปัญญาประดิษฐ์ให้ข้อมูลเบื้องต้นของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ "
+            "ขณะนี้ระบบค้นหาออฟไลน์ หรือไม่พบข้อมูลเวกเตอร์ที่เกี่ยวข้องกับคำถามของคุณครับ"
         )
     return ans
 
 def make_http_post(url, payload, headers=None, timeout=15):
-    """ฟังก์ชันการทำงานหลัก"""
+    """ฟังก์ชันทำ HTTP POST Request"""
     import urllib.request
     if headers is None:
         headers = {"Content-Type": "application/json"}
@@ -332,11 +324,11 @@ def generate_response_ai(query, results, config, history=[]):
         for r in results:
             source = r['metadata'].get('source', 'เอกสารอ้างอิง')
             page = r['metadata'].get('page', '')
-            content = r['metadata']['raw_table'] if r['metadata'].get('type') == 'table' and 'raw_table' in r['metadata'] else r['content']
-            context_parts.append(f"เนื้อหาอ้างอิงหลัก (จาก {source} หน้า {page}):\n{content}")
+            page_str = f" หน้า {page}" if page else ""
+            context_parts.append(f"แหล่งที่มา: {source}{page_str}\nเนื้อหา: {r['content']}")
         context = "\n---\n".join(context_parts)
 
-    system_prompt = config.get("system_prompt", "คุณคือ \"ขาหมู\" ผู้ช่วยแชทบอทอัจฉริยะ (ผู้ชาย) ของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (TUH) ที่ตอบคำถามอย่างเป็นธรรมชาติ สุภาพ และราบรื่น (Smooth)\n- **การแทนตัวเองและการลงท้าย:** ต้องแทนตัวเองว่า \"ผม\" และลงท้ายประโยคด้วย \"ครับ\" เสมอ ห้ามใช้คำว่า \"ค่ะ\", \"คะ\", หรือ \"ครับ/ค่ะ\" อย่างเด็ดขาดในทุกกรณี! (แม้คำตอบดั้งเดิมในเอกสารอ้างอิงจะมีคำว่า ค่ะ ให้แปลงเป็น ครับ ทั้งหมด)\n- **วิธีการตอบ:** ตอบโดยใช้ภาษาที่เข้าใจง่าย กระชับ และตรงประเด็น ห้ามเริ่มต้นคำตอบด้วยคำว่า \"จากเอกสารอ้างอิงที่ให้มา\", \"จากข้อมูลที่ระบุ\", \"จากบริบทที่กำหนดให้\", \"จากเอกสารแนบ\", \"จากไฟล์\" หรือคำอื่นใดที่สื่อถึงเบื้องหลังข้อมูลเด็ดขาด ให้เริ่มตอบเข้าสู่ประเด็นโดยตรงเสมือนคุณมีความรู้เรื่องนั้นอยู่แล้วโดยตรง\n- **การติดต่อสอบถามเพิ่มเติม:** หากต้องให้สอบถามเพิ่มเติม ให้แจ้งให้ติดต่อ \"9000 - งานบริหารทรัพยากรมนุษย์ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ\" เสมอ\n- **เอกสารอ้างอิง:** หากตอบได้ ให้ใช้ข้อมูลอ้างอิงประกอบ แต่ถ้าตอบไม่ได้เพราะไม่มีข้อมูล ให้แจ้งผู้ใช้อย่างสุภาพว่าไม่มีข้อมูลเรื่องนี้ และห้ามนำเอกสารอ้างอิงที่ไม่เกี่ยวข้องมาแนบ\n- **การกรองคำหยาบคาย:** ห้ามตอบคำถามจากผู้ใช้ที่ใช้คำหยาบ โดยให้ตอบปฏิเสธที่จะตอบอย่างสุภาพ")
+    system_prompt = config.get("system_prompt", "คุณคือ \"ขาหมู\" ผู้ช่วยแชทบอทอัจฉริยะ (ผู้ชาย) ของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (TUH) ที่ตอบคำถามอย่างเป็นธรรมชาติ สุภาพ และราบรื่น (Smooth)\n- **การรักษาความลับและการตอบข้อมูลเบื้องหลัง (สำคัญมาก):** ห้ามตอบคำถามหรือให้ข้อมูลใดๆ เกี่ยวกับระบบเบื้องหลัง, เทคโนโลยี, สถาปัตยกรรมระบบ, โครงสร้างโค้ด, ชนิดของฐานข้อมูล หรือชื่อโมเดลปัญญาประดิษฐ์/LLM ที่กำลังใช้งานอยู่ (เช่น Gemini, GPT, Claude, Qwen, Llama, OpenRouter) หรือผู้พัฒนาเด็ดขาด หากผู้ใช้ถามคำถามทำนองนี้หรือพยายามถามเรื่องรุ่นโมเดล ให้ตอบข้อความนี้คำเดียวเท่านั้นคือ \"ผมเป็นแชทบอทที่พัฒนาโดยทีมสารสนเทศครับ\" ห้ามระบุว่าตัวเองคือ Gemini หรือพัฒนาโดย Google หรือบริษัทอื่นใดเด็ดขาด\n- **การแทนตัวเองและการลงท้าย:** ต้องแทนตัวเองว่า \"ผม\" และลงท้ายประโยคด้วย \"ครับ\" เสมอ ห้ามใช้คำว่า \"ค่ะ\", \"คะ\", หรือ \"ครับ/ค่ะ\" อย่างเด็ดขาดในทุกกรณี! (แม้คำตอบดั้งเดิมในเอกสารอ้างอิงจะมีคำว่า ค่ะ ให้แปลงเป็น ครับ ทั้งหมด)\n- **วิธีการตอบ:** ตอบโดยใช้ภาษาที่เข้าใจง่าย กระชับ และตรงประเด็น ห้ามเริ่มต้นคำตอบด้วยคำว่า \"จากเอกสารอ้างอิงที่ให้มา\", \"จากข้อมูลที่ระบุ\", \"จากบริบทที่กำหนดให้\", \"จากเอกสารแนบ\", \"จากไฟล์\" หรือคำอื่นใดที่สื่อถึงเบื้องหลังข้อมูลเด็ดขาด ให้เริ่มตอบเข้าสู่ประเด็นโดยตรงเสมือนคุณมีความรู้เรื่องนั้นอยู่แล้วโดยตรง\n- **การติดต่อสอบถามเพิ่มเติม:** หากต้องให้สอบถามเพิ่มเติม ให้แจ้งให้ติดต่อ \"9000 - งานบริหารทรัพยากรมนุษย์ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ\" เสมอ\n- **เอกสารอ้างอิง:** หากตอบได้ ให้ใช้ข้อมูลอ้างอิงประกอบ แต่ถ้าตอบไม่ได้เพราะไม่มีข้อมูล ให้แจ้งผู้ใช้อย่างสุภาพว่าไม่มีข้อมูลเรื่องนี้ และห้ามนำเอกสารอ้างอิงที่ไม่เกี่ยวข้องมาแนบ\n- **การกรองคำหยาบคาย:** ห้ามตอบคำถามจากผู้ใช้ที่ใช้คำหยาบ โดยให้ตอบปฏิเสธที่จะตอบอย่างสุภาพ")
     
     # แทรกข้อมูลรายชื่อแบบฟอร์มสวัสดิการที่ลงทะเบียนไว้
     forms_list = load_db(DB_FORMS_PATH, [])
@@ -347,6 +339,10 @@ def generate_response_ai(query, results, config, history=[]):
             if name:
                 forms_info += f"- {name}\n"
         system_prompt += f"\n\n{forms_info}\nสำคัญมาก:\n1. เมื่อมีการกล่าวถึงหรืออ้างอิงถึงชื่อแบบฟอร์มเหล่านี้ในคำตอบ ให้เขียนสะกดตรงเป๊ะตามรายชื่อข้างต้น ห้ามดัดแปลงหรือย่อชื่อโดยเด็ดขาด เพื่อให้ระบบกรองและฝังลิงก์ดาวน์โหลดตรงได้ถูกต้อง\n2. หากผู้ใช้ถามหาแบบฟอร์ม ไฟล์ ลิงก์ดาวน์โหลด หรือช่องทางรับแบบฟอร์ม ให้ยืนยันอย่างชัดเจนและสุภาพว่าคุณมีแบบฟอร์มพร้อมให้ดาวน์โหลด และผู้ใช้สามารถกดคลิกที่ชื่อแบบฟอร์มในคำตอบเพื่อเปิดดาวน์โหลด PDF ได้โดยตรงจากระบบได้เลยครับ ห้ามตอบว่าไม่มีข้อมูลหรือดาวน์โหลดไม่ได้เด็ดขาด" 
+    
+    # เพิ่มกฎคุมการใช้อ้างอิง RAG สำหรับแชทคุยเล่นทั่วไป
+    system_prompt += "\n\n- **เกณฑ์สำคัญเกี่ยวกับเอกสารอ้างอิง (Context):** หากคุณวิเคราะห์คำถามของผู้ใช้แล้วพบว่าไม่จำเป็นต้องใช้ข้อมูลใน 'ข้อมูลอ้างอิง (Context)' เลยในการตอบ (เช่น เป็นการทักทายทั่วไป, การคุยเล่นตลกขบขัน, การถามข้อมูลส่วนตัวของบอท หรือสัพเพเหระอื่นๆ ที่ไม่ได้อิงจากเอกสารสุขภาพ) ให้คุณเขียนคำตอบขึ้นต้นบรรทัดแรกสุดด้วยคำว่า `[NO_CONTEXT]` เสมอ โดยที่ผู้ใช้จะมองไม่เห็นคำนี้"
+
     temp = float(config.get("temperature", 0.2))
     max_tokens = int(config.get("max_tokens", 1000))
     if max_tokens < 1000:
@@ -361,7 +357,9 @@ def generate_response_ai(query, results, config, history=[]):
         if role == "assistant":
             text_content = clean_appended_metadata(text_content)
         openai_messages.append({"role": role, "content": text_content})
-    openai_messages.append({"role": "user", "content": f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"})
+    user_prompt = f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"
+    user_prompt += "\n\nคำชี้แจงสำคัญ: หากคำถามของผู้ใช้ข้อนี้เป็นการทักทายทั่วไป การคุยเล่น ถามเรื่องส่วนตัวของบอท หรือเรื่องอื่นๆ ที่ไม่ได้จำเป็นต้องนำข้อมูลจาก 'ข้อมูลอ้างอิง (Context)' ข้างต้นมาตอบเลย ให้คุณขึ้นต้นคำตอบของคุณที่บรรทัดแรกสุดด้วยคำว่า [NO_CONTEXT] ทันที"
+    openai_messages.append({"role": "user", "content": user_prompt})
 
     ans = None
     for attempt in range(2):
@@ -379,7 +377,7 @@ def generate_response_ai(query, results, config, history=[]):
                 "HTTP-Referer": "http://localhost:8000",
                 "X-Title": "TUH Chatbot"
             }
-            print(f"犧≒ｸｳ犧･犧ｱ犧�ｹ犧｣犧ｵ犧｢犧≒ｹ�ｸ癌ｹ� OpenRouter ({model_name}) 犧｣犧ｭ犧壟ｸ伶ｸｵ犹� {attempt + 1}: '{query}'")
+            print(f"กำลังส่งคำขอไปยัง OpenRouter ({model_name}) ครั้งที่ {attempt + 1}: '{query}'")
             res_data = make_http_post(url, payload, headers, timeout=15)
             choices = res_data.get("choices", [])
             if choices:
@@ -387,16 +385,24 @@ def generate_response_ai(query, results, config, history=[]):
                 if content and content.strip() != "":
                     ans = content
                     break
-            print("笞��� 犹�ｸ扉ｹ霞ｸ｣犧ｱ犧壟ｸ�ｸｳ犧歩ｸｭ犧壟ｸｧ犹謂ｸｲ犧�ｹ犧巵ｸ･犹謂ｸｲ犧謂ｸｲ犧� OpenRouter 犧謂ｸｰ犧伶ｸｳ犧≒ｸｲ犧｣犹犧癌ｸｷ犹謂ｸｭ犧｡犧歩ｹ謂ｸｭ犧･犧ｭ犧�ｹ�ｸｫ犧｡犹謂ｸｭ犧ｵ犧≒ｸ�ｸ｣犧ｱ犹霞ｸ�...")
+            print("ไม่ได้รับข้อความตอบกลับจาก OpenRouter กำลังพยายามใหม่...")
             time.sleep(1)
         except Exception as e:
-            print(f"OpenRouter API Error 犹�ｸ吭ｸ｣犧ｭ犧壟ｸ伶ｸｵ犹� {attempt + 1}: {e}")
+            print(f"OpenRouter API Error ครั้งที่ {attempt + 1}: {e}")
             if attempt == 1:
                 ans = f"เกิดข้อผิดพลาดในการทำงานของคำตอบ: {e}\n\n" + get_fallback_vector_answer(results)
             time.sleep(1)
 
     if ans is None or ans.strip() == "":
         ans = "ไม่ได้รับคำตอบจากระบบปัญญาประดิษฐ์ (โมเดลส่งกลับข้อความว่าง)\n\n" + get_fallback_vector_answer(results)
+
+    # ตรวจจับว่าโมเดลประเมินว่าไม่ควรใช้ Context หรือไม่
+    used_context = True
+    if ans:
+        first_150 = ans[:150].upper()
+        if "[NO_CONTEXT]" in first_150:
+            ans = re.sub(r'(?i)\[NO_CONTEXT\]', '', ans).strip()
+            used_context = False
 
     # ตรวจสอบประวัติว่ามีการใช้คำไม่สุภาพหรือไม่ เพื่อย้อนกลับคำเตือน
     has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
@@ -405,8 +411,8 @@ def generate_response_ai(query, results, config, history=[]):
     # ตรวจสอบว่าคำตอบระบุว่าไม่มีข้อมูล / ไม่สามารถตอบได้ หรือไม่ เพื่อไม่แนบเอกสารอ้างอิง
     is_unanswered_response = ans and any(k in ans for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้", "ไม่ได้ระบุ", "ไม่มีรายละเอียด"])
 
-    # แสดงรายการเอกสารประกอบท้ายคำตอบ (ห้ามแสดงหากเป็นคำเตือนคำหยาบคาย หรือเป็นเคสไม่มีข้อมูล)
-    if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning and not is_unanswered_response:
+    # แสดงรายการเอกสารประกอบท้ายคำตอบ (ห้ามแสดงหากเป็นคำเตือนคำหยาบคาย หรือเป็นเคสไม่มีข้อมูล หรือระบุว่าไม่ได้ใช้ Context)
+    if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning and not is_unanswered_response and used_context:
         citations = []
         for res in results:
             source = res["metadata"].get("source", "เอกสารอ้างอิง")
@@ -417,7 +423,7 @@ def generate_response_ai(query, results, config, history=[]):
             citations = list(dict.fromkeys(citations))
             ans += "\n\n---\nเอกสารอ้างอิง:\n" + "\n".join(citations)
 
-    return ans
+    return ans, used_context
 
 
 import base64
@@ -488,7 +494,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             '/api/admin/feedback/submit',
             '/api/admin/unanswered/submit',
             '/api/search',
-            '/api/admin/settings'
+            '/api/admin/settings',
+            '/api/ip'
         ]
         
         if path in public_paths or path.startswith('/api/forms/download/') or path == '/api/announcements/active':
@@ -544,6 +551,26 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         # 1. Health Status
         if path == '/':
             self._send_json({"status": "online", "message": "TUH Chatbot & Admin APIs are online."})
+        elif path == '/api/ip':
+            client_ip = self.headers.get('X-Forwarded-For')
+            if client_ip:
+                client_ip = client_ip.split(',')[0].strip()
+            else:
+                client_ip = self.headers.get('X-Real-IP', self.client_address[0])
+            
+            # หากเป็นการเรียกผ่าน Localhost ให้ดึง LAN IP ของเครื่องปัจจุบันมาแสดงแทน 127.0.0.1
+            if client_ip in ('127.0.0.1', 'localhost', '::1'):
+                import socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                try:
+                    s.connect(('8.8.8.8', 1))
+                    client_ip = s.getsockname()[0]
+                except Exception:
+                    pass
+                finally:
+                    s.close()
+                    
+            self._send_json({"ip": client_ip})
         # 2. Stats
         elif path == '/api/admin/stats':
             self.handle_admin_stats()
@@ -668,6 +695,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             self.handle_forms_upload()
         elif self.path == '/api/admin/forms/delete':
             self.handle_forms_delete()
+        elif self.path == '/api/admin/forms/update':
+            self.handle_forms_update()
         elif self.path == '/api/admin/announcements/create':
             self.handle_announcements_create()
         elif self.path == '/api/admin/announcements/delete':
@@ -754,7 +783,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"Error querying retriever: {e}")
             
-            answer = generate_response_ai(query_str, results, config, history)
+            answer, used_context = generate_response_ai(query_str, results, config, history)
             
             # ค้นหาและแนบลิงก์แบบฟอร์มสวัสดิการที่เกี่ยวข้อง
             # เงื่อนไข: แสดงเฉพาะเมื่อ RAG ค้นพบ results จริง และ AI ไม่ได้ตอบว่าไม่มีข้อมูล
@@ -765,8 +794,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             forms = load_db(DB_FORMS_PATH, [])
             matched_forms = []
             import re
-            # แสดงแบบฟอร์มเฉพาะเมื่อ: มี results จาก RAG AND ไม่ใช่คำตอบแบบ "ไม่มีข้อมูล"
-            if results and not is_no_info_response:
+            # แสดงแบบฟอร์มเฉพาะเมื่อ: มี results จาก RAG AND ไม่ใช่คำตอบแบบ "ไม่มีข้อมูล" AND ใช้ Context
+            if results and not is_no_info_response and used_context:
                 for form in forms:
                     form_name = form.get("name", "").strip()
                     form_link = form.get("link", "").strip()
@@ -929,8 +958,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             
             total_docs = len(docs)
             active_docs = sum(1 for d in docs if d.get("status") == "Active")
-            likes = sum(1 for f in feedback if f.get("rating") == "like")
-            dislikes = sum(1 for f in feedback if f.get("rating") == "dislike")
+            likes = sum(1 for f in feedback if f.get("rating") == "like" and f.get("answer") and f.get("answer").strip() != "")
+            dislikes = sum(1 for f in feedback if f.get("rating") == "dislike" and f.get("answer") and f.get("answer").strip() != "")
             comments = [f for f in feedback if f.get("comment")]
             pending_unanswered = sum(1 for log in unanswered if log.get("status", "Pending") == "Pending")
             total_queries = likes + dislikes + len(unanswered) + 38
@@ -952,6 +981,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         try:
             data = self._get_json_payload()
             rating = data.get("rating", "")
+            stars = data.get("stars", None)
             comment = data.get("comment", "")
             query = data.get("query", "")
             answer = data.get("answer", "")
@@ -962,6 +992,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             for fb in feedback:
                 if fb.get("msgId") == msg_id and msg_id:
                     if rating: fb["rating"] = rating
+                    if stars is not None: fb["stars"] = stars
                     if comment: fb["comment"] = comment
                     if query: fb["query"] = query
                     if answer: fb["answer"] = answer
@@ -974,6 +1005,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     "id": f"fb-{int(time.time() * 1000)}",
                     "msgId": msg_id,
                     "rating": rating,
+                    "stars": stars,
                     "comment": comment,
                     "query": query,
                     "answer": answer,
@@ -1152,6 +1184,33 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     new_forms.append(f)
             save_db(DB_FORMS_PATH, new_forms)
             self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_forms_update(self):
+        try:
+            data = self._get_json_payload()
+            form_id = data.get("id", "")
+            new_name = data.get("name", "").strip()
+            new_page = data.get("page", "").strip()
+            
+            if not form_id or not new_name:
+                self._send_json({"error": "Missing required fields"}, 400)
+                return
+                
+            forms = load_db(DB_FORMS_PATH, [])
+            updated = False
+            for f in forms:
+                if f.get("id") == form_id:
+                    f["name"] = new_name
+                    f["page"] = new_page
+                    updated = True
+                    break
+            if updated:
+                save_db(DB_FORMS_PATH, forms)
+                self._send_json({"success": True})
+            else:
+                self._send_json({"error": "Form not found"}, 404)
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
 

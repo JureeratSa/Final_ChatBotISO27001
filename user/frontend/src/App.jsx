@@ -2,13 +2,42 @@ import React, { useState, useEffect, useRef } from 'react';
 import logo from './logo.png';
 import dog from './dog.png';
 import dog_light from './dog_light.png';
+import botAvatar from './bot_avatar.jpg';
 
 const API_URL = `http://${window.location.hostname}:8000`;
+
+const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI  ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับสวัสดีการสามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ';
+const DEFAULT_GREETING = 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖';
 
 const stripHtml = (html) => {
   if (!html) return '';
   const doc = new DOMParser().parseFromString(html, 'text/html');
   return doc.body.textContent || "";
+};
+
+const formatAnnDate = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const cleanStr = dateStr.replace('T', ' ');
+    const parts = cleanStr.split(' ');
+    const dateParts = parts[0].split('-');
+    if (dateParts.length !== 3) return dateStr;
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]);
+    const day = parseInt(dateParts[2]);
+    const time = parts[1] ? parts[1].substring(0, 5) : "";
+
+    const monthNames = [
+      "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+    ];
+
+    const thaiYear = year + 543;
+    const formattedDate = `${day} ${monthNames[month - 1]} ${thaiYear}`;
+    return time ? `${formattedDate} เวลา ${time} น.` : formattedDate;
+  } catch (e) {
+    return dateStr;
+  }
 };
 
 
@@ -34,6 +63,7 @@ function App() {
   });
 
   const currentMascot = isDarkMode ? dog : dog_light;
+  const currentBotAvatar = isDarkMode ? botAvatar : dog_light;
 
   // สถานะความกว้างของแถบด้านข้าง
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -116,7 +146,15 @@ function App() {
 
   // ข้อความต้อนรับ
   const [welcomeMessage, setWelcomeMessage] = useState(() => {
-    return localStorage.getItem('tuh_welcome_message') || 'สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** งานสารสนเทศโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ยินดีให้บริการครับ 😊\n\nท่านต้องการสอบถามข้อมูลด้านใด สามารถพิมพ์สอบถามหรือกดเลือกคำถามยอดนิยมด้านล่างนี้ได้เลยครับ';
+    return localStorage.getItem('tuh_welcome_message') || DEFAULT_WELCOME_MESSAGE;
+  });
+
+  // IP ของผู้ใช้
+  const [userIp, setUserIp] = useState('127.0.0.1');
+
+  // คำทักทายในฝั่งแชท
+  const [chatGreeting, setChatGreeting] = useState(() => {
+    return localStorage.getItem('tuh_chat_greeting') || DEFAULT_GREETING;
   });
 
   // สถานะการสนทนา
@@ -131,7 +169,7 @@ function App() {
       }
     }
 
-    const savedWelcome = localStorage.getItem('tuh_welcome_message') || 'สวัสดีครับ ยินดีต้อนรับสู่ **TUH Chatbot AI** \n\nท่านต้องการสอบถามข้อมูลด้านใด สามารถพิมพ์สอบถามหรือกดเลือกคำถามยอดนิยมด้านล่างนี้ได้เลยครับ';
+    const savedWelcome = localStorage.getItem('tuh_welcome_message') || DEFAULT_WELCOME_MESSAGE;
 
     const defaultSession = {
       id: 'session-1',
@@ -203,7 +241,7 @@ function App() {
           {
             id: `m-${now}`,
             sender: 'bot',
-            text: 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖',
+            text: localStorage.getItem('tuh_chat_greeting') || DEFAULT_GREETING,
             timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
           }
         ]
@@ -265,6 +303,19 @@ function App() {
 
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Auto-focus input textarea when bot finishes typing
+  useEffect(() => {
+    if (!isTyping && inputRef.current) {
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isTyping]);
 
   // ารประสานสถานะธีมเข้ากับคลาสในแท็ก HTML
   useEffect(() => {
@@ -346,6 +397,22 @@ function App() {
               return s;
             }));
           }
+          if (data.chat_greeting) {
+            setChatGreeting(data.chat_greeting);
+            localStorage.setItem('tuh_chat_greeting', data.chat_greeting);
+            setSessions(prev => prev.map(s => {
+              if (s.id !== 'session-1' && s.messages.length === 1 && s.messages[0].sender === 'bot' && (s.messages[0].text === DEFAULT_GREETING || s.messages[0].id === 'm1')) {
+                return {
+                  ...s,
+                  messages: [{
+                    ...s.messages[0],
+                    text: data.chat_greeting
+                  }]
+                };
+              }
+              return s;
+            }));
+          }
           if (data.predefined_faqs && data.predefined_faqs.length > 0) {
             const mappedFaqs = data.predefined_faqs.map(item => ({
               ...item,
@@ -370,6 +437,16 @@ function App() {
         }
       })
       .catch(err => console.error("Error fetching active announcements:", err));
+
+    // โหลด IP เครื่องของผู้ใช้งาน
+    fetch(API_URL + '/api/ip')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.ip) {
+          setUserIp(data.ip);
+        }
+      })
+      .catch(err => console.error("Error fetching client IP:", err));
   }, []);
 
   // แสดงหรือซ่อนคำถามที่พบบ่อย (FAQs) โดยอัตโนมัติตามข้อความในแชทปัจจุบัน เมื่อ activeSessionId มีการเปลี่ยนแปลง
@@ -421,7 +498,7 @@ function App() {
         {
           id: `m-${Date.now()}`,
           sender: 'bot',
-          text: 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖',
+          text: chatGreeting || DEFAULT_GREETING,
           timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
         }
       ]
@@ -435,6 +512,10 @@ function App() {
   // ลบบทสนทนา
   const handleDeleteSession = (id, e) => {
     e.stopPropagation();
+    if (id === activeSessionId) {
+      alert("ไม่สามารถลบการสนทนาปัจจุบันที่กำลังใช้งานอยู่ได้ครับ");
+      return;
+    }
     if (sessions.length === 1) {
       alert("ขาหมูขอชีแจงว่าคุณผู้ใช้ไม่สามารถลบการสนทนาทั้งหมดได้ ต้องมีอย่างน้อย 1 รายการครับ");
       return;
@@ -763,6 +844,7 @@ function App() {
     // สร้างบันทึกข้อเสนอแนะ
     const feedbackData = {
       rating: feedbackRating >= 4 ? 'like' : 'dislike',
+      stars: feedbackRating,
       comment: feedbackText,
       query: isForcedFeedback ? 'บังคับกรอกก่อนปิดหน้าต่าง' : 'ความคิดเห็นทั่วไปจากแบบฟอร์ม',
       msgId: `feedback-${Date.now()}`
@@ -827,9 +909,9 @@ function App() {
 
   return (
     <div className="h-screen w-screen p-4 md:p-6 lg:p-8 bg-zayg-gradient box-border overflow-hidden flex font-sans text-tuh-navy dark:text-white transition-colors duration-300">
-      <div className="flex-1 flex h-full overflow-hidden bg-white/70 dark:bg-tuh-navy/70 backdrop-blur-md rounded-[24px] border border-white/60 dark:border-white/5 shadow-2xl relative">
+      <div className="flex-1 flex h-full overflow-hidden bg-white/70 dark:bg-tuh-navy/70 backdrop-blur-md rounded-[24px] border border-slate-300 dark:border-white/20 shadow-2xl relative">
 
-        {/* 1. LEFT SIDEBAR PANEL (หน้าต่างซ้าย) */}
+        {/* 1. LEFT SIDEBAR PANEL (หน้าต่างซ้าย)  */}
         {isSidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity duration-300"
@@ -878,9 +960,9 @@ function App() {
           <div className="p-4">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-tuh-gradient-2 hover:shadow-lg hover:shadow-tuh-rose/30 hover:scale-[1.02] text-white text-sm font-semibold transition-all duration-300 active:scale-[0.98] group"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-tuh-purple text-white hover:bg-tuh-purple/90 transition-all duration-300 active:scale-[0.98] text-sm font-semibold group shadow-sm hover:shadow-md hover:shadow-tuh-purple/25"
             >
-              <i className="fa-solid fa-plus transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110"></i>
+              <i className="fa-solid fa-plus text-xs opacity-80 transition-transform duration-300 group-hover:rotate-90"></i>
               เริ่มบทสนทนาใหม่
             </button>
           </div>
@@ -928,13 +1010,15 @@ function App() {
                         </span>
                       )}
                     </div>
-                    <button
-                      onClick={(e) => handleDeleteSession(s.id, e)}
-                      className="opacity-0 group-hover:opacity-100 hover:text-red-500 p-1 rounded-md text-tuh-indigo/40 dark:text-slate-400 hover:bg-tuh-indigo/20 transition-all shrink-0 ml-1.5"
-                      title="ลบการสนทนานี้"
-                    >
-                      <i className="fa-solid fa-trash-can text-xs"></i>
-                    </button>
+                    {!isActive && (
+                      <button
+                        onClick={(e) => handleDeleteSession(s.id, e)}
+                        className="opacity-0 group-hover:opacity-100 hover:text-red-500 p-1 rounded-md text-tuh-indigo/40 dark:text-slate-400 hover:bg-tuh-indigo/20 transition-all shrink-0 ml-1.5"
+                        title="ลบการสนทนานี้"
+                      >
+                        <i className="fa-solid fa-trash-can text-xs"></i>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1020,7 +1104,7 @@ function App() {
         </aside>
 
         {/* 2. หน้าต่างขวา */}
-        <main className="flex-1 flex flex-col justify-center items-center p-4 bg-white/20 dark:bg-tuh-navy/10 relative overflow-hidden h-full">
+        <main className={`flex-1 flex flex-col justify-center items-center ${isSidebarOpen ? 'p-4' : 'p-0'} bg-white/20 dark:bg-tuh-navy/10 relative overflow-hidden h-full`}>
 
           {/* องค์ประกอบการออกแบบพื้นหลังแบบไดนามิกจากจานสีภาพผู้ใช้ */}
           <div className="absolute top-20 right-20 w-80 h-80 rounded-full bg-tuh-purple/10 dark:bg-tuh-purple/20 blur-[100px] pointer-events-none animate-float-slow"></div>
@@ -1030,7 +1114,7 @@ function App() {
             /* ==================== STATE A: หน้าจอเริ่มต้น (เมื่อไม่มีการสนทนา) ==================== */
             <>
               {/* ส่วนหัว */}
-              <div className="absolute top-0 left-0 right-0 p-5 md:p-7 flex items-center justify-between z-10">
+              <div className="absolute top-0 left-0 right-0 p-5 md:p-7 flex items-center justify-between z-20">
                 {/* ส่วนซ้าย: ปุ่มเมนูแฮมเบอร์เกอร์และเมนูแบบเลื่อนลง */}
                 <div className="flex items-center gap-3">
                   {!isSidebarOpen && (
@@ -1050,86 +1134,92 @@ function App() {
                 {/* ส่วนขวา: ปุ่มติดต่อ */}
                 <div className="flex items-center gap-2">
                   <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
+                    <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
+                    IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
+                  </span>
+                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
-                    พบปัญหาติดต่อ 8471 หรือ 8343
+                    ระบบมีปัญหาติดต่อ 8471 หรือ 8343
                   </span>
                 </div>
               </div>
 
               {/* เนื้อหาตรงกลาง */}
-              <div className="flex flex-col items-center justify-center text-center max-w-2xl mx-auto my-auto z-10 px-4 select-none animate-fade-in">
-                <img
-                  src={currentMascot}
-                  className={`${isDarkMode ? "w-64 md:w-80" : "w-44 md:w-52"} h-auto object-cover animate-mascot-float mb-5`}
-                  style={isDarkMode ? {
-                    WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
-                    maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
-                  } : {}}
-                  alt="Mascot"
-                />
-                <div className="mb-8 max-w-xl text-center leading-relaxed">
-                  {welcomeMessage.includes('\n') ? (
-                    <>
-                      <div className="text-lg md:text-xl font-bold text-tuh-navy dark:text-white mb-2">
-                        {parseMarkdown(welcomeMessage.split('\n')[0])}
-                      </div>
-                      <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold">
-                        {parseMarkdown(welcomeMessage.split('\n').slice(1).join('\n'))}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold">
-                      {parseMarkdown(welcomeMessage)}
-                    </div>
-                  )}
-                </div>
-
-                {/* ช่องรับข้อความส่วนกลางจำลอง */}
-                <div className="w-full max-w-xl flex items-center gap-2 p-1.5 pl-4 rounded-2xl bg-white/70 dark:bg-[#1B2062]/60 border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md mb-6 focus-within:ring-2 focus-within:ring-tuh-rose/50 transition">
-                  <input
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && inputValue.trim()) {
-                        handleSendMessage(inputValue);
-                      }
-                    }}
-                    placeholder="พิมพ์ข้อความของคุณเพื่อเริ่มต้นแชท..."
-                    className="flex-1 bg-transparent border-none outline-none text-tuh-navy dark:text-white placeholder-tuh-indigo/45 dark:placeholder-white/40 font-medium py-2 px-1"
+              <div className="w-full h-full overflow-y-auto custom-scrollbar z-10 px-4 pt-24 pb-8 flex flex-col select-none">
+                <div className="flex flex-col items-center justify-center text-center max-w-2xl min-h-full mx-auto animate-fade-in">
+                  <img
+                    src={currentMascot}
+                    className={`${isDarkMode ? "w-64 md:w-80" : "w-44 md:w-52"} h-auto object-cover animate-mascot-float mb-5`}
+                    style={isDarkMode ? {
+                      WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
+                      maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
+                    } : {}}
+                    alt="Mascot"
                   />
-                  <button
-                    onClick={() => {
-                      if (inputValue.trim()) {
-                        handleSendMessage(inputValue);
-                      }
-                    }}
-                    className="w-10 h-10 rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition"
-                  >
-                    <i className="fa-solid fa-paper-plane text-xs"></i>
-                  </button>
-                </div>
+                  <div className="mb-8 max-w-xl text-center leading-relaxed">
+                    {welcomeMessage.includes('\n') ? (
+                      <>
+                        <div className="text-lg md:text-xl font-bold text-tuh-navy dark:text-white mb-1">
+                          {parseMarkdown(welcomeMessage.split('\n')[0].trim())}
+                        </div>
+                        <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold">
+                          {parseMarkdown(welcomeMessage.split('\n').slice(1).join('\n').trim())}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold">
+                        {parseMarkdown(welcomeMessage)}
+                      </div>
+                    )}
+                  </div>
 
-                {/* ปุ่มคำถามที่พบบ่อย */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-2xl px-4">
-                  {faqsList.slice(0, 4).map(faq => (
-                    <button
-                      key={faq.id}
-                      onClick={() => {
-                        handleSendMessage(faq.question);
+                  {/* ช่องรับข้อความส่วนกลางจำลอง */}
+                  <div className="w-full max-w-xl flex items-center gap-2 p-1.5 pl-4 rounded-2xl bg-white/70 dark:bg-[#1B2062]/60 border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md mb-6 focus-within:ring-2 focus-within:ring-tuh-rose/50 transition">
+                    <input
+                      type="text"
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && inputValue.trim()) {
+                          handleSendMessage(inputValue);
+                        }
                       }}
-                      className="flex items-center gap-3 px-5 py-3 text-xs md:text-sm font-semibold rounded-2xl bg-white/60 dark:bg-[#1B2062]/40 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/50 dark:border-white/5 shadow-sm transition-all active:scale-[0.98] w-full text-left"
+                      placeholder="พิมพ์ข้อความของคุณเพื่อเริ่มต้นแชท..."
+                      className="flex-1 bg-transparent border-none outline-none text-tuh-navy dark:text-white placeholder-tuh-indigo/45 dark:placeholder-white/40 font-medium py-2 px-1"
+                    />
+                    <button
+                      onClick={() => {
+                        if (inputValue.trim()) {
+                          handleSendMessage(inputValue);
+                        }
+                      }}
+                      className="w-10 h-10 rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition"
                     >
-                      <i className={`fa-solid ${faq.icon} text-tuh-rose shrink-0`}></i>
-                      <span className="leading-snug">{faq.question}</span>
+                      <i className="fa-solid fa-paper-plane text-xs"></i>
                     </button>
-                  ))}
+                  </div>
+
+                  {/* ปุ่มคำถามที่พบบ่อย */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-2xl px-4">
+                    {faqsList.slice(0, 4).map(faq => (
+                      <button
+                        key={faq.id}
+                        onClick={() => {
+                          handleSendMessage(faq.question);
+                        }}
+                        className="flex items-center gap-3 px-5 py-3 text-xs md:text-sm font-semibold rounded-2xl bg-white/60 dark:bg-[#1B2062]/40 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/50 dark:border-white/5 shadow-sm transition-all active:scale-[0.98] w-full text-left"
+                      >
+                        <i className={`fa-solid ${faq.icon} text-tuh-rose shrink-0`}></i>
+                        <span className="leading-snug">{faq.question}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </>
           ) : (
             /* ==================== STATE B: หน้าต่างแชทแบบเต็มหน้าจอ (เมื่อมีการสนทนา) ==================== */
-            <div className="w-full max-w-8xl h-[88vh] max-h-[850px] flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md border border-slate-250/50 dark:border-tuh-purple/20 shadow-2xl rounded-[24px] overflow-hidden z-10 transition-all duration-300 animate-slide-in">
+            <div className={`w-full ${isSidebarOpen ? 'max-w-8xl h-[88vh] max-h-[850px] border-2 border-slate-300 dark:border-white/30 shadow-2xl rounded-[24px]' : 'h-full border-none shadow-none rounded-none'} flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md overflow-hidden z-10 transition-all duration-300 animate-slide-in`}>
               {/* ส่วนหัวของหน้าต่างแชท */}
               <header className="p-4 md:px-6 md:py-4 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/50 dark:bg-[#1B2062]/50 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0">
                 <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -1154,8 +1244,12 @@ function App() {
                 </div>
                 <div className="w-full lg:w-auto flex justify-start lg:justify-end shrink-0 pl-12 md:pl-0 lg:pl-0 gap-2">
                   <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
+                    <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
+                    IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
+                  </span>
+                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
-                    พบปัญหาติดต่อ 8471 หรือ 8343
+                    ระบบมีปัญหาติดต่อ 8471 หรือ 8343
                   </span>
                 </div>
               </header>
@@ -1186,9 +1280,9 @@ function App() {
                         {/* ไอคอนอวาตาร์ */}
                         {isBot ? (
                           <img
-                            src={currentMascot}
+                            src={currentBotAvatar}
                             alt="Bot Icon"
-                            className="w-7 h-7 rounded-sm border border-white object-cover shrink-0 shadow-sm"
+                            className={`w-7 h-7 rounded-lg object-cover shrink-0 ${!isDarkMode ? 'object-top' : ''}`}
                           />
                         ) : (
                           <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] shrink-0 shadow-sm text-white bg-tuh-gradient-1">
@@ -1254,9 +1348,9 @@ function App() {
                 {isTyping && (
                   <div className="flex gap-2 max-w-[90%] mr-auto animate-slide-in">
                     <img
-                      src={currentMascot}
+                      src={currentBotAvatar}
                       alt="Bot Icon"
-                      className="w-7 h-7 rounded-sm border border-white object-cover shrink-0 shadow-sm"
+                      className={`w-7 h-7 rounded-lg object-cover shrink-0 ${!isDarkMode ? 'object-top' : ''}`}
                     />
                     <div className="bg-slate-100 dark:bg-[#07010f] border border-slate-200/60 dark:border-tuh-purple/20 p-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-tuh-rose/60 dark:bg-tuh-pink/60 animate-bounce" style={{ animationDelay: '0ms' }}></span>
@@ -1302,6 +1396,7 @@ function App() {
 
                     <div className="flex items-end gap-2.5 w-full">
                       <textarea
+                        ref={inputRef}
                         value={inputValue}
                         disabled={isTyping}
                         onChange={(e) => setInputValue(e.target.value)}
@@ -1579,17 +1674,14 @@ function App() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-xl w-full border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden animate-scale-up">
               {/* Header */}
-              <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
+              <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex flex-col justify-start items-start gap-1 bg-slate-50 dark:bg-tuh-navy/35">
                 <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
                   <i className="fa-solid fa-bullhorn text-tuh-rose animate-bounce"></i>
                   ประกาศข่าวสารสำคัญ ({activeAnnouncements.length})
                 </h3>
-                <button
-                  onClick={handleCloseAnnModal}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-tuh-indigo/50 hover:text-tuh-navy dark:text-tuh-pink/50 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-tuh-indigo/80 transition"
-                >
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
+                <span className="text-xs font-semibold text-tuh-indigo/60 dark:text-tuh-pink/60 pl-7">
+                  ประกาศจาก admin น้องขาหมู
+                </span>
               </div>
 
               {/* Announcements List Container */}
@@ -1606,9 +1698,17 @@ function App() {
                       <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2">
                         {ann.title}
                       </h4>
-                      <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 whitespace-pre-line">
+                      <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 whitespace-pre-line mb-3">
                         {stripHtml(ann.content)}
                       </p>
+
+                      {/* Date display at the bottom-left */}
+                      {ann.start_date && (
+                        <div className="text-[11px] font-medium text-slate-400 dark:text-tuh-pink/40 flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100 dark:border-tuh-purple/10">
+                          <i className="fa-regular fa-clock text-tuh-rose/80 dark:text-tuh-pink/70"></i>
+                          <span>เริ่มประกาศ: {formatAnnDate(ann.start_date)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1620,7 +1720,7 @@ function App() {
                   onClick={handleCloseAnnModal}
                   className="px-6 py-2.5 rounded-xl bg-tuh-gradient-2 text-white font-bold text-sm transition hover:shadow-lg active:scale-[0.98] shadow-md shadow-tuh-rose/15"
                 >
-                  รับทราบและปิดประกาศ
+                  รับทราบ
                 </button>
               </div>
             </div>
