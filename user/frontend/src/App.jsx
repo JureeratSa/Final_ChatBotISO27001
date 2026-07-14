@@ -512,7 +512,7 @@ function App() {
   // ลบบทสนทนา
   const handleDeleteSession = (id, e) => {
     e.stopPropagation();
-    if (id === activeSessionId) {
+    if (id === sessions[0]?.id) {
       alert("ไม่สามารถลบการสนทนาปัจจุบันที่กำลังใช้งานอยู่ได้ครับ");
       return;
     }
@@ -896,8 +896,8 @@ function App() {
     if (!text) return '';
     // Bold parsing (**text**)
     let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-tuh-navy dark:text-white">$1</strong>');
-    // Bullet list items (- item)
-    html = html.replace(/^\- (.*?)$/gm, '<li class="ml-4 list-disc">$1</li>');
+    // Bullet list items (- item or * item)
+    html = html.replace(/^[-\*]\s*(.*?)$/gm, '<li class="ml-4 list-disc">$1</li>');
     // Number list items (1. item)
     html = html.replace(/^\d+\.\s(.*?)$/gm, '<li class="ml-4 list-decimal">$1</li>');
     // Link parsing [text](url)
@@ -960,7 +960,7 @@ function App() {
           <div className="p-4 flex justify-center">
             <button
               onClick={handleNewChat}
-              className="max-w-[255px] w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-tuh-purple text-white hover:bg-tuh-rose hover:scale-[1.04] transition-all duration-300 active:scale-[0.98] text-sm font-semibold group shadow-sm hover:shadow-lg hover:shadow-tuh-rose/35"
+              className="max-w-[16rem] w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-tuh-purple text-white hover:bg-tuh-rose hover:scale-[1.04] transition-all duration-300 active:scale-[0.98] text-sm font-semibold group shadow-sm hover:shadow-lg hover:shadow-tuh-rose/35"
             >
               <i className="fa-solid fa-plus text-xs opacity-80 transition-transform duration-300 group-hover:rotate-90"></i>
               เริ่มบทสนทนาใหม่
@@ -1010,7 +1010,7 @@ function App() {
                         </span>
                       )}
                     </div>
-                    {!isActive && (
+                    {s.id !== sessions[0]?.id && (
                       <button
                         onClick={(e) => handleDeleteSession(s.id, e)}
                         className="opacity-0 group-hover:opacity-100 hover:text-red-500 p-1 rounded-md text-tuh-indigo/40 dark:text-slate-400 hover:bg-tuh-indigo/20 transition-all shrink-0 ml-1.5"
@@ -1112,9 +1112,9 @@ function App() {
 
           {activeSession.messages.length <= 1 ? (
             /* ==================== STATE A: หน้าจอเริ่มต้น (เมื่อไม่มีการสนทนา) ==================== */
-            <>
+            <div className="w-full h-full flex flex-col relative overflow-hidden">
               {/* ส่วนหัว */}
-              <div className="absolute top-0 left-0 right-0 p-5 md:p-7 flex items-center justify-between z-20">
+              <div className="w-full p-5 md:p-7 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0 z-20">
                 {/* ส่วนซ้าย: ปุ่มเมนูแฮมเบอร์เกอร์และเมนูแบบเลื่อนลง */}
                 <div className="flex items-center gap-3">
                   {!isSidebarOpen && (
@@ -1145,11 +1145,11 @@ function App() {
               </div>
 
               {/* เนื้อหาตรงกลาง */}
-              <div className="w-full h-full overflow-y-auto custom-scrollbar z-10 px-4 pt-24 pb-8 flex flex-col select-none">
-                <div className="flex flex-col items-center justify-center text-center max-w-2xl min-h-full mx-auto animate-fade-in">
+              <div className="flex-1 w-full overflow-y-auto custom-scrollbar z-10 px-4 pb-8 flex flex-col select-none">
+                <div className="flex flex-col items-center text-center max-w-2xl mx-auto animate-fade-in my-auto py-6">
                   <img
                     src={currentMascot}
-                    className={`${isDarkMode ? "w-64 md:w-80" : "w-44 md:w-52"} h-auto object-cover animate-mascot-float mb-5`}
+                    className={`${isDarkMode ? "w-64 md:w-80" : "w-44 md:w-52"} h-auto object-contain animate-mascot-float mb-5`}
                     style={isDarkMode ? {
                       WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
                       maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
@@ -1216,7 +1216,7 @@ function App() {
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             /* ==================== STATE B: หน้าต่างแชทแบบเต็มหน้าจอ (เมื่อมีการสนทนา) ==================== */
             <div className={`w-full ${isSidebarOpen ? 'max-w-8xl h-[88vh] max-h-[850px] border-2 border-slate-300 dark:border-white/30 shadow-2xl rounded-[24px]' : 'h-full border-none shadow-none rounded-none'} flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md overflow-hidden z-10 transition-all duration-300 animate-slide-in`}>
@@ -1275,7 +1275,7 @@ function App() {
                     return (
                       <div
                         key={msg.id || index}
-                        className={`flex gap-2 max-w-[90%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
+                        className={`flex gap-2 max-w-[60%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
                       >
                         {/* ไอคอนอวาตาร์ */}
                         {isBot ? (

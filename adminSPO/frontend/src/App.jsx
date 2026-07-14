@@ -44,9 +44,7 @@ const CKEditorWrapper = ({ value, onChange, isDarkMode }) => {
           { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', '-', 'RemoveFormat'] },
           { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight'] },
           { name: 'links', items: ['Link', 'Unlink'] },
-          { name: 'insert', items: ['Table'] },
-          { name: 'styles', items: ['FontSize'] },
-          { name: 'colors', items: ['TextColor', 'BGColor'] }
+          { name: 'insert', items: ['Table'] }
         ],
         contentsCss: isDarkMode
           ? 'data:text/css,body{background-color:#2c0548 !important;color:#ffffff !important;font-family:sans-serif;padding:10px;}'
@@ -137,7 +135,19 @@ function App() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   // Dashboard Tabs
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('tuh_admin_active_tab') || 'dashboard';
+    }
+    return 'dashboard';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tuh_admin_active_tab', activeTab);
+    }
+  }, [activeTab]);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
 
   const handleTabClick = (tab) => {
@@ -981,6 +991,8 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('tuh_admin_token');
     localStorage.removeItem('tuh_admin_user');
+    localStorage.removeItem('tuh_admin_active_tab');
+    setActiveTab('dashboard');
     setIsLoggedIn(false);
   };
   logoutRef = handleLogout;

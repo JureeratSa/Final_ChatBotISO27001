@@ -485,33 +485,56 @@ class HybridRetriever:
         merge_results(dense_results, "dense", 0.4)
         merge_results(lexical_results, "lexical", 0.6)
 
-        # ให้คะแนนพิเศษเพิ่ม (Boost) สำหรับ Chunk ที่มีข้อความตรงกับคำถามที่คลีนแล้ว
+        # ให้คะแนนพิเศษเพิ่ม (Boost) สำหรับ Chunk ที่มีคำสำคัญเจาะจงเกี่ยวกับสวัสดิการที่ผู้ใช้ถาม
         import re
+        benefit_keywords = [
+            "แว่น", "เลนส์", "เลสิก", "lasik", "ฟัน", "ทันตกรรม", "วัคซีน", "ตรวจสุขภาพ", 
+            "รองเท้า", "กีฬา", "ออกกำลังกาย", "ฟิตเนส", "นวด", "ยา", "วิตามิน", "พารา", 
+            "เครื่องวัดความดัน", "หน้ากาก", "แมส", "แมสก์", "เครื่องช่วยฟัง", "กายภาพบำบัด", 
+            "เบาะรองนั่ง", "หมวกกันน็อก", "หมวกนิรภัย", "เครื่องนวด", "ฉี่หนู"
+        ]
+        
+        matched_keywords = [kw for kw in benefit_keywords if kw in query_str.lower()]
+        
         clean_query = query_str.lower()
         clean_query = re.sub(r'<[^>]*>', '', clean_query)
         clean_query = re.sub(r'[\s\-\_\(\)\,\.\/]+', '', clean_query)
-        for sw in ["เบอร์โทร", "เบอร์", "โทรศัพท์", "โทร", "ติดต่อ", "ขอ"]:
+        for sw in ["เบอร์โทร", "เบอร์", "โทรศัพท์", "โทร", "ติดต่อ", "ขอ", "เบิก", "ได้", "ไหม", "มี", "อะไร", "บ้าง"]:
             clean_query = clean_query.replace(sw, "")
-        
-        if len(clean_query) >= 3:
-            for chunk in (self.bm25_chunks or []):
-                norm_content = chunk["content"].lower()
-                norm_content = re.sub(r'<[^>]*>', '', norm_content)
-                norm_content = re.sub(r'[\s\-\_\(\)\,\.\/]+', '', norm_content)
-                if clean_query in norm_content:
-                    cid = chunk["chunk_id"]
-                    if cid not in rrf_scores:
-                        rrf_scores[cid] = 0.0
-                        chunk_map[cid] = {
-                            "chunk_id": chunk["chunk_id"],
-                            "content": chunk["content"],
-                            "metadata": chunk["metadata"],
-                            "dense_rank": None,
-                            "dense_score": None,
-                            "lexical_rank": None,
-                            "lexical_score": None
-                        }
-                    rrf_scores[cid] += 10.0
+            
+        for chunk in (self.bm25_chunks or []):
+            cid = chunk["chunk_id"]
+            norm_content = chunk["content"].lower()
+            
+            # 1. เช็กความสอดคล้องของคำสำคัญเฉพาะเจาะจง (เจอบวก 10.0)
+            kw_match = False
+            if matched_keywords:
+                for kw in matched_keywords:
+                    if kw in norm_content:
+                        kw_match = True
+                        break
+            
+            # 2. เช็กความสอดคล้องของวลีคำถามที่คลีนแล้ว
+            phrase_match = False
+            if len(clean_query) >= 3:
+                norm_content_clean = re.sub(r'<[^>]*>', '', norm_content)
+                norm_content_clean = re.sub(r'[\s\-\_\(\)\,\.\/]+', '', norm_content_clean)
+                if clean_query in norm_content_clean:
+                    phrase_match = True
+            
+            if kw_match or phrase_match:
+                if cid not in rrf_scores:
+                    rrf_scores[cid] = 0.0
+                    chunk_map[cid] = {
+                        "chunk_id": chunk["chunk_id"],
+                        "content": chunk["content"],
+                        "metadata": chunk["metadata"],
+                        "dense_rank": None,
+                        "dense_score": None,
+                        "lexical_rank": None,
+                        "lexical_score": None
+                    }
+                rrf_scores[cid] += 10.0
 
         # จัดลำดับใหม่ทั้งหมดจากคะแนน RRF สูงสุด
         sorted_cids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)

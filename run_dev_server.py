@@ -124,11 +124,10 @@ try:
     print(f"Dev server exited with code {dev_process.returncode}")
 except KeyboardInterrupt:
     print("\nStopping dev server...")
-    dev_process.terminate()
     try:
-        dev_process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        dev_process.kill()
+        subprocess.run(f"taskkill /F /T /PID {dev_process.pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
     print("Dev server stopped.")
 finally:
     log_file.close()
