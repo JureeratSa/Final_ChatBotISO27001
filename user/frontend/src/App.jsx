@@ -940,7 +940,7 @@ function App() {
                 className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden p-0.5 border border-slate-100 dark:border-tuh-purple/10 shrink-0 group/logo cursor-pointer hover:shadow-md transition-all active:scale-95"
                 title="ไปยังหน้าอินทราเน็ตโรงพยาบาล"
               >
-                <img src={logo} alt="TUH Logo" className="w-full h-full object-contain transition-transform duration-500 group-hover/logo:rotate-[360deg] group-hover/logo:scale-110" />
+                <img src={logo} alt="TUH Logo" className="w-full h-full object-contain transition-transform duration-300 group-hover/logo:scale-110" />
               </a>
               <div>
                 <h2 className="font-extrabold text-tuh-navy dark:text-white leading-none font-roboto" style={{ fontSize: '1.5rem' }}>TUH</h2>
@@ -957,10 +957,10 @@ function App() {
           </div>
 
           {/* ปุ่มเริ่มบทสนทนาใหม่ */}
-          <div className="p-4">
+          <div className="p-4 flex justify-center">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-tuh-purple text-white hover:bg-tuh-purple/90 transition-all duration-300 active:scale-[0.98] text-sm font-semibold group shadow-sm hover:shadow-md hover:shadow-tuh-purple/25"
+              className="max-w-[255px] w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full bg-tuh-purple text-white hover:bg-tuh-rose hover:scale-[1.04] transition-all duration-300 active:scale-[0.98] text-sm font-semibold group shadow-sm hover:shadow-lg hover:shadow-tuh-rose/35"
             >
               <i className="fa-solid fa-plus text-xs opacity-80 transition-transform duration-300 group-hover:rotate-90"></i>
               เริ่มบทสนทนาใหม่

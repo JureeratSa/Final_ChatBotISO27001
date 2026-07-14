@@ -41,14 +41,14 @@ const CKEditorWrapper = ({ value, onChange, isDarkMode }) => {
         versionCheck: false,
         removePlugins: 'elementspath',
         toolbar: [
-          { name: 'basicstyles', items: [ 'Bold', 'Italic', 'Underline', 'Strike', '-', 'RemoveFormat' ] },
-          { name: 'paragraph', items: [ 'NumberedList', 'BulletedList', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight' ] },
-          { name: 'links', items: [ 'Link', 'Unlink' ] },
-          { name: 'insert', items: [ 'Table' ] },
-          { name: 'styles', items: [ 'FontSize' ] },
-          { name: 'colors', items: [ 'TextColor', 'BGColor' ] }
+          { name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', '-', 'RemoveFormat'] },
+          { name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight'] },
+          { name: 'links', items: ['Link', 'Unlink'] },
+          { name: 'insert', items: ['Table'] },
+          { name: 'styles', items: ['FontSize'] },
+          { name: 'colors', items: ['TextColor', 'BGColor'] }
         ],
-        contentsCss: isDarkMode 
+        contentsCss: isDarkMode
           ? 'data:text/css,body{background-color:#2c0548 !important;color:#ffffff !important;font-family:sans-serif;padding:10px;}'
           : 'data:text/css,body{background-color:#ffffff !important;color:#0f172a !important;font-family:sans-serif;padding:10px;}'
       });
@@ -87,14 +87,14 @@ const CKEditorWrapper = ({ value, onChange, isDarkMode }) => {
 };
 
 function App() {
-  let logoutRef = () => {};
+  let logoutRef = () => { };
 
   const fetch = (url, options = {}) => {
     const urlStr = typeof url === 'string' ? url : (url.url || '');
     const isLogin = urlStr.includes('/api/admin/login');
     const isFeedbackOrUnansweredSubmit = urlStr.includes('/api/admin/feedback/submit') || urlStr.includes('/api/admin/unanswered/submit');
     const isAdmin = urlStr.includes('/api/admin/');
-    
+
     if (isAdmin && !isLogin && !isFeedbackOrUnansweredSubmit) {
       const token = localStorage.getItem('tuh_admin_token');
       if (token) {
@@ -104,7 +104,7 @@ function App() {
         };
       }
     }
-    
+
     return window.fetch(url, options).then(res => {
       if (res.status === 401 && isAdmin && !isLogin && !isFeedbackOrUnansweredSubmit) {
         logoutRef();
@@ -199,7 +199,7 @@ function App() {
   const [showEditDocModal, setShowEditDocModal] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [excludePagesInput, setExcludePagesInput] = useState('');
-  
+
   // Pre-upload document options
   const [selectedFileForUpload, setSelectedFileForUpload] = useState(null);
   const [preExcludePages, setPreExcludePages] = useState('');
@@ -597,8 +597,8 @@ function App() {
     }
 
     const isEdit = editingAnnId !== null;
-    const url = isEdit 
-      ? API_URL + '/api/admin/announcements/update' 
+    const url = isEdit
+      ? API_URL + '/api/admin/announcements/update'
       : API_URL + '/api/admin/announcements/create';
 
     const payload = {
@@ -710,13 +710,13 @@ function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    
+
     let periodText = 'all';
     if (historyPeriod === 'daily') periodText = 'daily';
     else if (historyPeriod === 'weekly') periodText = 'weekly';
     else if (historyPeriod === 'monthly') periodText = 'monthly';
     else if (historyPeriod === 'yearly') periodText = 'yearly';
-    
+
     link.setAttribute("download", `bot_history_${periodText}_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
@@ -741,7 +741,7 @@ function App() {
     const logDate = parseTimestamp(log.timestamp);
     if (!logDate) return false;
     const now = new Date();
-    
+
     if (historyPeriod === 'daily') {
       return logDate.toDateString() === now.toDateString();
     }
@@ -1024,7 +1024,7 @@ function App() {
       showError("รหัสผ่านสั้นเกินไป");
       return;
     }
-    
+
     fetch(API_URL + '/api/admin/password/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1465,7 +1465,7 @@ function App() {
               className="w-10 h-10 rounded-xl object-cover shadow-md shrink-0 border border-slate-100 dark:border-tuh-purple/20"
             />
             <div>
-              <h2 
+              <h2
                 className="font-extrabold text-tuh-navy dark:text-white leading-tight font-roboto"
                 style={{ fontSize: 'calc(1.25rem - 2px)' }}
               >
@@ -1476,7 +1476,7 @@ function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-tuh-indigo/80 dark:text-slate-200 font-bold block mt-0.5 leading-none transition-colors cursor-pointer font-roboto"
-                style={{ fontSize: 'calc(0.75rem - 1px)' }}
+                style={{ fontSize: 'calc(0.8rem - 1px)' }}
               >
                 Thammasat University Hospital
               </a>
@@ -1621,7 +1621,7 @@ function App() {
             <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
               <span className="text-tuh-rose shrink-0">
                 {activeTab === 'dashboard' && <i className="fa-solid fa-chart-line"></i>}
-                 {activeTab === 'satisfaction' && <i className="fa-solid fa-face-smile"></i>}
+                {activeTab === 'satisfaction' && <i className="fa-solid fa-face-smile"></i>}
                 {activeTab === 'documents' && <i className="fa-solid fa-file-pdf"></i>}
                 {activeTab === 'announcements' && <i className="fa-solid fa-bullhorn"></i>}
                 {activeTab === 'logs' && <i className="fa-solid fa-circle-question"></i>}
@@ -1632,7 +1632,7 @@ function App() {
               </span>
               <span className={`${activeTab === 'dashboard' ? 'text-tuh-gradient-light' : 'text-tuh-gradient'} font-black`}>
                 {activeTab === 'dashboard' && 'ภาพรวม'}
-                 {activeTab === 'satisfaction' && 'สถิติความพึงพอใจ'}
+                {activeTab === 'satisfaction' && 'สถิติความพึงพอใจ'}
                 {activeTab === 'documents' && 'จัดการแฟ้มเอกสาร PDF'}
                 {activeTab === 'announcements' && 'สร้างและจัดการประกาศระบบ'}
                 {activeTab === 'logs' && 'บันทึกคำถามที่บอทตอบไม่ได้'}
@@ -1644,8 +1644,8 @@ function App() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-tuh-pink/30 text-tuh-rose border border-tuh-rose/20 dark:bg-tuh-rose/25 dark:text-white dark:border-none shadow-sm">
-              <img src={botAvatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover shadow-sm" />
+            <span className="hidden md:inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full bg-tuh-pink/30 text-tuh-rose border border-tuh-rose/20 dark:bg-tuh-rose/25 dark:text-white dark:border-none shadow-sm">
+              <img src={botAvatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover shadow-sm" />
               {adminUser.name} ({adminUser.role})
             </span>
           </div>
@@ -1808,8 +1808,8 @@ function App() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`p-10 border-2 border-dashed rounded-3xl text-center transition ${dragOver
-                    ? 'border-tuh-rose bg-tuh-pink/20 dark:bg-tuh-rose/10'
-                    : 'border-slate-300 dark:border-tuh-purple/30 bg-white dark:bg-[#2c0548]/25'
+                  ? 'border-tuh-rose bg-tuh-pink/20 dark:bg-tuh-rose/10'
+                  : 'border-slate-300 dark:border-tuh-purple/30 bg-white dark:bg-[#2c0548]/25'
                   }`}
               >
                 {uploading ? (
@@ -1921,14 +1921,14 @@ function App() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
                       {(() => {
-                        const filtered = documents.filter(doc => 
+                        const filtered = documents.filter(doc =>
                           doc.filename.toLowerCase().includes(docSearchQuery.toLowerCase())
                         );
-                        
+
                         const sorted = [...filtered].sort((a, b) => {
                           let valA = a[docSortField];
                           let valB = b[docSortField];
-                          
+
                           if (docSortField === 'size' || docSortField === 'pages') {
                             valA = valA || 0;
                             valB = valB || 0;
@@ -1936,7 +1936,7 @@ function App() {
                             valA = (valA || '').toLowerCase();
                             valB = (valB || '').toLowerCase();
                           }
-                          
+
                           if (valA < valB) return docSortOrder === 'asc' ? -1 : 1;
                           if (valA > valB) return docSortOrder === 'asc' ? 1 : -1;
                           return 0;
@@ -1990,27 +1990,20 @@ function App() {
                                 ) : isPipeline ? (
                                   <div className="flex flex-col items-center">
                                     <div className="flex items-center gap-1 justify-center mt-1">
-                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Step_Raw_Text' ? 'bg-amber-500 text-white animate-pulse' : 'bg-emerald-500 text-white'
-                                      }`} title="สกัดข้อความดิบ">1</div>
-                                      <div className={`w-4 h-0.5 ${
-                                        doc.status !== 'Step_Raw_Text' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
-                                      }`} />
-                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Step_Clean_Text' ? 'bg-amber-500 text-white animate-pulse' : (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
-                                      }`} title="คลีนข้อมูล">2</div>
-                                      <div className={`w-4 h-0.5 ${
-                                        (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
-                                      }`} />
-                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Step_Chunk_Preview' ? 'bg-amber-500 text-white animate-pulse' : doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
-                                      }`} title="แบ่งข้อมูล">3</div>
-                                      <div className={`w-4 h-0.5 ${
-                                        doc.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
-                                      }`} />
-                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${
-                                        doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
-                                      }`} title="เวกเตอร์ทำงาน">4</div>
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${doc.status === 'Step_Raw_Text' ? 'bg-amber-500 text-white animate-pulse' : 'bg-emerald-500 text-white'
+                                        }`} title="สกัดข้อความดิบ">1</div>
+                                      <div className={`w-4 h-0.5 ${doc.status !== 'Step_Raw_Text' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
+                                        }`} />
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${doc.status === 'Step_Clean_Text' ? 'bg-amber-500 text-white animate-pulse' : (doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                        }`} title="คลีนข้อมูล">2</div>
+                                      <div className={`w-4 h-0.5 ${(doc.status === 'Step_Chunk_Preview' || doc.status === 'Active') ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
+                                        }`} />
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${doc.status === 'Step_Chunk_Preview' ? 'bg-amber-500 text-white animate-pulse' : doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                        }`} title="แบ่งข้อมูล">3</div>
+                                      <div className={`w-4 h-0.5 ${doc.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-white/10'
+                                        }`} />
+                                      <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-extrabold ${doc.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'
+                                        }`} title="เวกเตอร์ทำงาน">4</div>
                                     </div>
                                     <div className="text-[10px] font-bold text-amber-500 mt-1">
                                       {doc.status === 'Step_Raw_Text' && '1. ตรวจคำดิบ'}
@@ -2413,7 +2406,7 @@ function App() {
                                     <h4 className="font-extrabold text-tuh-navy dark:text-white text-base">{ann.title}</h4>
                                     {statusBadge}
                                   </div>
-                                  <div 
+                                  <div
                                     className="text-sm font-semibold text-slate-650 dark:text-slate-350 leading-relaxed html-content"
                                     dangerouslySetInnerHTML={{ __html: ann.content }}
                                   />
@@ -2667,10 +2660,10 @@ function App() {
                               {/* Model */}
                               <td className="px-6 py-4 align-top whitespace-nowrap">
                                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold ${isFaq
-                                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
-                                    : log.model.includes("Ollama")
-                                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                                  : log.model.includes("Ollama")
+                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                   }`}>
                                   <i className={isFaq ? "fa-solid fa-book" : "fa-solid fa-robot"}></i>
                                   {log.model}
@@ -3439,13 +3432,13 @@ function App() {
               </button>
             </div>
 
-            <form 
+            <form
               onSubmit={(e) => {
                 e.preventDefault();
                 setShowPreUploadModal(false);
                 uploadFile(selectedFileForUpload, preExcludePages);
                 setSelectedFileForUpload(null);
-              }} 
+              }}
               className="p-6 space-y-4"
             >
               <div>
@@ -3497,8 +3490,8 @@ function App() {
           <div className="w-full max-w-4xl bg-white dark:bg-[#2c0548]/95 rounded-3xl border border-slate-200 dark:border-tuh-purple/35 shadow-2xl overflow-hidden animate-slide-in">
             <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
               <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
-                <i className="fa-solid fa-square-poll-horizontal text-tuh-rose"></i> 
-                ตรวจสอบและแก้ไขข้อมูล: {previewFilename} 
+                <i className="fa-solid fa-square-poll-horizontal text-tuh-rose"></i>
+                ตรวจสอบและแก้ไขข้อมูล: {previewFilename}
                 <span className="text-xs bg-amber-500/10 text-amber-500 py-1 px-3 rounded-full font-bold ml-2">
                   {previewModalType === 'raw' && 'ขั้นตอนที่ 1: คำดิบจาก PDF (สามารถแก้ไขได้)'}
                   {previewModalType === 'cleaned' && 'ขั้นตอนที่ 2: ข้อความหลังคลีน (Markdown) (สามารถแก้ไขได้)'}
@@ -3598,7 +3591,7 @@ function App() {
                                 </button>
                               </div>
                             </div>
-                            
+
                             <div className="flex flex-col space-y-1.5 h-full">
                               <textarea
                                 value={c.content}
@@ -3702,20 +3695,20 @@ function App() {
                 <i className="fa-solid fa-xmark text-lg"></i>
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4">
               <textarea
                 value={expandedChunk.content}
                 onChange={(e) => {
                   const newText = e.target.value;
                   setExpandedChunk({ ...expandedChunk, content: newText });
-                  
+
                   const idx = previewChunks.findIndex(x => x.chunk_id === expandedChunk.chunk_id);
                   if (idx !== -1) {
                     const updated = [...previewChunks];
                     updated[idx] = { ...updated[idx], content: newText };
                     setPreviewChunks(updated);
-                    
+
                     if (!selectedChunkIds.has(expandedChunk.chunk_id)) {
                       const newSet = new Set(selectedChunkIds);
                       newSet.add(expandedChunk.chunk_id);
@@ -3730,7 +3723,7 @@ function App() {
                 📏 ความยาวปัจจุบัน: {expandedChunk.content?.length || 0} ตัวอักษร
               </div>
             </div>
-            
+
             <div className="p-6 border-t border-slate-100 dark:border-tuh-purple/20 flex justify-end gap-3 bg-slate-50/50 dark:bg-tuh-navy/20">
               <button
                 type="button"

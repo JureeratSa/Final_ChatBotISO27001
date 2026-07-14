@@ -1,0 +1,52 @@
+import os
+import subprocess
+import sys
+import time
+
+# Reconfigure stdout/stderr to use UTF-8
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
+print("==================================================================")
+print("Starting all servers (Backend, User Frontend, Admin Frontend)...")
+print("==================================================================")
+
+processes = []
+
+try:
+    # 1. Start Python Backend API
+    print("Starting Python Backend API on http://localhost:8000...")
+    backend = subprocess.Popen([sys.executable, "user/backend/server.py"], shell=True)
+    processes.append(backend)
+    time.sleep(3) # Wait for backend to initialize and load FAISS indices
+    
+    # 2. Start User Frontend Mirror & Dev Server
+    print("Starting User Frontend on http://localhost:5175...")
+    user_frontend = subprocess.Popen([sys.executable, "run_dev_server.py"], shell=True)
+    processes.append(user_frontend)
+    
+    # 3. Start Admin Frontend Mirror & Dev Server
+    print("Starting Admin Frontend on http://localhost:5174...")
+    admin_frontend = subprocess.Popen([sys.executable, "run_admin_server.py"], shell=True)
+    processes.append(admin_frontend)
+    
+    print("\n[SUCCESS] All servers are starting up in the background.")
+    print("👉 User UI:  http://localhost:5175")
+    print("👉 Admin UI: http://localhost:5174")
+    print("👉 Backend:  http://localhost:8000")
+    print("\nPress Ctrl+C in this terminal to stop all servers at once.\n")
+    
+    # Keep the main script alive and monitor child processes
+    while True:
+        time.sleep(1)
+        
+except KeyboardInterrupt:
+    print("\nStopping all servers...")
+    for p in processes:
+        p.terminate()
+    for p in processes:
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
+    print("All servers stopped successfully.")
