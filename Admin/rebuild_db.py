@@ -113,7 +113,10 @@ def extract_text_from_pdf(filepath):
     pages_text = []
     doc = fitz.open(filepath)
     for page in doc:
-        pages_text.append(page.get_text())
+        raw_text = page.get_text()
+        # Clean Thai spacing and split sara-am characters
+        cleaned_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', raw_text)
+        pages_text.append(cleaned_text)
     doc.close()
     return pages_text
 

@@ -209,10 +209,12 @@ function App() {
   const [showEditDocModal, setShowEditDocModal] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [excludePagesInput, setExcludePagesInput] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
 
   // Pre-upload document options
   const [selectedFileForUpload, setSelectedFileForUpload] = useState(null);
   const [preExcludePages, setPreExcludePages] = useState('');
+  const [preDisplayName, setPreDisplayName] = useState('');
   const [showPreUploadModal, setShowPreUploadModal] = useState(false);
   // Pipeline states
   const [previewContent, setPreviewContent] = useState('');
@@ -583,6 +585,8 @@ function App() {
         .finally(() => {
           setDeleteModalState({ show: false, type: null, targetId: null, targetName: null });
         });
+    } else if (deleteModalState.type === 'announcement') {
+      handleDeleteAnnouncement(deleteModalState.targetId);
     }
   };
 
@@ -661,7 +665,6 @@ function App() {
   };
 
   const handleDeleteAnnouncement = (annId) => {
-    if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประกาศนี้ก่อนหมดระยะเวลา?")) return;
     fetch(API_URL + '/api/admin/announcements/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -676,7 +679,10 @@ function App() {
           showError("ลบไม่สำเร็จ");
         }
       })
-      .catch(err => showError("เกิดข้อผิดพลาดในการลบประกาศ"));
+      .catch(err => showError("เกิดข้อผิดพลาดในการลบประกาศ"))
+      .finally(() => {
+        setDeleteModalState({ show: false, type: null, targetId: null, targetName: null });
+      });
   };
 
   const fetchSettings = () => {
@@ -993,6 +999,8 @@ function App() {
     localStorage.removeItem('tuh_admin_user');
     localStorage.removeItem('tuh_admin_active_tab');
     setActiveTab('dashboard');
+    setUsername('');
+    setPassword('');
     setIsLoggedIn(false);
   };
   logoutRef = handleLogout;
@@ -1268,8 +1276,69 @@ function App() {
       .catch(err => showError("เชื่อมต่อเซิร์ฟเวอร์หลังบ้านล้มเหลว"));
   };
 
+  const handleOpenEditDocModal = (doc) => {
+    setSelectedDoc(doc);
+    setEditDisplayName(doc.display_name || doc.filename);
+    setShowEditDocModal(true);
+
+    if (doc.status === 'Active' || doc.status === 'Step_Chunk_Preview') {
+      setLoadingPreview(true);
+      setPreviewChunks([]);
+      setOriginalChunks([]);
+      setSelectedChunkIds(new Set());
+
+      fetch(API_URL + `/api/admin/documents/view_chunks?filename=${encodeURIComponent(doc.filename)}`)
+        .then(res => {
+          if (!res.ok) throw new Error("ไม่สามารถดึงข้อมูลพรีวิวได้");
+          return res.json();
+        })
+        .then(data => {
+          const loadedChunks = data.chunks || [];
+          setPreviewChunks(loadedChunks);
+          setOriginalChunks(JSON.parse(JSON.stringify(loadedChunks)));
+          setLoadingPreview(false);
+        })
+        .catch(err => {
+          console.error("Error fetching chunks:", err);
+          setLoadingPreview(false);
+        });
+    } else {
+      setPreviewChunks([]);
+      setOriginalChunks([]);
+    }
+  };
+
+  const handleSaveDocDetails = (e) => {
+    e.preventDefault();
+    if (!selectedDoc) return;
+
+    fetch(API_URL + '/api/admin/documents/update_details', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        filename: selectedDoc.filename,
+        display_name: editDisplayName
+      })
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("ไม่สามารถบันทึกชื่อแสดงผลได้");
+        return res.json();
+      })
+      .then(() => {
+        showSuccess("บันทึกข้อมูลเอกสารเรียบร้อยแล้ว!");
+        fetchDocuments();
+        setShowEditDocModal(false);
+        setSelectedDoc(null);
+      })
+      .catch(err => {
+        showError(`เกิดข้อผิดพลาด: ${err.message}`);
+      });
+  };
+
   // PDF File Upload Handler
-  const uploadFile = (file, excludePagesText = '') => {
+  const uploadFile = (file, excludePagesText = '', displayNameText = '') => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       showError("ระบบสนับสนุนการอัปโหลดไฟล์นามสกุล .pdf เท่านั้น");
       return;
@@ -1289,7 +1358,8 @@ function App() {
         headers: {
           'Content-Type': 'application/pdf',
           'X-File-Name': encodeURIComponent(file.name),
-          'X-Exclude-Pages': excludePagesText
+          'X-Exclude-Pages': excludePagesText,
+          'X-Display-Name': encodeURIComponent(displayNameText || file.name)
         },
         body: arrayBuffer
       })
@@ -1320,8 +1390,10 @@ function App() {
     e.preventDefault();
     setDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFileForUpload(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      setSelectedFileForUpload(file);
       setPreExcludePages('');
+      setPreDisplayName(file.name);
       setShowPreUploadModal(true);
     }
   };
@@ -1847,8 +1919,10 @@ function App() {
                         className="hidden"
                         onChange={(e) => {
                           if (e.target.files && e.target.files[0]) {
-                            setSelectedFileForUpload(e.target.files[0]);
+                            const file = e.target.files[0];
+                            setSelectedFileForUpload(file);
                             setPreExcludePages('');
+                            setPreDisplayName(file.name);
                             setShowPreUploadModal(true);
                           }
                         }}
@@ -1971,8 +2045,15 @@ function App() {
                           return (
                             <tr key={doc.filename} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
                               <td className="px-6 py-4 font-bold max-w-[200px] truncate text-tuh-navy dark:text-white" title={doc.filename}>
-                                <i className="fa-solid fa-file-pdf text-red-500 mr-2"></i>
-                                {doc.filename}
+                                <a
+                                  href={`${API_URL}/api/documents/download/${encodeURIComponent(doc.filename)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:text-tuh-rose hover:underline flex items-center transition"
+                                >
+                                  <i className="fa-solid fa-file-pdf text-red-500 mr-2 shrink-0"></i>
+                                  <span className="truncate">{doc.display_name || doc.filename}</span>
+                                </a>
                               </td>
                               <td className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400">
                                 {Math.round(doc.size / 1024)} KB
@@ -2082,8 +2163,15 @@ function App() {
                                   </>
                                 ) : null}
                                 <button
+                                  onClick={() => handleOpenEditDocModal(doc)}
+                                  className="p-2 text-tuh-purple dark:text-tuh-purple-400 hover:bg-tuh-purple/10 rounded-xl transition active:scale-95 flex items-center justify-center disabled:opacity-50"
+                                  title="แก้ไขรายละเอียดเอกสารและส่วนย่อย"
+                                >
+                                  <i className="fa-solid fa-pen-to-square text-sm"></i>
+                                </button>
+                                <button
                                   disabled={approvingFilename === doc.filename}
-                                  onClick={() => setDeleteModalState({ show: true, type: 'document', targetId: doc.filename, targetName: doc.filename })}
+                                  onClick={() => setDeleteModalState({ show: true, type: "document", targetId: doc.filename, targetName: doc.filename })}
                                   className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition active:scale-95 flex items-center justify-center disabled:opacity-50"
                                   title="ลบเอกสาร"
                                 >
@@ -2432,7 +2520,7 @@ function App() {
                                     <i className="fa-solid fa-pen-to-square text-lg"></i>
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteAnnouncement(ann.id)}
+                                    onClick={() => setDeleteModalState({ show: true, type: 'announcement', targetId: ann.id, targetName: ann.title })}
                                     className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-650 transition active:scale-95"
                                     title="ลบประกาศ"
                                   >
@@ -3403,7 +3491,8 @@ function App() {
               <i className="fa-solid fa-triangle-exclamation animate-bounce"></i>
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2.5">
-              {deleteModalState.type === 'document' ? 'ยืนยันการลบเอกสาร' : 'ยืนยันการลบแบบฟอร์ม'}
+              {deleteModalState.type === 'document' ? 'ยืนยันการลบเอกสาร' : 
+               deleteModalState.type === 'announcement' ? 'ยืนยันการลบประกาศ' : 'ยืนยันการลบแบบฟอร์ม'}
             </h3>
             <p className="text-sm font-semibold text-slate-600 dark:text-slate-200 mb-6 leading-relaxed whitespace-pre-line">
               คุณแน่ใจหรือไม่ว่าต้องการลบ <span className="font-extrabold text-[#E97D30] dark:text-[#F2619C]">"{deleteModalState.targetName}"</span>?
@@ -3448,7 +3537,7 @@ function App() {
               onSubmit={(e) => {
                 e.preventDefault();
                 setShowPreUploadModal(false);
-                uploadFile(selectedFileForUpload, preExcludePages);
+                uploadFile(selectedFileForUpload, preExcludePages, preDisplayName);
                 setSelectedFileForUpload(null);
               }}
               className="p-6 space-y-4"
@@ -3458,6 +3547,20 @@ function App() {
                 <div className="p-4 bg-slate-100 dark:bg-[#100220]/60 rounded-2xl font-bold border border-slate-200/50 dark:border-tuh-purple/10 text-sm truncate text-tuh-navy dark:text-white">
                   {selectedFileForUpload.name}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                  ชื่อที่จะให้แสดงในคอลัมน์ชื่อไฟล์ ตารางแฟ้มเอกสารทั้งหมด
+                </label>
+                <input
+                  type="text"
+                  placeholder="กรอกชื่อที่จะให้แสดงในตาราง..."
+                  value={preDisplayName}
+                  onChange={(e) => setPreDisplayName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-tuh-navy dark:text-white"
+                  required
+                />
               </div>
 
               <div>
@@ -3686,6 +3789,213 @@ function App() {
                   บันทึกการแก้ไข
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT DOCUMENT DETAILS AND CHUNKS */}
+      {showEditDocModal && selectedDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-4xl bg-white dark:bg-[#2c0548]/95 rounded-3xl border border-slate-200 dark:border-tuh-purple/35 shadow-2xl overflow-hidden animate-slide-in">
+            <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
+              <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
+                <i className="fa-solid fa-file-pen text-tuh-rose"></i>
+                แก้ไขรายละเอียดเอกสาร: {selectedDoc.filename}
+              </h3>
+              <button
+                onClick={() => { setShowEditDocModal(false); setSelectedDoc(null); setPreviewChunks([]); }}
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
+              {/* Part 1: Edit Document Metadata */}
+              <form onSubmit={handleSaveDocDetails} className="space-y-4 bg-slate-50 dark:bg-[#100220]/30 p-5 rounded-2xl border border-slate-200/50 dark:border-tuh-purple/10">
+                <h4 className="font-bold text-sm text-tuh-rose flex items-center gap-1.5">
+                  <i className="fa-solid fa-circle-info"></i> ข้อมูลทั่วไปของไฟล์
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">ชื่อจริงของไฟล์ (แก้ไขไม่ได้)</label>
+                    <div className="p-3 bg-slate-100 dark:bg-[#100220]/60 rounded-xl font-bold border border-slate-200/50 dark:border-tuh-purple/10 text-xs truncate text-slate-500 dark:text-slate-400">
+                      {selectedDoc.filename}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-550 dark:text-slate-400 mb-1.5">ชื่อที่จะให้แสดงในคอลัมน์ชื่อไฟล์</label>
+                    <input
+                      type="text"
+                      required
+                      value={editDisplayName}
+                      onChange={(e) => setEditDisplayName(e.target.value)}
+                      placeholder="ระบุชื่อที่ต้องการให้แสดง..."
+                      className="w-full bg-white dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-2 px-3 focus:outline-none focus:border-tuh-rose transition font-semibold text-xs text-tuh-navy dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="bg-tuh-gradient-2 text-white font-bold py-2 px-5 rounded-xl text-xs hover:shadow transition active:scale-[0.98] flex items-center gap-1.5"
+                  >
+                    <i className="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไขข้อมูลทั่วไป
+                  </button>
+                </div>
+              </form>
+
+              {/* Part 2: Edit Chunks */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-sm text-tuh-rose flex items-center gap-1.5">
+                  <i className="fa-solid fa-square-poll-horizontal"></i> ส่วนย่อยสำหรับสืบค้น (Chunks) สำหรับนำเข้า RAG
+                </h4>
+
+                {loadingPreview ? (
+                  <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                    <div className="w-10 h-10 rounded-full border-4 border-tuh-rose border-t-transparent animate-spin"></div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">กำลังโหลดส่วนย่อย (Chunks)...</p>
+                  </div>
+                ) : previewChunks.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Selective Saving Toolbar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100/80 dark:bg-tuh-navy/30 p-3 rounded-2xl border border-slate-200/50 dark:border-tuh-purple/10 text-xs font-bold">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-300">
+                        <i className="fa-solid fa-list-check text-tuh-rose"></i>
+                        <span>เลือกแล้ว: <strong className="text-tuh-rose">{selectedChunkIds.size}</strong> จาก <strong>{previewChunks.length}</strong> Chunks</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChunkIds(new Set(previewChunks.map(c => c.chunk_id)))}
+                          className="px-2.5 py-1 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-lg transition active:scale-95 text-slate-700 dark:text-slate-200"
+                        >
+                          เลือกทั้งหมด
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedChunkIds(new Set())}
+                          className="px-2.5 py-1 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-lg transition active:scale-95 text-slate-700 dark:text-slate-200"
+                        >
+                          ล้างการเลือก
+                        </button>
+                        <button
+                          type="button"
+                          disabled={selectedChunkIds.size === 0 || savingContent}
+                          onClick={() => handleSaveSelectedChunks(selectedDoc.filename)}
+                          className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          <i className="fa-solid fa-save"></i> บันทึกรายการที่เลือก
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingContent}
+                          onClick={() => handleSaveAllChunks(selectedDoc.filename)}
+                          className="px-3 py-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <i className="fa-solid fa-square-check"></i> บันทึกทั้งหมด
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[35vh] overflow-y-auto pr-1 custom-scrollbar">
+                      {previewChunks.map((c, i) => (
+                        <div key={i} className={`p-4 bg-slate-50/50 dark:bg-[#100220]/60 border rounded-2xl flex flex-col space-y-2 hover:border-tuh-rose/30 transition ${selectedChunkIds.has(c.chunk_id) ? 'border-tuh-rose/50 dark:border-tuh-rose/40 shadow-sm' : 'border-slate-200/50 dark:border-tuh-purple/10'}`}>
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-550 dark:text-slate-400">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedChunkIds.has(c.chunk_id)}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedChunkIds);
+                                  if (e.target.checked) {
+                                    newSet.add(c.chunk_id);
+                                  } else {
+                                    newSet.delete(c.chunk_id);
+                                  }
+                                  setSelectedChunkIds(newSet);
+                                }}
+                                className="w-4 h-4 text-tuh-rose border-slate-300 rounded focus:ring-tuh-rose cursor-pointer"
+                              />
+                              <span className="text-tuh-navy dark:text-white">Chunk #{c.chunk_id || (i + 1)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-tuh-rose/10 text-tuh-rose px-2 py-0.5 rounded-full text-[10px]">
+                                หน้า {c.metadata?.page || 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedChunk(c)}
+                                className="p-1 text-slate-500 dark:text-slate-400 hover:text-tuh-rose hover:bg-slate-100/50 dark:hover:bg-white/10 rounded-lg transition"
+                                title="ขยายขนาดกล่องข้อความ"
+                              >
+                                <i className="fa-solid fa-expand text-xs"></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col space-y-1.5 h-full">
+                            <textarea
+                              value={c.content}
+                              onChange={(e) => {
+                                const newText = e.target.value;
+                                const updated = [...previewChunks];
+                                updated[i] = { ...c, content: newText };
+                                setPreviewChunks(updated);
+
+                                // Auto check on edit
+                                if (!selectedChunkIds.has(c.chunk_id)) {
+                                  const newSet = new Set(selectedChunkIds);
+                                  newSet.add(c.chunk_id);
+                                  setSelectedChunkIds(newSet);
+                                }
+                              }}
+                              className="w-full h-24 p-2.5 text-xs text-tuh-navy/90 dark:text-slate-200 leading-relaxed font-semibold bg-white dark:bg-[#100220]/45 border border-slate-200/50 dark:border-tuh-purple/10 rounded-xl focus:outline-none focus:border-tuh-rose transition resize-none"
+                              placeholder="เนื้อหาข้อมูลส่วนย่อย..."
+                            />
+                            <div className="flex justify-between items-center pt-1 border-t border-slate-100 dark:border-white/5">
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                                📏 {c.content?.length || 0} ตัวอักษร
+                              </span>
+                              <button
+                                disabled={savingContent}
+                                onClick={() => handleSaveIndividualChunk(selectedDoc.filename, c.chunk_id, c.content)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-[9px] transition active:scale-95 disabled:opacity-50"
+                                title="บันทึกเฉพาะ Chunk นี้"
+                              >
+                                {savingContent ? (
+                                  <i className="fa-solid fa-spinner animate-spin text-[8px]"></i>
+                                ) : (
+                                  <i className="fa-solid fa-save text-[8px]"></i>
+                                )}
+                                บันทึก Chunk
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 bg-slate-100/50 dark:bg-[#100220]/20 rounded-2xl text-center border border-dashed border-slate-200 dark:border-tuh-purple/20 text-xs font-bold text-slate-550 dark:text-slate-400">
+                    💡 เอกสารนี้ยังไม่ได้ผ่านการแบ่งข้อมูล (Chunking) จึงยังไม่มี Chunks ให้แก้ไข (สถานะปัจจุบัน: {selectedDoc.status})
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 dark:border-tuh-purple/20 flex justify-end gap-3 bg-slate-50 dark:bg-tuh-navy/55">
+              <button
+                type="button"
+                onClick={() => { setShowEditDocModal(false); setSelectedDoc(null); setPreviewChunks([]); }}
+                className="px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-slate-350 font-bold transition active:scale-95 text-xs"
+              >
+                ปิดหน้าต่าง
+              </button>
             </div>
           </div>
         </div>

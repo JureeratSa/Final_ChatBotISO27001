@@ -358,7 +358,7 @@ def generate_response_ai(query, results, config, history=[]):
         system_prompt += f"\n\n{forms_info}\nสำคัญมาก:\n1. เมื่อมีการกล่าวถึงหรืออ้างอิงถึงชื่อแบบฟอร์มเหล่านี้ในคำตอบ ให้เขียนสะกดตรงเป๊ะตามรายชื่อข้างต้น ห้ามดัดแปลงหรือย่อชื่อโดยเด็ดขาด เพื่อให้ระบบกรองและฝังลิงก์ดาวน์โหลดตรงได้ถูกต้อง\n2. หากผู้ใช้ถามหาแบบฟอร์ม ไฟล์ ลิงก์ดาวน์โหลด หรือช่องทางรับแบบฟอร์ม ให้ยืนยันอย่างชัดเจนและสุภาพว่าคุณมีแบบฟอร์มพร้อมให้ดาวน์โหลด และผู้ใช้สามารถกดคลิกที่ชื่อแบบฟอร์มในคำตอบเพื่อเปิดดาวน์โหลด PDF ได้โดยตรงจากระบบได้เลยครับ ห้ามตอบว่าไม่มีข้อมูลหรือดาวน์โหลดไม่ได้เด็ดขาด" 
     
     # เพิ่มกฎคุมการใช้อ้างอิง RAG สำหรับแชทคุยเล่นทั่วไป
-    system_prompt += "\n\n- **เกณฑ์สำคัญเกี่ยวกับเอกสารอ้างอิง (Context):** หากคุณวิเคราะห์คำถามของผู้ใช้แล้วพบว่าไม่จำเป็นต้องใช้ข้อมูลใน 'ข้อมูลอ้างอิง (Context)' เลยในการตอบ (เช่น เป็นการทักทายทั่วไป, การคุยเล่นตลกขบขัน, การถามข้อมูลส่วนตัวของบอท หรือสัพเพเหระอื่นๆ ที่ไม่ได้อิงจากเอกสารสุขภาพ) ให้คุณเขียนคำตอบขึ้นต้นบรรทัดแรกสุดด้วยคำว่า `[NO_CONTEXT]` เสมอ โดยที่ผู้ใช้จะมองไม่เห็นคำนี้"
+    system_prompt += "\n\n- **เกณฑ์สำคัญเกี่ยวกับเอกสารอ้างอิง (Context):** หากคุณใช้ข้อมูลจาก 'ข้อมูลอ้างอิง (Context)' ที่ระบบเตรียมไว้ให้มาช่วยตอบคำถามนี้ ให้คุณเขียนคำตอบขึ้นต้นบรรทัดแรกสุดด้วยคำว่า `[USE_RAG]` เสมอ โดยที่ผู้ใช้จะมองไม่เห็นคำนี้"
 
     temp = float(config.get("temperature", 0.4))
     max_tokens = int(config.get("max_tokens", 1000))
@@ -375,7 +375,7 @@ def generate_response_ai(query, results, config, history=[]):
             text_content = clean_appended_metadata(text_content)
         openai_messages.append({"role": role, "content": text_content})
     user_prompt = f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"
-    user_prompt += "\n\nคำชี้แจงสำคัญ: หากคำถามของผู้ใช้ข้อนี้เป็นการทักทายทั่วไป การคุยเล่น ถามเรื่องส่วนตัวของบอท หรือเรื่องอื่นๆ ที่ไม่ได้จำเป็นต้องนำข้อมูลจาก 'ข้อมูลอ้างอิง (Context)' ข้างต้นมาตอบเลย ให้คุณขึ้นต้นคำตอบของคุณที่บรรทัดแรกสุดด้วยคำว่า [NO_CONTEXT] ทันที"
+    user_prompt += "\n\nคำชี้แจงสำคัญ: หากคุณใช้ข้อมูลจาก 'ข้อมูลอ้างอิง (Context)' ที่เตรียมไว้ให้ในการตอบ ให้เขียนคำตอบขึ้นต้นบรรทัดแรกสุดด้วยคำว่า [USE_RAG] ทันที"
     openai_messages.append({"role": "user", "content": user_prompt})
 
     ans = None
@@ -413,13 +413,15 @@ def generate_response_ai(query, results, config, history=[]):
     if ans is None or ans.strip() == "":
         ans = "ไม่ได้รับคำตอบจากระบบปัญญาประดิษฐ์ (โมเดลส่งกลับข้อความว่าง)\n\n" + get_fallback_vector_answer(results)
 
-    # ตรวจจับว่าโมเดลประเมินว่าไม่ควรใช้ Context หรือไม่
-    used_context = True
+    # ตรวจจับว่าโมเดลประเมินว่าควรใช้ Context หรือไม่ (หา USE_RAG)
+    used_context = False
     if ans:
         first_150 = ans[:150].upper()
-        if "[NO_CONTEXT]" in first_150:
-            ans = re.sub(r'(?i)\[NO_CONTEXT\]', '', ans).strip()
-            used_context = False
+        if "[USE_RAG]" in first_150:
+            ans = re.sub(r'(?i)\[USE_RAG\]', '', ans).strip()
+            used_context = True
+        elif "เกิดข้อผิดพลาดในการทำงานของคำตอบ" in ans or "ไม่ได้รับคำตอบจากระบบปัญญาประดิษฐ์" in ans:
+            used_context = True
 
     # ตรวจสอบประวัติว่ามีการใช้คำไม่สุภาพหรือไม่ เพื่อย้อนกลับคำเตือน
     has_profanity_in_history = any(contains_profanity(msg.get("text", "")) for msg in history if msg.get("sender") == "user")
@@ -428,17 +430,37 @@ def generate_response_ai(query, results, config, history=[]):
     # ตรวจสอบว่าคำตอบระบุว่าไม่มีข้อมูล / ไม่สามารถตอบได้ หรือไม่ เพื่อไม่แนบเอกสารอ้างอิง
     is_unanswered_response = ans and any(k in ans for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้", "ไม่ได้ระบุ", "ไม่มีรายละเอียด"])
 
-    # แสดงรายการเอกสารประกอบท้ายคำตอบ (ห้ามแสดงหากเป็นคำเตือนคำหยาบคาย หรือเป็นเคสไม่มีข้อมูล หรือระบุว่าไม่ได้ใช้ Context)
-    if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning and not is_unanswered_response and used_context:
-        citations = []
+    # แสดงรายการเอกสารประกอบท้ายคำตอบ (ห้ามแสดงหากเป็นคำเตือนคำหยาบคาย หรือระบุว่าไม่ได้ใช้ Context)
+    if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning and used_context:
+        from collections import defaultdict
+        grouped = defaultdict(set)
         for res in results:
             source = res["metadata"].get("source", "เอกสารอ้างอิง")
             page = res["metadata"].get("page", "")
-            page_str = f" หน้า {page}" if page else ""
-            citations.append(f"- {source}{page_str}")
-        if citations:
-            citations = list(dict.fromkeys(citations))
-            ans += "\n\n---\nเอกสารอ้างอิง:\n" + "\n".join(citations)
+            if page:
+                try:
+                    grouped[source].add(int(page))
+                except ValueError:
+                    pass
+            else:
+                grouped[source].add(1)
+
+        citation_blocks = []
+        from urllib.parse import quote
+        for source, pages in grouped.items():
+            sorted_pages = sorted(list(pages))
+            quoted_source = quote(source)
+            page_links = []
+            for p in sorted_pages:
+                link = f"[{p}](__API_URL__/api/documents/download/{quoted_source}#page={p})"
+                page_links.append(link)
+            
+            doc_header = f'<span class="text-black dark:text-white font-semibold underline">{source}</span>'
+            pages_line = "หน้า: " + " ".join(page_links)
+            citation_blocks.append(f"{doc_header}\n{pages_line}")
+
+        if citation_blocks:
+            ans += "\n\n---\nเอกสารอ้างอิง:\n" + "\n\n".join(citation_blocks)
 
     return ans, used_context
 
@@ -496,6 +518,64 @@ def verify_jwt(token: str) -> dict:
         return None
 
 
+def rewrite_query_with_history(query, history, config):
+    if not history:
+        return query
+    
+    api_key = config.get("gemini_api_key") or gemini_api_key
+    model_name = config.get("model_name", "google/gemini-2.5-flash-lite")
+    
+    system_prompt = """You are an assistant that rewrites search queries for a RAG system.
+Given a conversation history and a new user query, your task is to rewrite the new query to be self-contained, incorporating any relevant context, entities, or topics mentioned in the history.
+Guidelines:
+- If the new query is already self-contained and clear, output the original query exactly.
+- If the new query uses pronouns (like 'it', 'they', 'who', 'this', 'that', 'ใคร', 'อันนี้', 'ที่ไหน', 'อย่างไร') or refers back to the previous context, rewrite it to mention the specific entities from the history.
+- Respond ONLY with the rewritten query in the same language as the user query (Thai/English). No explanations, no markdown, no quotes."""
+    
+    history_parts = []
+    for msg in history[-4:]:
+        role = "User" if msg.get("sender") == "user" else "Assistant"
+        text = msg.get("text", "")
+        if role == "Assistant":
+            text = clean_appended_metadata(text)
+        history_parts.append(f"{role}: {text}")
+    history_text = "\n".join(history_parts)
+        
+    user_prompt = f"Conversation History:\n{history_text}\n\nNew Query: {query}\n\nRewritten Query:"
+    
+    openai_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+    
+    try:
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        payload = {
+            "model": model_name,
+            "messages": openai_messages,
+            "temperature": 0.0,
+            "max_tokens": 150
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "TUH Chatbot Query Rewriter"
+        }
+        res_data = make_http_post(url, payload, headers, timeout=5)
+        choices = res_data.get("choices", [])
+        if choices:
+            rewritten = choices[0].get("message", {}).get("content", "").strip()
+            if rewritten and rewritten != "":
+                rewritten = rewritten.strip('"\'')
+                print(f"Original Query: '{query}' -> Rewritten: '{rewritten}'")
+                return rewritten
+    except Exception as e:
+        print(f"Error during query rewriting: {e}")
+        
+    return query
+
+
 class SearchAPIHandler(BaseHTTPRequestHandler):
     
     def check_admin_auth(self):
@@ -515,7 +595,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             '/api/ip'
         ]
         
-        if path in public_paths or path.startswith('/api/forms/download/') or path == '/api/announcements/active':
+        if path in public_paths or path.startswith('/api/forms/download/') or path.startswith('/api/documents/download/') or path == '/api/announcements/active':
             return True
             
         auth_header = self.headers.get('Authorization')
@@ -637,6 +717,50 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "File Not Found"}).encode('utf-8'))
+        # Document PDF download (for citation links)
+        elif path.startswith('/api/documents/download/'):
+            filename = unquote(path.replace('/api/documents/download/', ''))
+            # Strip any #page= fragment that might leak through
+            if '#' in filename:
+                filename = filename.split('#')[0]
+            uploads_dir = os.path.join(root_dir, "uploads")
+            filepath = os.path.join(uploads_dir, filename)
+            
+            # Security check
+            resolved_path = os.path.abspath(filepath)
+            resolved_uploads_dir = os.path.abspath(uploads_dir)
+            if not resolved_path.startswith(resolved_uploads_dir):
+                self.send_response(403)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Access Denied"}).encode('utf-8'))
+                return
+                
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, "rb") as f_binary:
+                        data = f_binary.read()
+                    self.send_response(200)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Content-Type', 'application/pdf')
+                    from urllib.parse import quote
+                    self.send_header('Content-Disposition', f'inline; filename=\"document.pdf\"; filename*=UTF-8\'\'{quote(filename)}')
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                except Exception as e:
+                    self.send_response(500)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            else:
+                self.send_response(404)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Document Not Found", "filename": filename}).encode('utf-8'))
         # Announcements
         elif path == '/api/admin/announcements':
             self._send_json(load_db(DB_ANNOUNCEMENTS_PATH, []))
@@ -775,6 +899,9 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             print(f"Received Query: '{query_str}'")
             if history:
                 print(f"History context provided: {len(history)} messages")
+            search_query = query_str
+            if history:
+                search_query = rewrite_query_with_history(query_str, history, config)
             start_time = time.perf_counter()
             
             
@@ -790,7 +917,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             if retriever is not None:
                 try:
                     
-                    raw_results = retriever.query(query_str, top_k=top_k * 3)
+                    raw_results = retriever.query(search_query, top_k=top_k * 3)
                     for res in raw_results:
                         source = res['metadata'].get('source', '')
                         if not source or source in active_docs:
@@ -1458,6 +1585,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 # Apply replace_thai_numbers and cleanups
                 from Admin.cleanData import replace_thai_numbers
                 cleaned_text = replace_thai_numbers(raw_text)
+                # Clean Thai spacing and split sara-am characters
+                cleaned_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', cleaned_text)
                 
                 # Filter out excluded pages
                 pages_blocks = re.split(r'(# Page \d+\n)', cleaned_text)
@@ -1638,7 +1767,10 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 doc = fitz.open(filepath)
                 pages_count = len(doc)
                 for i, page in enumerate(doc):
-                    raw_text_blocks.append(f"# Page {i+1}\n{page.get_text()}")
+                    page_text = page.get_text()
+                    # Clean Thai spacing and split sara-am characters
+                    cleaned_page_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', page_text)
+                    raw_text_blocks.append(f"# Page {i+1}\n{cleaned_page_text}")
                 doc.close()
             except Exception as parse_err:
                 print(f"Error parsing raw text on upload: {parse_err}")

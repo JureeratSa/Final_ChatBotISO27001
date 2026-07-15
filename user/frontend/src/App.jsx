@@ -304,6 +304,7 @@ function App() {
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const inputRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   // Auto-focus input textarea when bot finishes typing
   useEffect(() => {
@@ -527,6 +528,15 @@ function App() {
     }
   };
 
+  // ยกเลิกการหาคำตอบ
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsTyping(false);
+  };
+
   // ประมวลผลและส่งข้อความจากผู้ใช้
   const handleSendMessage = (text) => {
     if (!text.trim() || isTyping) return;
@@ -579,6 +589,13 @@ function App() {
     setShowFaqs(false);
     setIsTyping(true);
 
+    // สร้าง AbortController ใหม่สำหรับการค้นหานี้
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     // เรียก API ค้นหาแบบผสม (FAISS + BM25) ของ Python
     fetch(API_URL + '/api/search', {
       method: 'POST',
@@ -589,15 +606,18 @@ function App() {
         query: text,
         top_k: 2,
         history: recentHistory
-      })
+      }),
+      signal: controller.signal
     })
       .then(response => {
         if (!response.ok) throw new Error("HTTP error " + response.status);
         return response.json();
       })
       .then(data => {
+        abortControllerRef.current = null;
         //ใช้คำตอบ AI ที่สร้างจากส่วนหลังบ้านหากมี
-        const botResponseText = data.answer || getBotResponse(text);
+        let botResponseText = data.answer || getBotResponse(text);
+        botResponseText = botResponseText.replaceAll("__API_URL__", API_URL);
 
         const botMessage = {
           id: `bot-${Date.now()}`,
@@ -627,6 +647,30 @@ function App() {
         }
       })
       .catch(error => {
+        if (error.name === 'AbortError') {
+          console.log("API Search request aborted.");
+          const botMessage = {
+            id: `bot-${Date.now()}`,
+            sender: 'bot',
+            text: `ขาหมูได้ทำการยกเลิกการหาคำตอบแล้วครับ`,
+            timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+          };
+
+          setSessions(prevSessions => prevSessions.map(s => {
+            if (s.id === activeSessionId) {
+              return {
+                ...s,
+                messages: [...s.messages, botMessage]
+              };
+            }
+            return s;
+          }));
+          localStorage.setItem('tuh_last_chat_time', Date.now().toString());
+          setIsTyping(false);
+          return;
+        }
+
+        abortControllerRef.current = null;
         console.warn("API Search failed, using static fallback:", error);
         // ใช้ค่าเริ่มต้นแทนหากเกิดข้อผิดพลาด
         const botResponseText = getBotResponse(text);
@@ -1411,13 +1455,24 @@ function App() {
                         className="floating-textarea flex-1 py-3 px-4 rounded-xl bg-slate-50 dark:bg-[#07010f] border border-slate-250 dark:border-tuh-purple/25 text-tuh-navy dark:text-white placeholder-slate-400 dark:placeholder-white/40 focus:outline-none text-xs md:text-sm resize-none overflow-y-auto leading-normal focus:ring-2 focus:ring-tuh-rose/30 dark:focus:ring-tuh-rose/50 transition-all duration-300"
                       />
 
-                      <button
-                        onClick={() => handleSendMessage(inputValue)}
-                        disabled={isTyping}
-                        className="h-[46px] w-[46px] rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-all shrink-0 shadow-md hover:shadow-tuh-rose/20"
-                      >
-                        <i className="fa-solid fa-paper-plane text-sm"></i>
-                      </button>
+                      {isTyping ? (
+                        <button
+                          onClick={handleStopGeneration}
+                          className="h-[46px] w-[46px] rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-all shrink-0 shadow-md hover:shadow-red-500/20"
+                          title="หยุดหาคำตอบ"
+                        >
+                          <i className="fa-solid fa-stop text-sm"></i>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleSendMessage(inputValue)}
+                          disabled={isTyping}
+                          className="h-[46px] w-[46px] rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition-all shrink-0 shadow-md hover:shadow-tuh-rose/20"
+                          title="ส่งข้อความ"
+                        >
+                          <i className="fa-solid fa-paper-plane text-sm"></i>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
