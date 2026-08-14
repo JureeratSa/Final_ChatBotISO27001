@@ -247,12 +247,27 @@ function App() {
   const [annEndDate, setAnnEndDate] = useState('');
   const [annFilter, setAnnFilter] = useState('all');
   const [editingAnnId, setEditingAnnId] = useState(null);
+  const [isAnnFormOpen, setIsAnnFormOpen] = useState(false);
+  const [annPinned, setAnnPinned] = useState(false);
 
   // Bot Response History States
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [satPeriod, setSatPeriod] = useState('weekly');
   const [historyPeriod, setHistoryPeriod] = useState('weekly');
+
+  // Sort and Date Filter States for History
+  const [historySortOrder, setHistorySortOrder] = useState('desc'); // 'desc' = newest first, 'asc' = oldest first
+  const [historyStartDate, setHistoryStartDate] = useState('');
+  const [historyEndDate, setHistoryEndDate] = useState('');
+  const [historyLimit, setHistoryLimit] = useState(() => {
+    return localStorage.getItem('tuh_admin_history_limit') || '1000';
+  });
+
+  // Sort and Date Filter States for Unanswered Logs
+  const [unansweredSortOrder, setUnansweredSortOrder] = useState('desc'); // 'desc' = newest first, 'asc' = oldest first
+  const [unansweredStartDate, setUnansweredStartDate] = useState('');
+  const [unansweredEndDate, setUnansweredEndDate] = useState('');
 
   // Password Visibility Toggle States
   const [showPassword, setShowPassword] = useState(false);
@@ -270,6 +285,11 @@ function App() {
       localStorage.setItem('tuh_admin_theme', 'light');
     }
   }, [isDarkMode]);
+
+  // Persist History Limit Preference
+  useEffect(() => {
+    localStorage.setItem('tuh_admin_history_limit', historyLimit);
+  }, [historyLimit]);
 
   // Fetch data on login
   useEffect(() => {
@@ -619,7 +639,8 @@ function App() {
       title: annTitle,
       content: annContent,
       start_date: annStartDate,
-      end_date: annEndDate
+      end_date: annEndDate,
+      pinned: annPinned
     };
 
     if (isEdit) {
@@ -642,6 +663,8 @@ function App() {
           setAnnStartDate('');
           setAnnEndDate('');
           setEditingAnnId(null);
+          setAnnPinned(false);
+          setIsAnnFormOpen(false);
           fetchAnnouncements();
         }
       })
@@ -654,6 +677,8 @@ function App() {
     setAnnStartDate(ann.start_date);
     setAnnEndDate(ann.end_date);
     setEditingAnnId(ann.id);
+    setAnnPinned(ann.pinned || false);
+    setIsAnnFormOpen(true);
   };
 
   const handleCancelEditAnnouncement = () => {
@@ -662,6 +687,8 @@ function App() {
     setAnnStartDate('');
     setAnnEndDate('');
     setEditingAnnId(null);
+    setAnnPinned(false);
+    setIsAnnFormOpen(false);
   };
 
   const handleDeleteAnnouncement = (annId) => {
@@ -708,9 +735,16 @@ function App() {
   };
 
   const downloadCSV = () => {
-    if (filteredHistory.length === 0) return;
+    const sorted = [...filteredHistory].sort((a, b) => {
+      const dateA = parseTimestamp(a.timestamp);
+      const dateB = parseTimestamp(b.timestamp);
+      return historySortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+    const limitVal = historyLimit === 'all' ? sorted.length : parseInt(historyLimit, 10);
+    const sliced = sorted.slice(0, limitVal);
+    if (sliced.length === 0) return;
     const headers = ["เวลาที่ตอบ", "คำถามจากผู้ใช้", "คำตอบที่บอทตอบออกไป", "โมเดล AI", "Chunk ID", "เวลาตอบสนอง (วินาที)"];
-    const rows = filteredHistory.map(log => [
+    const rows = sliced.map(log => [
       log.timestamp,
       log.query,
       log.answer,
@@ -753,9 +787,25 @@ function App() {
   };
 
   const filteredHistory = history.filter(log => {
-    if (historyPeriod === 'all') return true;
     const logDate = parseTimestamp(log.timestamp);
     if (!logDate) return false;
+
+    // If custom range is set, filter by it instead of the predefined period
+    if (historyStartDate || historyEndDate) {
+      if (historyStartDate) {
+        const start = new Date(historyStartDate);
+        start.setHours(0, 0, 0, 0);
+        if (logDate < start) return false;
+      }
+      if (historyEndDate) {
+        const end = new Date(historyEndDate);
+        end.setHours(23, 59, 59, 999);
+        if (logDate > end) return false;
+      }
+      return true;
+    }
+
+    if (historyPeriod === 'all') return true;
     const now = new Date();
 
     if (historyPeriod === 'daily') {
@@ -2339,213 +2389,317 @@ function App() {
 
           {/* TAB: ANNOUNCEMENTS */}
           {activeTab === 'announcements' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-in">
-              {/* Form to create/edit announcement */}
-              <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-6 shadow-sm h-fit">
-                <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2 mb-4">
-                  <i className="fa-solid fa-bullhorn text-tuh-rose"></i> {editingAnnId ? "แก้ไขประกาศ" : "สร้างประกาศใหม่"}
-                </h3>
-                <form onSubmit={handleCreateAnnouncement} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เรื่อง / หัวข้อประกาศ</label>
-                    <input
-                      type="text"
-                      placeholder="กรอกหัวข้อประกาศ..."
-                      value={annTitle}
-                      onChange={(e) => setAnnTitle(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">เนื้อหาประกาศ</label>
-                    <CKEditorWrapper
-                      value={annContent}
-                      onChange={(data) => setAnnContent(data)}
-                      isDarkMode={isDarkMode}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">วันและเวลาเริ่มแสดงประกาศ</label>
-                    <input
-                      type="datetime-local"
-                      value={annStartDate}
-                      onChange={(e) => setAnnStartDate(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">วันและเวลาสิ้นสุดประกาศ</label>
-                    <input
-                      type="datetime-local"
-                      value={annEndDate}
-                      onChange={(e) => setAnnEndDate(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <button
-                      type="submit"
-                      className="w-full bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
-                    >
-                      <i className="fa-solid fa-check-circle"></i> {editingAnnId ? "ยืนยันการแก้ไขประกาศ" : "ยืนยันการสร้างประกาศ"}
-                    </button>
-                    {editingAnnId && (
+            <div className="w-full">
+              {isAnnFormOpen ? (
+                /* Form to create/edit announcement (Matching Image 2 layout) */
+                <form onSubmit={handleCreateAnnouncement} className="space-y-6 animate-slide-in">
+                  {/* Form Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-5 shadow-sm">
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={handleCancelEditAnnouncement}
-                        className="w-full bg-slate-100 dark:bg-[#100220]/45 hover:bg-slate-200 dark:hover:bg-tuh-purple/10 text-slate-700 dark:text-slate-200 font-bold py-2.5 px-6 rounded-2xl transition active:scale-[0.98] flex items-center justify-center gap-2"
+                        className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 dark:border-tuh-purple/20 hover:bg-slate-50 dark:hover:bg-tuh-purple/10 text-slate-700 dark:text-slate-250 transition active:scale-95 bg-slate-50/50 dark:bg-tuh-navy/20"
+                        title="ย้อนกลับ"
                       >
-                        ยกเลิกการแก้ไข
+                        <i className="fa-solid fa-arrow-left text-sm"></i>
                       </button>
-                    )}
+                      <div>
+                        <h3 className="text-lg font-extrabold text-tuh-navy dark:text-white flex items-center gap-2">
+                          <i className="fa-solid fa-bullhorn text-tuh-rose"></i> {editingAnnId ? "แก้ไขประกาศ" : "สร้างประกาศใหม่"}
+                        </h3>
+                        <p className="text-xs font-semibold text-slate-450 dark:text-slate-350">
+                          {editingAnnId ? "แก้ไขรายละเอียดและกำหนดเวลาแสดงประกาศ" : "กรอกข้อมูลและกำหนดเวลาแสดงประกาศข่าวใหม่"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelEditAnnouncement}
+                        className="px-5 py-2.5 rounded-2xl border border-slate-250 dark:border-tuh-purple/20 hover:bg-slate-50 dark:hover:bg-tuh-purple/10 text-slate-700 dark:text-slate-200 text-sm font-bold transition active:scale-95 bg-slate-50/50 dark:bg-tuh-navy/20"
+                      >
+                        กลับ
+                      </button>
+                      <button
+                        type="submit"
+                        className="bg-tuh-gradient-2 text-white text-sm font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] flex items-center gap-2"
+                      >
+                        <i className="fa-solid fa-check-circle"></i> บันทึก
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Form Layout Split: Left (Content) / Right (Settings) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* LEFT: Content Fields (2 Columns) */}
+                    <div className="lg:col-span-2 space-y-6">
+                      <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-6 shadow-sm space-y-4">
+                        <h4 className="text-sm font-extrabold text-tuh-navy dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-tuh-purple/10 pb-2">
+                          เนื้อหาข่าว / ประกาศ
+                        </h4>
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            เรื่อง / หัวข้อประกาศ *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="กรอกหัวข้อประกาศ..."
+                            value={annTitle}
+                            onChange={(e) => setAnnTitle(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            เนื้อหาประกาศ (Rich text) *
+                          </label>
+                          <CKEditorWrapper
+                            value={annContent}
+                            onChange={(data) => setAnnContent(data)}
+                            isDarkMode={isDarkMode}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT: Settings/Sidebar (1 Column) */}
+                    <div className="lg:col-span-1 space-y-6">
+                      <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-6 shadow-sm space-y-5">
+                        <h4 className="text-sm font-extrabold text-tuh-navy dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-tuh-purple/10 pb-2 flex items-center gap-2">
+                          <i className="fa-solid fa-sliders"></i> การตั้งค่า
+                        </h4>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            สถานะประกาศ
+                          </label>
+                          <div className="mt-1">
+                            {!annStartDate || !annEndDate ? (
+                              <span className="inline-flex items-center px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-xs font-bold border border-slate-200 dark:border-slate-700">
+                                ฉบับร่าง (ยังกำหนดเวลาไม่ครบ)
+                              </span>
+                            ) : (() => {
+                              const now = new Date();
+                              const start = new Date(annStartDate);
+                              const end = new Date(annEndDate);
+                              if (now < start) return <span className="inline-flex items-center px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/25 rounded-full text-xs font-bold">รอการแสดงผล</span>;
+                              if (now > end) return <span className="inline-flex items-center px-3 py-1.5 bg-slate-500/10 text-slate-450 border border-slate-500/25 rounded-full text-xs font-bold">หมดระยะเวลา</span>;
+                              return <span className="inline-flex items-center px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 rounded-full text-xs font-bold animate-pulse">กำลังแสดงผล</span>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            วันและเวลาเริ่มแสดงประกาศ *
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={annStartDate}
+                            onChange={(e) => setAnnStartDate(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            วันและเวลาสิ้นสุดประกาศ *
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={annEndDate}
+                            onChange={(e) => setAnnEndDate(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                            required
+                          />
+                        </div>
+
+                        {/* Pin Toggle Switch (Interactive) */}
+                        <div className="border-t border-slate-100 dark:border-tuh-purple/10 pt-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="block text-xs font-bold text-tuh-navy dark:text-white">ปักหมุดข่าวประกาศ</span>
+                              <span className="block text-[10px] font-semibold text-slate-400">แสดงข่าวไว้ที่ด้านบนสุดเสมอ</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={annPinned}
+                                onChange={(e) => setAnnPinned(e.target.checked)}
+                              />
+                              <div className="w-9 h-5 bg-slate-200 dark:bg-tuh-navy/55 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </form>
-              </div>
+              ) : (
+                /* Full width announcements list */
+                <div className="w-full space-y-4 animate-slide-in">
+                  <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-6 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 dark:border-tuh-purple/10 pb-4 mb-4">
+                      <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2">
+                        <i className="fa-solid fa-list-check text-tuh-rose"></i> รายการประกาศทั้งหมด ({announcements.length})
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        {/* Dropdown for Status Filter */}
+                        <select
+                          value={annFilter}
+                          onChange={(e) => setAnnFilter(e.target.value)}
+                          className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2 px-4 focus:outline-none focus:border-tuh-rose text-xs font-bold text-tuh-navy dark:text-white transition h-10 cursor-pointer"
+                        >
+                          <option value="all">ทั้งหมด ({announcements.length})</option>
+                          <option value="active">
+                            ดำเนินการ ({announcements.filter(ann => {
+                              const now = new Date();
+                              return now >= new Date(ann.start_date) && now <= new Date(ann.end_date);
+                            }).length})
+                          </option>
+                          <option value="expired">
+                            หมดระยะเวลา ({announcements.filter(ann => {
+                              const now = new Date();
+                              return now > new Date(ann.end_date);
+                            }).length})
+                          </option>
+                          <option value="pending">
+                            รอแสดงผล ({announcements.filter(ann => {
+                              const now = new Date();
+                              return now < new Date(ann.start_date);
+                            }).length})
+                          </option>
+                        </select>
 
-              {/* Announcements List */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl p-5 shadow-sm">
-                  <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2 mb-4">
-                    <i className="fa-solid fa-list-check text-tuh-rose"></i> รายการประกาศทั้งหมด ({announcements.length})
-                  </h3>
-
-                  {/* Status Filter Tabs */}
-                  <div className="flex flex-wrap gap-1.5 mb-4 bg-slate-50 dark:bg-tuh-navy/20 p-1.5 rounded-2xl w-fit">
-                    <button
-                      onClick={() => setAnnFilter('all')}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${annFilter === 'all' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-slate-500 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-tuh-purple/10'}`}
-                    >
-                      ทั้งหมด ({announcements.length})
-                    </button>
-                    <button
-                      onClick={() => setAnnFilter('active')}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${annFilter === 'active' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-tuh-purple/10'}`}
-                    >
-                      ดำเนินการ ({announcements.filter(ann => {
-                        const now = new Date();
-                        return now >= new Date(ann.start_date) && now <= new Date(ann.end_date);
-                      }).length})
-                    </button>
-                    <button
-                      onClick={() => setAnnFilter('expired')}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${annFilter === 'expired' ? 'bg-slate-400 text-white shadow-sm' : 'text-slate-500 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-tuh-purple/10'}`}
-                    >
-                      หมดระยะเวลา ({announcements.filter(ann => {
-                        const now = new Date();
-                        return now > new Date(ann.end_date);
-                      }).length})
-                    </button>
-                    <button
-                      onClick={() => setAnnFilter('pending')}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${annFilter === 'pending' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-tuh-purple/10'}`}
-                    >
-                      รอแสดงผล ({announcements.filter(ann => {
-                        const now = new Date();
-                        return now < new Date(ann.start_date);
-                      }).length})
-                    </button>
-                  </div>
-
-                  {announcements.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400 dark:text-slate-300 font-bold">
-                      <i className="fa-solid fa-bullhorn text-4xl mb-3 block opacity-30"></i>
-                      ไม่มีประกาศในระบบขณะนี้
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAnnFormOpen(true);
+                            setEditingAnnId(null);
+                            setAnnTitle('');
+                            setAnnContent('');
+                            setAnnStartDate('');
+                            setAnnEndDate('');
+                            setAnnPinned(false);
+                          }}
+                          className="bg-tuh-gradient-2 text-white font-extrabold py-2 px-5 rounded-2xl hover:shadow-lg hover:brightness-105 transition active:scale-[0.98] flex items-center gap-2 text-xs h-10"
+                        >
+                          <i className="fa-solid fa-plus-circle"></i> เพิ่มประกาศใหม่
+                        </button>
+                      </div>
                     </div>
-                  ) : (() => {
-                    const filteredAnnouncements = announcements.filter((ann) => {
-                      const now = new Date();
-                      const start = new Date(ann.start_date);
-                      const end = new Date(ann.end_date);
-                      if (annFilter === 'active') {
-                        return now >= start && now <= end;
-                      } else if (annFilter === 'expired') {
-                        return now > end;
-                      } else if (annFilter === 'pending') {
-                        return now < start;
-                      }
-                      return true;
-                    });
 
-                    if (filteredAnnouncements.length === 0) {
+                    {announcements.length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 dark:text-slate-300 font-bold">
+                        <i className="fa-solid fa-bullhorn text-4xl mb-3 block opacity-30"></i>
+                        ไม่มีประกาศในระบบขณะนี้
+                      </div>
+                    ) : (() => {
+                      const filteredAnnouncements = announcements.filter((ann) => {
+                        const now = new Date();
+                        const start = new Date(ann.start_date);
+                        const end = new Date(ann.end_date);
+                        if (annFilter === 'active') {
+                          return now >= start && now <= end;
+                        } else if (annFilter === 'expired') {
+                          return now > end;
+                        } else if (annFilter === 'pending') {
+                          return now < start;
+                        }
+                        return true;
+                      });
+
+                      if (filteredAnnouncements.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-slate-400 dark:text-slate-300 font-bold">
+                            <i className="fa-solid fa-filter-circle-xmark text-4xl mb-3 block opacity-30"></i>
+                            ไม่มีประกาศตามเงื่อนไขตัวกรองที่เลือก
+                          </div>
+                        );
+                      }
+
+                      // Sort: Pinned first
+                      const sortedAnnouncements = [...filteredAnnouncements].sort((a, b) => {
+                        const aPinned = a.pinned ? 1 : 0;
+                        const bPinned = b.pinned ? 1 : 0;
+                        return bPinned - aPinned;
+                      });
+
                       return (
-                        <div className="text-center py-12 text-slate-400 dark:text-slate-300 font-bold">
-                          <i className="fa-solid fa-filter-circle-xmark text-4xl mb-3 block opacity-30"></i>
-                          ไม่มีประกาศตามเงื่อนไขตัวกรองที่เลือก
+                        <div className="grid grid-cols-1 gap-4">
+                          {sortedAnnouncements.map((ann) => {
+                            const now = new Date();
+                            const start = new Date(ann.start_date);
+                            const end = new Date(ann.end_date);
+                            let statusBadge = null;
+
+                            if (now < start) {
+                              statusBadge = <span className="bg-amber-500/10 text-amber-500 border border-amber-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold">รอแสดงผล</span>;
+                            } else if (now > end) {
+                              statusBadge = <span className="bg-slate-500/10 text-slate-450 border border-slate-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold">หมดระยะเวลา</span>;
+                            } else {
+                              statusBadge = <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold animate-pulse">กำลังแสดงผล</span>;
+                            }
+
+                            return (
+                              <div key={ann.id} className="p-5 rounded-2xl border border-slate-100 dark:border-tuh-purple/10 bg-slate-50/50 dark:bg-tuh-navy/20 flex flex-col justify-between gap-4 hover:shadow-md transition">
+                                <div className="flex justify-between items-start gap-4">
+                                  <div className="space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {ann.pinned && (
+                                        <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
+                                          <i className="fa-solid fa-thumbtack text-[10px]"></i> ปักหมุด
+                                        </span>
+                                      )}
+                                      <h4 className="font-extrabold text-tuh-navy dark:text-white text-base">{ann.title}</h4>
+                                      {statusBadge}
+                                    </div>
+                                    <div
+                                      className="text-sm font-semibold text-slate-650 dark:text-slate-350 leading-relaxed html-content font-sans"
+                                      dangerouslySetInnerHTML={{ __html: ann.content }}
+                                    />
+                                  </div>
+                                  <div className="flex gap-1 shrink-0">
+                                    <button
+                                      onClick={() => handleEditAnnouncement(ann)}
+                                      className="p-2 rounded-xl text-tuh-purple dark:text-tuh-purple-400 hover:bg-tuh-purple/10 transition active:scale-95"
+                                      title="แก้ไขประกาศ"
+                                    >
+                                      <i className="fa-solid fa-pen-to-square text-lg"></i>
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteModalState({ show: true, type: 'announcement', targetId: ann.id, targetName: ann.title })}
+                                      className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-650 transition active:scale-95"
+                                      title="ลบประกาศ"
+                                    >
+                                      <i className="fa-solid fa-trash-can text-lg"></i>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-300 border-t border-slate-100 dark:border-tuh-purple/5 pt-3 font-semibold gap-2">
+                                  <div>
+                                    <i className="fa-regular fa-clock mr-1"></i>
+                                    เริ่ม: {ann.start_date.replace("T", " ")} | สิ้นสุด: {ann.end_date.replace("T", " ")}
+                                  </div>
+                                  <div>
+                                    สร้างเมื่อ: {ann.created_at}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
-                    }
-
-                    return (
-                      <div className="grid grid-cols-1 gap-4">
-                        {filteredAnnouncements.map((ann) => {
-                          const now = new Date();
-                          const start = new Date(ann.start_date);
-                          const end = new Date(ann.end_date);
-                          let statusBadge = null;
-
-                          if (now < start) {
-                            statusBadge = <span className="bg-amber-500/10 text-amber-500 border border-amber-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold">รอแสดงผล</span>;
-                          } else if (now > end) {
-                            statusBadge = <span className="bg-slate-500/10 text-slate-400 border border-slate-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold">หมดระยะเวลา</span>;
-                          } else {
-                            statusBadge = <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold animate-pulse">กำลังแสดงผล</span>;
-                          }
-
-                          return (
-                            <div key={ann.id} className="p-5 rounded-2xl border border-slate-100 dark:border-tuh-purple/10 bg-slate-50/50 dark:bg-tuh-navy/20 flex flex-col justify-between gap-4 hover:shadow-md transition">
-                              <div className="flex justify-between items-start gap-4">
-                                <div className="space-y-1.5 flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="font-extrabold text-tuh-navy dark:text-white text-base">{ann.title}</h4>
-                                    {statusBadge}
-                                  </div>
-                                  <div
-                                    className="text-sm font-semibold text-slate-650 dark:text-slate-350 leading-relaxed html-content"
-                                    dangerouslySetInnerHTML={{ __html: ann.content }}
-                                  />
-                                </div>
-                                <div className="flex gap-1 shrink-0">
-                                  <button
-                                    onClick={() => handleEditAnnouncement(ann)}
-                                    className="p-2 rounded-xl text-tuh-purple dark:text-tuh-purple-400 hover:bg-tuh-purple/10 transition active:scale-95"
-                                    title="แก้ไขประกาศ"
-                                  >
-                                    <i className="fa-solid fa-pen-to-square text-lg"></i>
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteModalState({ show: true, type: 'announcement', targetId: ann.id, targetName: ann.title })}
-                                    className="p-2 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-650 transition active:scale-95"
-                                    title="ลบประกาศ"
-                                  >
-                                    <i className="fa-solid fa-trash-can text-lg"></i>
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-300 border-t border-slate-100 dark:border-tuh-purple/5 pt-3 font-semibold gap-2">
-                                <div>
-                                  <i className="fa-regular fa-clock mr-1"></i>
-                                  เริ่ม: {ann.start_date.replace("T", " ")} | สิ้นสุด: {ann.end_date.replace("T", " ")}
-                                </div>
-                                <div>
-                                  สร้างเมื่อ: {ann.created_at}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                    })()}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -2553,8 +2707,59 @@ function App() {
           {activeTab === 'logs' && (
             <div className="space-y-6 animate-slide-in">
               <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
-                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20">
-                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-triangle-exclamation text-tuh-rose"></i> รายชื่อคำถามที่บอทตอบไม่ได้</h3>
+                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-triangle-exclamation text-tuh-rose"></i> รายชื่อคำถามที่บอทตอบไม่ได้ ({unanswered.length})</h3>
+                  
+                  {/* Date filtering & sorting controls for unanswered logs */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Sort Selector */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">เรียงตามวัน:</span>
+                      <select
+                        value={unansweredSortOrder}
+                        onChange={(e) => setUnansweredSortOrder(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      >
+                        <option value="desc">ใหม่ไปเก่า (ล่าสุด)</option>
+                        <option value="asc">เก่าไปใหม่</option>
+                      </select>
+                    </div>
+
+                    {/* Start Date */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">เริ่มต้น:</span>
+                      <input
+                        type="date"
+                        value={unansweredStartDate}
+                        onChange={(e) => setUnansweredStartDate(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    {/* End Date */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">สิ้นสุด:</span>
+                      <input
+                        type="date"
+                        value={unansweredEndDate}
+                        onChange={(e) => setUnansweredEndDate(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    {/* Reset Button */}
+                    {(unansweredStartDate || unansweredEndDate) && (
+                      <button
+                        onClick={() => {
+                          setUnansweredStartDate('');
+                          setUnansweredEndDate('');
+                        }}
+                        className="text-xs font-bold text-rose-500 hover:text-rose-600 transition"
+                      >
+                        ล้างค่า
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -2569,14 +2774,45 @@ function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
-                      {unanswered.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
-                            ไม่มีคำถามที่ค้างการตอบในขณะนี้
-                          </td>
-                        </tr>
-                      ) : (
-                        [...unanswered].reverse().map(log => {
+                      {(() => {
+                        let processed = [...unanswered];
+                        
+                        // Filter by date range if specified
+                        if (unansweredStartDate) {
+                          const start = new Date(unansweredStartDate);
+                          start.setHours(0, 0, 0, 0);
+                          processed = processed.filter(log => {
+                            const d = parseTimestamp(log.timestamp);
+                            return d >= start;
+                          });
+                        }
+                        if (unansweredEndDate) {
+                          const end = new Date(unansweredEndDate);
+                          end.setHours(23, 59, 59, 999);
+                          processed = processed.filter(log => {
+                            const d = parseTimestamp(log.timestamp);
+                            return d <= end;
+                          });
+                        }
+                        
+                        // Sort by date
+                        processed.sort((a, b) => {
+                          const dateA = parseTimestamp(a.timestamp);
+                          const dateB = parseTimestamp(b.timestamp);
+                          return unansweredSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+                        });
+
+                        if (processed.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="5" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
+                                {unanswered.length === 0 ? 'ไม่มีคำถามที่ค้างการตอบในขณะนี้' : 'ไม่พบรายการที่ตรงกับเงื่อนไขเวลาที่ระบุ'}
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return processed.map(log => {
                           const isPending = log.status === 'Pending';
                           return (
                             <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
@@ -2630,8 +2866,8 @@ function App() {
                               </td>
                             </tr>
                           );
-                        })
-                      )}
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -2675,8 +2911,12 @@ function App() {
                       ].map(p => (
                         <button
                           key={p.key}
-                          onClick={() => setHistoryPeriod(p.key)}
-                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${historyPeriod === p.key ? 'bg-white dark:bg-tuh-purple/35 text-tuh-rose dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                          onClick={() => {
+                            setHistoryPeriod(p.key);
+                            setHistoryStartDate('');
+                            setHistoryEndDate('');
+                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${(!historyStartDate && !historyEndDate && historyPeriod === p.key) ? 'bg-white dark:bg-tuh-purple/35 text-tuh-rose dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                         >
                           {p.label}
                         </button>
@@ -2708,6 +2948,81 @@ function App() {
                   </div>
                 </div>
 
+                {/* Sub-bar for history table filtering and sorting */}
+                <div className="px-5 py-3.5 bg-slate-50/50 dark:bg-tuh-navy/10 border-b border-slate-100 dark:border-tuh-purple/10 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* Sort Selector */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">เรียงตามวัน:</span>
+                      <select
+                        value={historySortOrder}
+                        onChange={(e) => setHistorySortOrder(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      >
+                        <option value="desc">ใหม่ไปเก่า (ล่าสุด)</option>
+                        <option value="asc">เก่าไปใหม่</option>
+                      </select>
+                    </div>
+
+                    {/* Limit Selector */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">แสดงผลล่าสุด:</span>
+                      <select
+                        value={historyLimit}
+                        onChange={(e) => setHistoryLimit(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      >
+                        <option value="1000">1,000 รายการ</option>
+                        <option value="2000">2,000 รายการ</option>
+                        <option value="3000">3,000 รายการ</option>
+                        <option value="all">ทั้งหมด</option>
+                      </select>
+                    </div>
+
+                    {/* Start Date */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">เริ่มต้น:</span>
+                      <input
+                        type="date"
+                        value={historyStartDate}
+                        onChange={(e) => setHistoryStartDate(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    {/* End Date */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">สิ้นสุด:</span>
+                      <input
+                        type="date"
+                        value={historyEndDate}
+                        onChange={(e) => setHistoryEndDate(e.target.value)}
+                        className="bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-xl py-1.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                      />
+                    </div>
+
+                    {/* Clear Button */}
+                    {(historyStartDate || historyEndDate) && (
+                      <button
+                        onClick={() => {
+                          setHistoryStartDate('');
+                          setHistoryEndDate('');
+                        }}
+                        className="text-xs font-bold text-rose-500 hover:text-rose-600 transition"
+                      >
+                        ล้างค่า
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Status Indicator */}
+                  {(historyStartDate || historyEndDate) && (
+                    <span className="bg-tuh-rose/10 text-tuh-rose border border-tuh-rose/20 px-3 py-1 rounded-full text-xs font-bold">
+                      ฟิลเตอร์แบบกำหนดช่วงเวลาเปิดใช้งานอยู่
+                    </span>
+                  )}
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
@@ -2735,67 +3050,78 @@ function App() {
                           </td>
                         </tr>
                       ) : (
-                        filteredHistory.map((log) => {
-                          const isFaq = log.model === "Direct FAQ";
-                          return (
-                            <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
-                              {/* Time */}
-                              <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 align-top whitespace-nowrap">
-                                <div className="font-bold text-slate-500 dark:text-slate-300">{log.timestamp.split(" ")[0]}</div>
-                                <div className="text-[10px] mt-0.5">{log.timestamp.split(" ")[1] || ""}</div>
-                              </td>
+                        (() => {
+                          const sorted = [...filteredHistory].sort((a, b) => {
+                            const dateA = parseTimestamp(a.timestamp);
+                            const dateB = parseTimestamp(b.timestamp);
+                            return historySortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+                          });
 
-                              {/* Question */}
-                              <td className="px-6 py-4 text-slate-800 dark:text-slate-100 align-top break-words max-w-xs font-bold">
-                                {log.query}
-                              </td>
+                          const limitVal = historyLimit === 'all' ? sorted.length : parseInt(historyLimit, 10);
+                          const sliced = sorted.slice(0, limitVal);
 
-                              {/* Answer */}
-                              <td className="px-6 py-4 text-slate-600 dark:text-slate-300 align-top font-normal max-w-md">
-                                <div className="max-h-64 overflow-y-auto text-xs whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-black/10 p-2.5 rounded-xl border border-slate-100 dark:border-white/5 font-semibold">
-                                  {log.answer}
-                                </div>
-                              </td>
+                          return sliced.map((log) => {
+                            const isFaq = log.model === "Direct FAQ";
+                            return (
+                              <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
+                                {/* Time */}
+                                <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 align-top whitespace-nowrap">
+                                  <div className="font-bold text-slate-500 dark:text-slate-305">{log.timestamp.split(" ")[0]}</div>
+                                  <div className="text-[10px] mt-0.5">{log.timestamp.split(" ")[1] || ""}</div>
+                                </td>
 
-                              {/* Model */}
-                              <td className="px-6 py-4 align-top whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold ${isFaq
-                                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
-                                  : log.model.includes("Ollama")
-                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                  }`}>
-                                  <i className={isFaq ? "fa-solid fa-book" : "fa-solid fa-robot"}></i>
-                                  {log.model}
-                                </span>
-                              </td>
+                                {/* Question */}
+                                <td className="px-6 py-4 text-slate-800 dark:text-slate-100 align-top break-words max-w-xs font-bold">
+                                  {log.query}
+                                </td>
 
-                              {/* Chunk ID */}
-                              <td className="px-6 py-4 align-top text-center whitespace-nowrap">
-                                {(!log.chunk_ids || log.chunk_ids.length === 0) ? (
-                                  <span className="text-slate-500 dark:text-slate-400 text-xs">-</span>
-                                ) : (
-                                  <div className="flex flex-wrap gap-1 justify-center max-w-[120px]">
-                                    {log.chunk_ids.map(cid => (
-                                      <span key={cid} className="bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded">
-                                        #{cid}
-                                      </span>
-                                    ))}
+                                {/* Answer */}
+                                <td className="px-6 py-4 text-slate-600 dark:text-slate-300 align-top font-normal max-w-md">
+                                  <div className="max-h-64 overflow-y-auto text-xs whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-black/10 p-2.5 rounded-xl border border-slate-100 dark:border-white/5 font-semibold">
+                                    {log.answer}
                                   </div>
-                                )}
-                              </td>
+                                </td>
 
-                              {/* Response Time */}
-                              <td className="px-6 py-4 align-top text-right whitespace-nowrap text-slate-700 dark:text-slate-300 font-extrabold text-xs">
-                                {isFaq ? (
-                                  <span className="text-slate-500 dark:text-slate-400 text-xs">0.0 วินาที</span>
-                                ) : (
-                                  <span>{typeof log.response_time === 'number' ? log.response_time.toFixed(3) : log.response_time} วินาที</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
+                                {/* Model */}
+                                <td className="px-6 py-4 align-top whitespace-nowrap">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold ${isFaq
+                                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                                    : log.model.includes("Ollama")
+                                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    }`}>
+                                    <i className={isFaq ? "fa-solid fa-book" : "fa-solid fa-robot"}></i>
+                                    {log.model}
+                                  </span>
+                                </td>
+
+                                {/* Chunk ID */}
+                                <td className="px-6 py-4 align-top text-center whitespace-nowrap">
+                                  {(!log.chunk_ids || log.chunk_ids.length === 0) ? (
+                                    <span className="text-slate-500 dark:text-slate-400 text-xs">-</span>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1 justify-center max-w-[120px]">
+                                      {log.chunk_ids.map(cid => (
+                                        <span key={cid} className="bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded">
+                                          #{cid}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Response Time */}
+                                <td className="px-6 py-4 align-top text-right whitespace-nowrap text-slate-700 dark:text-slate-300 font-extrabold text-xs">
+                                  {isFaq ? (
+                                    <span className="text-slate-500 dark:text-slate-400 text-xs">0.0 วินาที</span>
+                                  ) : (
+                                    <span>{typeof log.response_time === 'number' ? log.response_time.toFixed(3) : log.response_time} วินาที</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()
                       )}
                     </tbody>
                   </table>
@@ -3112,8 +3438,8 @@ function App() {
               {/* Predefined 6 Home FAQs */}
               <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20">
-                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-circle-question text-tuh-rose"></i> คำถามที่พบบ่อย 4 คำถามหลัก (แสดงเป็นปุ่มบนแชทบอทหน้าแรก)</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">คุณสามารถแก้ไขข้อความคำถาม ไอคอน และคำตอบของปุ่มทั้ง 4 ปุ่มที่จะแสดงบนหน้าแรกของแชทบอทฝั่งผู้ใช้ได้ที่นี่</p>
+                  <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-circle-question text-tuh-rose"></i> คำถามด่วนหน้าแรกและในห้องแชท (แสดง 4 คำถามแรกบนหน้าแรก และทั้งหมดในห้องแชท)</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">คุณสามารถแก้ไขข้อความคำถาม ไอคอน และคำตอบของทั้ง 6 คำถามได้ที่นี่ (โดย 4 คำถามแรกจะนำไปแสดงเป็นปุ่มในหน้าแรกต้อนรับของฝั่งผู้ใช้ และทั้งหมดจะแสดงในปุ่มตัวเลือกคำถามที่พบบ่อยในห้องแชท)</p>
                 </div>
 
                 <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">

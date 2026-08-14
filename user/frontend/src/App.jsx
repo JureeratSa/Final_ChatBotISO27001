@@ -719,22 +719,22 @@ function App() {
 
     // ตรวจสอบคำสำคัญ
     if (t.includes('ดวงตา') || t.includes('จ้องจอ') || t.includes('ถนอมสายตา') || t.includes('ปวดตา') || t.includes('เมื่อยตา')) {
-      return faqsList[0]?.response || '';
+      return faqsList[0]?.response || "การดูแลรักษาดวงตาเมื่อต้องจ้องหน้าจอคอมพิวเตอร์เป็นเวลานาน สามารถทำได้โดยปฏิบัติตาม **กฎ 20-20-20** ดังนี้ครับ:\n\n1. **ทุกๆ 20 นาที:** ให้ละสายตาออกจากหน้าจอคอมพิวเตอร์\n2. **มองไปที่ระยะไกล 20 ฟุต:** เพื่อช่วยให้กล้ามเนื้อตาได้ผ่อนคลาย\n3. **กะพริบตาหรือมองค้างไว้ 20 วินาที:** ช่วยเพิ่มความชุ่มชื้นให้ดวงตา ลดอาการตาแห้งและอ่อนล้า\n\n🏥 **ข้อแนะนำเพิ่มเติม:**\n- ปรับความสว่างของหน้าจอและห้องทำงานให้เหมาะสม ไม่มืดหรือสว่างเกินไป\n- เปิดใช้งาน **โหมดมืด (Dark Mode)** ในระบบแชทบอท (แถบเมนูด้านซ้ายล่าง) เพื่อลดแสงสะท้อนและลดความเหนื่อยล้าของดวงตาครับ 😊";
     }
     if (t.includes('ผู้ป่วยใหม่') || t.includes('ทำบัตร') || t.includes('บัตรผู้ป่วย') || t.includes('เวชระเบียน')) {
-      return faqsList[1]?.response || '';
+      return faqsList[1]?.response || "สำหรับการลงทะเบียนทำบัตรประจำตัวผู้ป่วยใหม่ของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ สามารถดำเนินงานได้ดังนี้ครับ:\n\n📝 **เอกสารที่ต้องใช้:**\n- บัตรประจำตัวประชาชนตัวจริง (หรือสูติบัตรกรณีเป็นเด็ก)\n- บัตรรับรองสิทธิ์การรักษาพยาบาล (ถ้ามี เช่น สิทธิ์ส่งตัว, สิทธิ์ประกันสังคม)\n\n📍 **สถานที่ติดต่อ:**\n- สามารถยื่นเอกสารติดต่อได้ที่ **แผนกเวชระเบียน ชั้น 1 อาคารผู้ป่วยนอก (OPD)** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ\n- หรือสามารถลงทะเบียนล่วงหน้าผ่านทางแอปพลิเคชัน **TUH Easy App** เพื่อความสะดวกรวดเร็วและลดเวลาในการรอคอยคิวครับ";
     }
     if (t.includes('ติดต่อไอที') || t.includes('สารสนเทศ') || t.includes('แผนกไอที') || t.includes('เบอร์ไอที') || t.includes('แจ้งปัญหา')) {
-      return faqsList[2]?.response || '';
+      return faqsList[2]?.response || "หากพี่ๆ เจ้าหน้าที่พบบัญหาขัดข้องเกี่ยวกับระบบสารสนเทศ คอมพิวเตอร์ หรือเครือข่ายอินเทอร์เน็ต สามารถติดต่อฝ่ายไอทีได้ที่ช่องทางต่อไปนี้ครับ:\n\n📞 **ช่องทางติดต่อภายใน (แผนกไอที):**\n- โทร. **8471** หรือ **8343** (ติดต่อแจ้งปัญหาการใช้งานทั่วไป)\n- ติดต่อห้องทำงานระบบเครือข่ายและระบบบริการสารสนเทศ: โทร. **7120**\n\n📧 **อีเมลหน่วยงาน:**\n- it@hospital.tu.ac.th\n\n*ช่วงเวลาทำการปกติ: วันจันทร์ - วันศุกร์ เวลา 08:00 น. - 16:00 น. (สำหรับปัญหาระบบล่มวิกฤตสามารถแจ้งเจ้าหน้าที่เวรนอกเวลาได้ครับ)*";
     }
     if (t.includes('นอกเวลา') || t.includes('คลินิกนอกเวลา') || t.includes('เวลาทำการ') || t.includes('เปิดกี่โมง')) {
-      return faqsList[3]?.response || '';
+      return faqsList[3]?.response || "**คลินิกพิเศษนอกเวลาราชการ** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ เปิดให้บริการแก่ผู้รับบริการที่ต้องการความสะดวกนอกเวลาทำงานปกติ โดยมีรายละเอียดดังนี้ครับ:\n\n⏰ **เวลาเปิดทำการ:**\n- **วันจันทร์ - วันศุกร์:** เวลา 16:00 น. - 20:00 น.\n- **วันเสาร์ - วันอาทิตย์ และวันหยุดนักขัตฤกษ์:** เวลา 08:00 น. - 12:00 น.\n\n🏥 **สถานที่ให้บริการ:**\n- อาคารผู้ป่วยนอก (OPD) ตามสาขาตรวจโรคเฉพาะทางต่างๆ (แนะนำให้โทรนัดหมายล่วงหน้าก่อนเข้ารับบริการที่สายตรงเบอร์ประชาสัมพันธ์ 02-926-9999)";
     }
     if (t.includes('เช็คสิทธิ์') || t.includes('สิทธิการรักษา') || t.includes('บัตรทอง') || t.includes('ประกันสังคม') || t.includes('ข้าราชการ')) {
-      return faqsList[4]?.response || '';
+      return faqsList[4]?.response || "พี่เจ้าหน้าที่หรือผู้ใช้บริการสามารถตรวจสอบสิทธิ์การรักษาพยาบาลเบื้องต้นได้ง่ายๆ ผ่านช่องทางต่อไปนี้ครับ:\n\n🔍 **ช่องทางการตรวจสอบสิทธิ์:**\n1. **ระบบหลักประกันสุขภาพแห่งชาติ (สปสช.):** โทรสายด่วน **1330** หรือตรวจสอบทางเว็บไซต์ nhso.go.th\n2. **แอปพลิเคชัน \"เป๋าตัง\":** เมนู \"กระเป๋าสุขภาพ\"\n3. **จุดบริการตรวจสอบสิทธิ์:** ยื่นบัตรประชาชนตัวจริงที่แผนกตรวจสอบสิทธิ์และเวชระเบียน ชั้น 1 ก่อนเข้ารับการตรวจรักษา\n\n*หากต้องการเปลี่ยนแปลงสิทธิ์ประกันสังคมมายังโรงพยาบาลธรรมศาสตร์ฯ สามารถยื่นเรื่องได้ในช่วงเวลาที่สำนักงานประกันสังคมเปิดให้แจ้งเปลี่ยนสถานพยาบาลประจำปีครับ*";
     }
     if (t.includes('tuh easy app') || t.includes('easy app') || t.includes('แอปโรงพยาบาล') || t.includes('จองคิวตรวจ') || t.includes('ดาวน์โหลดแอป')) {
-      return faqsList[5]?.response || '';
+      return faqsList[5]?.response || "**TUH Easy App** เป็นแอปพลิเคชันอย่างเป็นทางการของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ที่ช่วยอำนวยความสะดวกในการจองคิวตรวจ เลื่อนนัด ชำระเงิน และเช็คประวัติการรักษาพยาบาลครับ\n\n📲 **ช่องทางการดาวน์โหลด:**\n- **iOS (App Store):** ค้นหาคำว่า **\"TUH Easy App\"** หรือสแกน QR Code ณ จุดบริการประชาสัมพันธ์\n- **Android (Google Play Store):** ค้นหาคำว่า **\"TUH Easy App\"** เพื่อดาวน์โหลดและติดตั้ง\n\n🔑 **ขั้นตอนการใช้งานเบื้องต้น:**\n1. ดาวน์โหลดแอปพลิเคชันและเปิดใช้งาน\n2. ลงทะเบียนเข้าสู่ระบบด้วยหมายเลขบัตรประชาชนและเบอร์โทรศัพท์มือถือที่เคยลงทะเบียนไว้กับโรงพยาบาล\n3. สามารถใช้งานบริการจองคิวตรวจ ชำระเงินออนไลน์ และเช็คประวัติสิทธิ์การรักษาได้ทันทีครับ";
     }
     if (t.includes('สวัสดี') || t.includes('ดีครับ') || t.includes('hello') || t.includes('hi')) {
       return "สวัสดีครับ! ยินดีต้อนรับสู่ **TUH Chatbot AI** ยินดีที่ได้พูดคุยกับท่านครับ 😊 มีข้อมูลบริการใดหรือเรื่องระบบไอทีที่คุณต้องการสอบถามงานสารสนเทศเพิ่มเติมไหมครับ?";
@@ -952,8 +952,8 @@ function App() {
   };
 
   return (
-    <div className="h-screen w-screen p-4 md:p-6 lg:p-8 bg-zayg-gradient box-border overflow-hidden flex font-sans text-tuh-navy dark:text-white transition-colors duration-300">
-      <div className="flex-1 flex h-full overflow-hidden bg-white/70 dark:bg-tuh-navy/70 backdrop-blur-md rounded-[24px] border border-slate-300 dark:border-white/20 shadow-2xl relative">
+    <div className="h-[100dvh] w-screen p-0 md:p-6 lg:p-8 bg-zayg-gradient box-border overflow-hidden flex font-sans text-tuh-navy dark:text-white transition-colors duration-300">
+      <div className="flex-1 flex h-full overflow-hidden bg-white/70 dark:bg-tuh-navy/70 backdrop-blur-md rounded-none md:rounded-[24px] border-0 md:border border-slate-300 dark:border-white/20 shadow-none md:shadow-2xl relative">
 
         {/* 1. LEFT SIDEBAR PANEL (หน้าต่างซ้าย)  */}
         {isSidebarOpen && (
@@ -1085,7 +1085,7 @@ function App() {
                 {isDarkMode ? 'โหมดสว่าง' : 'โหมดมืด'}
               </span>
             </button>
-
+            
             {/* ปรับขนาดตัวอักษร */}
             <div className="w-full flex flex-col gap-2 p-3 rounded-xl hover:bg-slate-100/50 dark:hover:bg-tuh-indigo/20 text-tuh-navy dark:text-slate-100 transition-all duration-300">
               <div className="flex items-center gap-3 select-none">
@@ -1095,19 +1095,19 @@ function App() {
               <div className="flex items-center gap-1 bg-slate-200/55 dark:bg-white/5 p-0.5 rounded-lg w-full">
                 <button
                   onClick={() => setFontSize('normal')}
-                  className={`flex-1 text-center text-[0.65rem] px-2 py-1 rounded-md font-semibold transition ${fontSize === 'normal' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                  className={`flex-1 text-center text-xs py-2 px-1 rounded-md font-semibold transition ${fontSize === 'normal' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
                 >
                   ปกติ
                 </button>
                 <button
                   onClick={() => setFontSize('large')}
-                  className={`flex-1 text-center text-[0.65rem] px-2 py-1 rounded-md font-semibold transition ${fontSize === 'large' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                  className={`flex-1 text-center text-xs py-2 px-1 rounded-md font-semibold transition ${fontSize === 'large' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
                 >
                   ใหญ่
                 </button>
                 <button
                   onClick={() => setFontSize('xl')}
-                  className={`flex-1 text-center text-[0.65rem] px-2 py-1 rounded-md font-semibold transition ${fontSize === 'xl' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
+                  className={`flex-1 text-center text-xs py-2 px-1 rounded-md font-semibold transition ${fontSize === 'xl' ? 'bg-tuh-gradient-2 text-white shadow-sm' : 'text-tuh-navy/60 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-white/5'}`}
                 >
                   ใหญ่สุด
                 </button>
@@ -1139,7 +1139,7 @@ function App() {
             <div
               onMouseDown={startResizing}
               onTouchStart={startTouchResizing}
-              className="absolute top-0 right-0 bottom-0 w-3 -mr-1.5 cursor-col-resize z-50 group"
+              className="hidden md:block absolute top-0 right-0 bottom-0 w-3 -mr-1.5 cursor-col-resize z-50 group"
               title="ลากเพื่อปรับขนาดเมนู"
             >
               <div className="w-1 h-full mx-auto bg-transparent group-hover:bg-tuh-rose/40 dark:group-hover:bg-tuh-purple/40 transition-colors duration-150" />
@@ -1176,7 +1176,7 @@ function App() {
                 </div>
 
                 {/* ส่วนขวา: ปุ่มติดต่อ */}
-                <div className="flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-2">
                   <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
                     IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
@@ -1189,81 +1189,92 @@ function App() {
               </div>
 
               {/* เนื้อหาตรงกลาง */}
-              <div className="flex-1 w-full overflow-y-auto custom-scrollbar z-10 px-4 pb-8 flex flex-col select-none">
-                <div className="flex flex-col items-center text-center max-w-2xl mx-auto animate-fade-in my-auto py-6">
-                  <img
-                    src={currentMascot}
-                    className={`${isDarkMode ? "w-64 md:w-80" : "w-44 md:w-52"} h-auto object-contain animate-mascot-float mb-5`}
-                    style={isDarkMode ? {
-                      WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
-                      maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
-                    } : {}}
-                    alt="Mascot"
-                  />
-                  <div className="mb-8 max-w-xl text-center leading-relaxed">
-                    {welcomeMessage.includes('\n') ? (
-                      <>
-                        <div className="text-lg md:text-xl font-bold text-tuh-navy dark:text-white mb-1">
-                          {parseMarkdown(welcomeMessage.split('\n')[0].trim())}
-                        </div>
-                        <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold">
-                          {parseMarkdown(welcomeMessage.split('\n').slice(1).join('\n').trim())}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold">
-                        {parseMarkdown(welcomeMessage)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ช่องรับข้อความส่วนกลางจำลอง */}
-                  <div className="w-full max-w-xl flex items-center gap-2 p-1.5 pl-4 rounded-2xl bg-white/70 dark:bg-[#1B2062]/60 border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md mb-6 focus-within:ring-2 focus-within:ring-tuh-rose/50 transition">
-                    <input
-                      type="text"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && inputValue.trim()) {
-                          handleSendMessage(inputValue);
-                        }
-                      }}
-                      placeholder="พิมพ์ข้อความของคุณเพื่อเริ่มต้นแชท..."
-                      className="flex-1 bg-transparent border-none outline-none text-tuh-navy dark:text-white placeholder-tuh-indigo/45 dark:placeholder-white/40 font-medium py-2 px-1"
+              <div className="flex-1 w-full overflow-y-auto custom-scrollbar z-10 px-4 md:px-8 pb-8 flex flex-col select-none justify-center">
+                <div className="flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-2 max-w-5xl mx-auto animate-fade-in my-auto py-6 w-full">
+                  {/* ส่วนซ้าย: รูปมาสคอตหมาที่ขยายใหญ่ขึ้น */}
+                  <div className="flex-shrink-0 flex justify-center items-center order-1 lg:order-1 w-full lg:w-auto">
+                    <img
+                      src={currentMascot}
+                      className={`${
+                        isDarkMode
+                          ? "w-48 md:w-64 lg:w-72 xl:w-96 max-h-[10rem] md:max-h-[13.75rem] lg:max-h-[18.75rem] xl:max-h-[26.25rem]"
+                          : "w-36 md:w-44 lg:w-60 xl:w-80 max-h-[8.125rem] md:max-h-[11.25rem] lg:max-h-[16.25rem] xl:max-h-[23.75rem]"
+                      } h-auto object-contain animate-mascot-float mb-3 lg:mb-0`}
+                      style={isDarkMode ? {
+                        WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
+                        maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
+                      } : {}}
+                      alt="Mascot"
                     />
-                    <button
-                      onClick={() => {
-                        if (inputValue.trim()) {
-                          handleSendMessage(inputValue);
-                        }
-                      }}
-                      className="w-10 h-10 rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition"
-                    >
-                      <i className="fa-solid fa-paper-plane text-xs"></i>
-                    </button>
                   </div>
 
-                  {/* ปุ่มคำถามที่พบบ่อย */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full max-w-2xl px-4">
-                    {faqsList.slice(0, 4).map(faq => (
-                      <button
-                        key={faq.id}
-                        onClick={() => {
-                          handleSendMessage(faq.question);
+                  {/* ส่วนขวา: ข้อความ ช่องแชท และ FAQ */}
+                  <div className="flex-1 flex flex-col items-center lg:items-start text-center lg:text-left max-w-xl w-full order-2 lg:order-2">
+                    <div className="mb-4 max-w-xl leading-relaxed">
+                      {welcomeMessage.includes('\n') ? (
+                        <>
+                          <div className="text-lg md:text-xl lg:text-[22px] lg:leading-8 font-bold text-tuh-navy dark:text-white mb-2">
+                            {parseMarkdown(welcomeMessage.split('\n')[0].trim())}
+                          </div>
+                          <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold text-sm md:text-base">
+                            {parseMarkdown(welcomeMessage.split('\n').slice(1).join('\n').trim())}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="font-medium text-tuh-indigo/80 dark:text-slate-200 font-semibold text-sm md:text-base">
+                          {parseMarkdown(welcomeMessage)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ช่องรับข้อความส่วนกลางจำลอง */}
+                    <div className="w-full flex items-center gap-2 p-1.5 pl-4 rounded-2xl bg-white/70 dark:bg-[#1B2062]/60 border border-white/60 dark:border-white/10 shadow-lg backdrop-blur-md mb-4 focus-within:ring-2 focus-within:ring-tuh-rose/50 transition">
+                      <input
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && inputValue.trim()) {
+                            handleSendMessage(inputValue);
+                          }
                         }}
-                        className="flex items-center gap-3 px-5 py-3 text-xs md:text-sm font-semibold rounded-2xl bg-white/60 dark:bg-[#1B2062]/40 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/50 dark:border-white/5 shadow-sm transition-all active:scale-[0.98] w-full text-left"
+                        placeholder="พิมพ์ข้อความของคุณเพื่อเริ่มต้นแชท..."
+                        className="flex-1 bg-transparent border-none outline-none text-tuh-navy dark:text-white placeholder-tuh-indigo/45 dark:placeholder-white/40 font-medium py-2 px-1 text-sm md:text-base"
+                      />
+                      <button
+                        onClick={() => {
+                          if (inputValue.trim()) {
+                            handleSendMessage(inputValue);
+                          }
+                        }}
+                        className="w-10 h-10 rounded-xl bg-tuh-gradient-2 text-white flex items-center justify-center hover:scale-[1.05] active:scale-[0.98] transition"
                       >
-                        <i className={`fa-solid ${faq.icon} text-tuh-rose shrink-0`}></i>
-                        <span className="leading-snug">{faq.question}</span>
+                        <i className="fa-solid fa-paper-plane text-xs"></i>
                       </button>
-                    ))}
+                    </div>
+
+                    {/* ปุ่มคำถามที่พบบ่อย */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+                      {faqsList.slice(0, 4).map(faq => (
+                        <button
+                          key={faq.id}
+                          onClick={() => {
+                            handleSendMessage(faq.question);
+                          }}
+                          className="flex items-center gap-3 px-4 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-semibold rounded-2xl bg-white/60 dark:bg-[#1B2062]/40 hover:bg-tuh-rose/10 hover:text-tuh-rose dark:hover:bg-tuh-rose/25 dark:hover:text-white border border-slate-200/50 dark:border-white/5 shadow-sm transition-all active:scale-[0.98] w-full text-left"
+                        >
+                          <i className={`fa-solid ${faq.icon} text-tuh-rose shrink-0`}></i>
+                          <span className="leading-snug">{faq.question}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+</div>
               </div>
             </div>
           ) : (
             /* ==================== STATE B: หน้าต่างแชทแบบเต็มหน้าจอ (เมื่อมีการสนทนา) ==================== */
-            <div className={`w-full ${isSidebarOpen ? 'max-w-8xl h-[88vh] max-h-[850px] border-2 border-slate-300 dark:border-white/30 shadow-2xl rounded-[24px]' : 'h-full border-none shadow-none rounded-none'} flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md overflow-hidden z-10 transition-all duration-300 animate-slide-in`}>
+            <div className="w-full h-full flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md overflow-hidden z-10 transition-all duration-300 animate-slide-in">
               {/* ส่วนหัวของหน้าต่างแชท */}
               <header className="p-4 md:px-6 md:py-4 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/50 dark:bg-[#1B2062]/50 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0">
                 <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -1286,7 +1297,7 @@ function App() {
                     </p>
                   </div>
                 </div>
-                <div className="w-full lg:w-auto flex justify-start lg:justify-end shrink-0 pl-12 md:pl-0 lg:pl-0 gap-2">
+                <div className="hidden md:flex w-full lg:w-auto justify-start lg:justify-end shrink-0 pl-12 md:pl-0 lg:pl-0 gap-2">
                   <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
                     IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
@@ -1744,13 +1755,14 @@ function App() {
                 {activeAnnouncements.map((ann) => (
                   <div
                     key={ann.id}
-                    className="p-5 rounded-2xl border border-slate-100 dark:border-tuh-purple/20 bg-slate-50/70 dark:bg-[#100220]/40 space-y-2.5 shadow-sm relative overflow-hidden text-left"
+                    className={`p-5 rounded-2xl border space-y-2.5 shadow-sm relative overflow-hidden text-left transition ${ann.pinned ? 'border-emerald-500/20 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]' : 'border-slate-100 dark:border-tuh-purple/20 bg-slate-50/70 dark:bg-[#100220]/40'}`}
                   >
                     {/* Decorative color strip on left side */}
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-tuh-rose to-tuh-pink"></div>
+                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${ann.pinned ? 'bg-gradient-to-b from-emerald-500 to-teal-500' : 'bg-gradient-to-b from-tuh-rose to-tuh-pink'}`}></div>
 
                     <div className="pl-2">
                       <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2">
+                        {ann.pinned && <i className="fa-solid fa-thumbtack text-emerald-500 text-xs rotate-45" title="ประกาศปักหมุด"></i>}
                         {ann.title}
                       </h4>
                       <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 whitespace-pre-line mb-3">

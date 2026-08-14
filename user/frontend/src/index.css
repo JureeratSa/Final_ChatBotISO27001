@@ -4,7 +4,7 @@
 
 /* ปรับค่า Base ตรงนี้ให้ใหญ่ขึ้น */
 html {
-  font-size: 35px;
+  font-size: 16px;
 }
 
 @layer base {
@@ -259,6 +259,14 @@ html {
   transition: width 0.05s ease-out;
 }
 
+@media (max-width: 767px) {
+  .tuh-resizable-sidebar {
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+  }
+}
+
 @keyframes floatSlow {
 
   0%,
@@ -300,6 +308,7 @@ html {
 body .text-2xl,
 body [class*="text-2xl"] {
   font-size: 2.5rem !important;
+  line-height: 1.25 !important;
 }
 
 /*เริ่มการสนทนาของคุณ*/
@@ -307,6 +316,7 @@ body [class*="text-2xl"] {
 body .text-3xl,
 body [class*="text-3xl"] {
   font-size: 3.5rem !important;
+  line-height: 1.25 !important;
 }
 
 /*TUH Chatbot AI*/
@@ -314,6 +324,7 @@ body [class*="text-3xl"] {
 body .text-5xl,
 body [class*="text-5xl"] {
   font-size: 6rem !important;
+  line-height: 1.15 !important;
 }
 
 /* เริ่มการสนทนาของคุณ */

@@ -532,19 +532,27 @@ def rebuild():
         try:
             with open(db_settings_path, "r", encoding="utf-8") as f:
                 current_settings = json.load(f)
-        except Exception:
-            current_settings = {}
+            
+            # Only update and save if read succeeded
+            current_settings["last_build_duration"] = duration
+            try:
+                with open(db_settings_path, "w", encoding="utf-8") as f:
+                    json.dump(current_settings, f, ensure_ascii=False, indent=2)
+                print("บันทึกเวลาการสร้างดัชนีลงใน db_settings.json เรียบร้อย")
+            except Exception as e:
+                print(f"ไม่สามารถบันทึกเวลาลงในไฟล์ได้: {e}")
+        except Exception as e:
+            print(f"ไม่สามารถเปิดอ่าน db_settings.json ได้เนื่องจากไฟล์ล็อกหรือข้อผิดพลาด: {e}")
+            print("ข้ามการเขียนทับเพื่อป้องกันข้อมูลสูญหาย")
     else:
-        current_settings = {}
-        
-    current_settings["last_build_duration"] = duration
-    os.makedirs(os.path.dirname(db_settings_path), exist_ok=True)
-    try:
-        with open(db_settings_path, "w", encoding="utf-8") as f:
-            json.dump(current_settings, f, ensure_ascii=False, indent=2)
-        print("บันทึกเวลาการสร้างดัชนีลงใน db_settings.json เรียบร้อย")
-    except Exception as e:
-        print(f"ไม่สามารถบันทึกเวลาลงในไฟล์ได้: {e}")
+        current_settings = {"last_build_duration": duration}
+        os.makedirs(os.path.dirname(db_settings_path), exist_ok=True)
+        try:
+            with open(db_settings_path, "w", encoding="utf-8") as f:
+                json.dump(current_settings, f, ensure_ascii=False, indent=2)
+            print("บันทึกเวลาการสร้างดัชนีลงใน db_settings.json เรียบร้อย")
+        except Exception as e:
+            print(f"ไม่สามารถบันทึกเวลาลงในไฟล์ได้: {e}")
 
 if __name__ == "__main__":
     rebuild()

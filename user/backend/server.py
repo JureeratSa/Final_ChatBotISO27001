@@ -154,8 +154,8 @@ def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name
         "model": model_name,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
     })
-    if len(history) > 1000:
-        history = history[-1000:]
+    if len(history) > 50000:
+        history = history[-50000:]
     save_db(path, history)
 
 def run_weekly_exporter():
@@ -237,6 +237,8 @@ def clean_appended_metadata(text):
         "\n\n---\nเอกสารอ้างอิง:",
         "\n---\nเอกสารอ้างอิง:",
         "\n\n---\nCitations:",
+        "\n\nเอกสารอ้างอิง:",
+        "\nเอกสารอ้างอิง:",
         "\n\n---"
     ]
     cleaned = text
@@ -272,6 +274,29 @@ def contains_profanity(text):
         if word in temp_text:
             return True
             
+    return False
+
+def is_chit_chat(text):
+    if not text:
+        return False
+    import re
+    q = text.strip().lower()
+    clean_q = re.sub(r'[^\u0e01-\u0e5b\w\s]', '', q).strip()
+    
+    # คำหลักของคำทักทายและการขอบคุณ
+    roots = [
+        "ขอบคุณ", "ขอบใจ", "สวัสดี", "ยินดี", "ขอบคุน", "ขอบคุญ",
+        "thank", "thx", "ty", "hello", "hi", "hey", "bye", 
+        "แต๊ง", "แต้ง", "แตงกิ้ว", "กิ้ว", "เเต๊ง", "เเต้ง",
+        "โอเค", "ok", "okay", "tc"
+    ]
+    
+    # ถ้าข้อความสั้นมากๆ (ไม่เกิน 25 ตัวอักษร) และมีคำสำคัญข้างต้น
+    if len(clean_q) <= 25:
+        for r in roots:
+            if r in clean_q:
+                return True
+                
     return False
 
 def get_fallback_vector_answer(results):
@@ -432,6 +457,15 @@ def generate_response_ai(query, results, config, history=[]):
 
     # แสดงรายการเอกสารประกอบท้ายคำตอบ (ห้ามแสดงหากเป็นคำเตือนคำหยาบคาย หรือระบุว่าไม่ได้ใช้ Context)
     if results and not ans.startswith(" **(เซิร์ฟเวอร์ AI ออฟไลน์") and not is_profanity_warning and used_context:
+        # โหลดฐานข้อมูลเอกสารเพื่อดึง display_name ที่แอดมินแก้ไข
+        docs_db = load_db(DB_DOCUMENTS_PATH, [])
+        filename_to_display = {}
+        for d in docs_db:
+            fname = d.get("filename")
+            dname = d.get("display_name")
+            if fname and dname:
+                filename_to_display[fname] = dname
+
         from collections import defaultdict
         grouped = defaultdict(set)
         for res in results:
@@ -455,12 +489,14 @@ def generate_response_ai(query, results, config, history=[]):
                 link = f"[{p}](__API_URL__/api/documents/download/{quoted_source}#page={p})"
                 page_links.append(link)
             
-            doc_header = f'<span class="text-black dark:text-white font-semibold underline">{source}</span>'
+            # ใช้ display_name จากการตั้งค่าในหน้าแอดมิน หากไม่มีใช้ชื่อไฟล์เดิม
+            display_name = filename_to_display.get(source, source)
+            doc_header = f'<span class="text-black dark:text-white font-semibold underline">{display_name}</span>'
             pages_line = "หน้า: " + " ".join(page_links)
             citation_blocks.append(f"{doc_header}\n{pages_line}")
 
         if citation_blocks:
-            ans += "\n\n---\nเอกสารอ้างอิง:\n" + "\n\n".join(citation_blocks)
+            ans += "\n\nเอกสารอ้างอิง:\n" + "\n\n".join(citation_blocks)
 
     return ans, used_context
 
@@ -618,7 +654,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-File-Name, X-Exclude-Pages, X-Form-Name, X-Form-Page')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-File-Name, X-Exclude-Pages, X-Form-Name, X-Form-Page, X-Display-Name')
         self.end_headers()
 
     def _send_json(self, data, status=200):
@@ -850,6 +886,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
         # 10. Document Update Content
         elif self.path == '/api/admin/documents/update_content':
             self.handle_documents_update_content()
+        elif self.path == '/api/admin/documents/update_details':
+            self.handle_documents_update_details()
         # 11. Log unanswered
         elif self.path == '/api/admin/unanswered/submit':
             self.handle_unanswered_submit()
@@ -914,7 +952,11 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 active_docs.update(["sample_cleaned.md", "sample_cleaned.json"])
             
             results = []
-            if retriever is not None:
+            is_chat = is_chit_chat(query_str)
+            if is_chat:
+                print("Chit-chat/greeting/thanks query detected. Skipping RAG search.")
+            
+            if retriever is not None and not is_chat:
                 try:
                     
                     raw_results = retriever.query(search_query, top_k=top_k * 3)
@@ -983,9 +1025,9 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 for form in matched_forms:
                     form_bullets.append(f"- [{form.get('name')}]({form.get('link')})")
                 form_section = "\n\n🔗 **แบบฟอร์มที่เกี่ยวข้อง (ดาวน์โหลดไฟล์ PDF):**\n" + "\n".join(form_bullets)
-                if "---" in answer and "เอกสารอ้างอิง:" in answer:
-                    parts = answer.split("---", 1)
-                    answer = parts[0] + form_section + "\n\n---" + parts[1]
+                if "เอกสารอ้างอิง:" in answer:
+                    parts = answer.split("เอกสารอ้างอิง:", 1)
+                    answer = parts[0].rstrip() + "\n\n" + form_section.strip() + "\n\nเอกสารอ้างอิง:" + parts[1]
                 else:
                     answer += form_section
             response_time = time.perf_counter() - start_time
@@ -1370,6 +1412,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง"}, 400)
                 return
                 
+            pinned = bool(data.get("pinned", False))
+            
             announcements = load_db(DB_ANNOUNCEMENTS_PATH, [])
             announcements.append({
                 "id": f"ann-{int(time.time() * 1000)}",
@@ -1377,6 +1421,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 "content": content,
                 "start_date": start_date,
                 "end_date": end_date,
+                "pinned": pinned,
                 "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
             save_db(DB_ANNOUNCEMENTS_PATH, announcements)
@@ -1411,6 +1456,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง"}, 400)
                 return
                 
+            pinned = bool(data.get("pinned", False))
+            
             announcements = load_db(DB_ANNOUNCEMENTS_PATH, [])
             found = False
             for a in announcements:
@@ -1419,6 +1466,7 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     a["content"] = content
                     a["start_date"] = start_date
                     a["end_date"] = end_date
+                    a["pinned"] = pinned
                     found = True
                     break
             
@@ -1457,7 +1505,9 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                     # Fallback string compare
                     if start <= now_date_str <= end:
                         active_list.append(a)
-                        
+            # Sort: Pinned first
+            active_list.sort(key=lambda x: bool(x.get("pinned", False)), reverse=True)
+            
             self._send_json(active_list)
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
@@ -1501,6 +1551,111 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
             import threading
             threading.Thread(target=rebuild_vector_indices).start()
             self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_documents_upload(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            from urllib.parse import unquote, quote
+            filename = unquote(self.headers.get('X-File-Name', 'uploaded_document.pdf'))
+            display_name = unquote(self.headers.get('X-Display-Name', ''))
+            post_data = self.rfile.read(content_length)
+            
+            
+            exclude_pages_header = self.headers.get('X-Exclude-Pages', '')
+            exclude_pages = []
+            if exclude_pages_header:
+                for p in exclude_pages_header.split(','):
+                    try:
+                        exclude_pages.append(int(p.strip()))
+                    except ValueError:
+                        pass
+            
+            uploads_dir = os.path.join(root_dir, "uploads")
+            os.makedirs(uploads_dir, exist_ok=True)
+            
+            filepath = os.path.join(uploads_dir, filename)
+            with open(filepath, "wb") as f:
+                f.write(post_data)
+                
+            print(f"Uploaded and wrote PDF document file: {filepath} with exclude_pages: {exclude_pages}")
+            
+            
+            pages_count = 1
+            raw_text_blocks = []
+            try:
+                import fitz
+                doc = fitz.open(filepath)
+                pages_count = len(doc)
+                for i, page in enumerate(doc):
+                    page_text = page.get_text()
+                    # Clean Thai spacing and split sara-am characters
+                    cleaned_page_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', page_text)
+                    raw_text_blocks.append(f"# Page {i+1}\n{cleaned_page_text}")
+                doc.close()
+            except Exception as parse_err:
+                print(f"Error parsing raw text on upload: {parse_err}")
+                raw_text_blocks = ["(อักขระไม่สามารถอ่านได้)"]
+            
+            raw_text = "\n\n".join(raw_text_blocks)
+            raw_text_path = os.path.join(uploads_dir, f"{filename}.raw.txt")
+            with open(raw_text_path, "w", encoding="utf-8") as f:
+                f.write(raw_text)
+            
+            docs = load_db(DB_DOCUMENTS_PATH, [])
+            exists = False
+            for d in docs:
+                if d.get("filename") == filename:
+                    d["status"] = "Step_Raw_Text"
+                    d["upload_date"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                    d["size"] = len(post_data)
+                    d["pages"] = pages_count
+                    d["exclude_pages"] = exclude_pages
+                    if display_name:
+                        d["display_name"] = display_name
+                    exists = True
+                    break
+            if not exists:
+                new_doc = {
+                    "filename": filename,
+                    "status": "Step_Raw_Text",
+                    "pages": pages_count,
+                    "upload_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "size": len(post_data),
+                    "exclude_pages": exclude_pages
+                }
+                if display_name:
+                    new_doc["display_name"] = display_name
+                docs.append(new_doc)
+            save_db(DB_DOCUMENTS_PATH, docs)
+            
+            self._send_json({"success": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+    def handle_documents_update_details(self):
+        try:
+            data = self._get_json_payload()
+            filename = data.get("filename", "")
+            display_name = data.get("display_name", "").strip()
+            
+            if not filename:
+                self._send_json({"error": "filename is required"}, 400)
+                return
+                
+            docs = load_db(DB_DOCUMENTS_PATH, [])
+            updated = False
+            for d in docs:
+                if d.get("filename") == filename:
+                    d["display_name"] = display_name
+                    updated = True
+                    break
+            if updated:
+                save_db(DB_DOCUMENTS_PATH, docs)
+                self._send_json({"success": True})
+            else:
+                self._send_json({"error": "Document not found"}, 404)
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
 
