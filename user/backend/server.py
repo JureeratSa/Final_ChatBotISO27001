@@ -8,6 +8,34 @@ import datetime
 import threading
 import csv
 
+# --- TiDB / MySQL Database Configuration (แก้ไขเชื่อมต่อตรงนี้ได้เลย) ---
+DB_HOST = "gateway01.ap-southeast-1.prod.aws.tidbcloud.com"
+DB_PORT = 4000
+DB_USER = "2LejCpHSLet7wXP.root"
+DB_PASSWORD = "***REMOVED***"
+DB_NAME = "chatbot"
+
+HAS_PYMYSQL = False
+try:
+    import pymysql
+    import pymysql.cursors
+    HAS_PYMYSQL = True
+except ImportError:
+    print("[SYSTEM WARNING] ไม่พบไลบรารี pymysql กรุณารัน 'pip install pymysql' เพื่อให้เชื่อมต่อฐานข้อมูล TiDB ได้")
+
+def get_db_connection():
+    if not HAS_PYMYSQL:
+        raise RuntimeError("pymysql is not installed. Please run 'pip install pymysql'")
+    return pymysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor
+    )
+
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
@@ -98,9 +126,206 @@ init_admin_db()
 
 
 def load_db(path, default=None):
-    """ฟังก์ชันการทำงานหลัก"""
+    """ฟังก์ชันการทำงานหลัก (รองรับ TiDB/MySQL โดยจะดึงข้อมูลจาก DB และ Fallback กลับมาที่ JSON หากเกิดปัญหา)"""
     if default is None:
         default = []
+        
+    table_map = {
+        DB_SETTINGS_PATH: "settings",
+        DB_FEEDBACK_PATH: "feedback",
+        DB_UNANSWERED_PATH: "unanswered",
+        DB_DOCUMENTS_PATH: "documents",
+        DB_HISTORY_PATH: "history",
+        DB_FORMS_PATH: "forms",
+        DB_ANNOUNCEMENTS_PATH: "announcements",
+        DB_ADMIN_PATH: "admin"
+    }
+    
+    table_name = table_map.get(path)
+    if table_name and HAS_PYMYSQL:
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                # ตรวจสอบว่าตารางมีอยู่จริงก่อนดึงข้อมูล
+                cursor.execute(f"SHOW TABLES LIKE '{table_name}'")
+                if cursor.fetchone():
+                    # 1. Settings Table
+                    if table_name == "settings":
+                        cursor.execute("SELECT model_name, temperature, max_tokens, top_k, embedding_tech, system_prompt, welcome_message, chat_greeting, custom_faqs, predefined_faqs, last_build_duration FROM settings WHERE id = 'config'")
+                        row = cursor.fetchone()
+                        if row:
+                            conn.close()
+                            return {
+                                "model_name": row["model_name"],
+                                "temperature": row["temperature"],
+                                "max_tokens": row["max_tokens"],
+                                "top_k": row["top_k"],
+                                "embedding_tech": row["embedding_tech"],
+                                "system_prompt": row["system_prompt"],
+                                "welcome_message": row["welcome_message"],
+                                "chat_greeting": row["chat_greeting"],
+                                "custom_faqs": json.loads(row["custom_faqs"]) if row["custom_faqs"] else [],
+                                "predefined_faqs": json.loads(row["predefined_faqs"]) if row["predefined_faqs"] else [],
+                                "last_build_duration": row["last_build_duration"]
+                            }
+                    
+                    # 2. Admin Table
+                    elif table_name == "admin":
+                        cursor.execute("SELECT username, password_salt, password_hash, role, name FROM admin WHERE id = 'config'")
+                        row = cursor.fetchone()
+                        if row:
+                            conn.close()
+                            return {
+                                "username": row["username"],
+                                "password_salt": row["password_salt"],
+                                "password_hash": row["password_hash"],
+                                "role": row["role"],
+                                "name": row["name"]
+                            }
+                    
+                    # 3. History Table
+                    elif table_name == "history":
+                        cursor.execute("SELECT id, date, query, answer, response_time, chunk, api_model FROM history")
+                        rows = cursor.fetchall()
+                        conn.close()
+                        
+                        history_list = []
+                        for r in rows:
+                            chunk_str = r.get("chunk") or ""
+                            chunk_ids = []
+                            if chunk_str.strip():
+                                for x in chunk_str.split(","):
+                                    x_clean = x.strip()
+                                    if x_clean.isdigit():
+                                        chunk_ids.append(int(x_clean))
+                            
+                            date_val = r.get("date")
+                            date_str = date_val.strftime("%Y-%m-%d %H:%M:%S") if date_val and hasattr(date_val, "strftime") else str(date_val or "")
+                                
+                            history_list.append({
+                                "id": r.get("id"),
+                                "query": r.get("query"),
+                                "answer": r.get("answer"),
+                                "chunk_ids": chunk_ids,
+                                "response_time": r.get("response_time"),
+                                "model": r.get("api_model"),
+                                "timestamp": date_str
+                            })
+                        return history_list
+                        
+                    # 4. Feedback Table
+                    elif table_name == "feedback":
+                        cursor.execute("SELECT id, rating, comment, query, answer, date, history_id FROM feedback")
+                        rows = cursor.fetchall()
+                        conn.close()
+                        
+                        feedback_list = []
+                        for r in rows:
+                            date_val = r.get("date")
+                            date_str = date_val.strftime("%Y-%m-%d %H:%M:%S") if date_val and hasattr(date_val, "strftime") else str(date_val or "")
+                            feedback_list.append({
+                                "msgId": r.get("id"),
+                                "rating": r.get("rating"),
+                                "comment": r.get("comment"),
+                                "query": r.get("query"),
+                                "answer": r.get("answer"),
+                                "timestamp": date_str,
+                                "history_id": r.get("history_id")
+                            })
+                        return feedback_list
+                        
+                    # 5. Unanswered Table
+                    elif table_name == "unanswered":
+                        cursor.execute("SELECT id, query, count, date, status FROM unanswered")
+                        rows = cursor.fetchall()
+                        conn.close()
+                        
+                        unanswered_list = []
+                        for r in rows:
+                            date_val = r.get("date")
+                            date_str = date_val.strftime("%Y-%m-%d %H:%M:%S") if date_val and hasattr(date_val, "strftime") else str(date_val or "")
+                            unanswered_list.append({
+                                "id": r.get("id"),
+                                "query": r.get("query"),
+                                "count": r.get("count"),
+                                "timestamp": date_str,
+                                "status": r.get("status")
+                            })
+                        return unanswered_list
+                        
+                    # 6. Documents Table
+                    elif table_name == "documents":
+                        cursor.execute("SELECT filename, upload_date, status, pages, size, exclude_pages, display_name, chunking_duration, embedding_duration FROM documents")
+                        rows = cursor.fetchall()
+                        conn.close()
+                        
+                        doc_list = []
+                        for r in rows:
+                            date_val = r.get("upload_date")
+                            date_str = date_val.strftime("%Y-%m-%d %H:%M:%S") if date_val and hasattr(date_val, "strftime") else str(date_val or "")
+                            
+                            exclude_str = r.get("exclude_pages") or ""
+                            exclude_pages = []
+                            if exclude_str.strip():
+                                for x in exclude_str.split(","):
+                                    x_clean = x.strip()
+                                    if x_clean.isdigit():
+                                        exclude_pages.append(int(x_clean))
+                                        
+                            doc_list.append({
+                                "filename": r.get("filename"),
+                                "upload_date": date_str,
+                                "status": r.get("status"),
+                                "pages": r.get("pages"),
+                                "size": r.get("size"),
+                                "exclude_pages": exclude_pages,
+                                "display_name": r.get("display_name"),
+                                "chunking_duration": r.get("chunking_duration"),
+                                "embedding_duration": r.get("embedding_duration")
+                            })
+                        return doc_list
+                        
+                    # 7. Forms Table
+                    elif table_name == "forms":
+                        cursor.execute("SELECT id, name, filename, page, download_link FROM forms")
+                        rows = cursor.fetchall()
+                        conn.close()
+                        
+                        form_list = []
+                        for r in rows:
+                            p_val = r.get("page")
+                            page_val = int(p_val) if p_val and str(p_val).isdigit() else p_val
+                            form_list.append({
+                                "id": r.get("id"),
+                                "name": r.get("name"),
+                                "filename": r.get("filename"),
+                                "page": page_val,
+                                "download_link": r.get("download_link")
+                            })
+                        return form_list
+                        
+                    # 8. Announcements Table
+                    elif table_name == "announcements":
+                        cursor.execute("SELECT id, title, content, start_date, end_date, pinned FROM announcements")
+                        rows = cursor.fetchall()
+                        conn.close()
+                        
+                        ann_list = []
+                        for r in rows:
+                            ann_list.append({
+                                "id": int(r.get("id")) if r.get("id") and str(r.get("id")).isdigit() else r.get("id"),
+                                "title": r.get("title"),
+                                "content": r.get("content"),
+                                "start_date": r.get("start_date"),
+                                "end_date": r.get("end_date"),
+                                "pinned": bool(r.get("pinned"))
+                            })
+                        return ann_list
+            conn.close()
+        except Exception as e:
+            print(f"[DB Warning] ดึงข้อมูลจาก TiDB ตาราง '{table_name}' ล้มเหลว (สลับมาใช้ JSON): {e}")
+
+    # Fallback back to local JSON
     if not os.path.exists(path):
         return default
     try:
@@ -110,7 +335,295 @@ def load_db(path, default=None):
         return default
 
 def save_db(path, data):
-    """ฟังก์ชันการทำงานหลัก"""
+    """ฟังก์ชันการทำงานหลัก (บันทึกลง TiDB/MySQL และเขียนลง JSON เป็น Backup เสมอ)"""
+    table_map = {
+        DB_SETTINGS_PATH: "settings",
+        DB_FEEDBACK_PATH: "feedback",
+        DB_UNANSWERED_PATH: "unanswered",
+        DB_DOCUMENTS_PATH: "documents",
+        DB_HISTORY_PATH: "history",
+        DB_FORMS_PATH: "forms",
+        DB_ANNOUNCEMENTS_PATH: "announcements",
+        DB_ADMIN_PATH: "admin"
+    }
+    
+    table_name = table_map.get(path)
+    if table_name and HAS_PYMYSQL:
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                # 1. Settings Table Schema & Save
+                if table_name == "settings":
+                    cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS settings (
+                        id VARCHAR(50) PRIMARY KEY,
+                        model_name VARCHAR(100),
+                        temperature FLOAT,
+                        max_tokens INT,
+                        top_k INT,
+                        embedding_tech VARCHAR(50),
+                        system_prompt TEXT,
+                        welcome_message TEXT,
+                        chat_greeting TEXT,
+                        custom_faqs LONGTEXT,
+                        predefined_faqs LONGTEXT,
+                        last_build_duration FLOAT
+                    )
+                    """)
+                    sql = """
+                    REPLACE INTO settings (id, model_name, temperature, max_tokens, top_k, embedding_tech, system_prompt, welcome_message, chat_greeting, custom_faqs, predefined_faqs, last_build_duration)
+                    VALUES ('config', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql, (
+                        data.get("model_name"),
+                        data.get("temperature"),
+                        data.get("max_tokens"),
+                        data.get("top_k"),
+                        data.get("embedding_tech"),
+                        data.get("system_prompt"),
+                        data.get("welcome_message"),
+                        data.get("chat_greeting"),
+                        json.dumps(data.get("custom_faqs", []), ensure_ascii=False),
+                        json.dumps(data.get("predefined_faqs", []), ensure_ascii=False),
+                        data.get("last_build_duration")
+                    ))
+                
+                # 2. Admin Table Schema & Save
+                elif table_name == "admin":
+                    cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS admin (
+                        id VARCHAR(50) PRIMARY KEY,
+                        username VARCHAR(100),
+                        password_salt VARCHAR(100),
+                        password_hash VARCHAR(150),
+                        role VARCHAR(100),
+                        name VARCHAR(100)
+                    )
+                    """)
+                    sql = """
+                    REPLACE INTO admin (id, username, password_salt, password_hash, role, name)
+                    VALUES ('config', %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql, (
+                        data.get("username"),
+                        data.get("password_salt"),
+                        data.get("password_hash"),
+                        data.get("role"),
+                        data.get("name")
+                    ))
+                    
+                # 3. List Tables Schema & Save
+                else:
+                    if isinstance(data, list):
+                        # A. History Table Relational Save
+                        if table_name == "history":
+                            cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS history (
+                                id VARCHAR(255) PRIMARY KEY,
+                                date DATETIME,
+                                query TEXT,
+                                answer TEXT,
+                                response_time FLOAT,
+                                chunk TEXT,
+                                api_model VARCHAR(255)
+                            )
+                            """)
+                            # บันทึกเฉพาะตัวที่อัปเดตล่าสุด ย้อนหลัง 3 ตัวเพื่อประสิทธิภาพ
+                            for item in data[-3:]:
+                                item_id = item.get("id") or f"history-{int(time.time() * 1000)}"
+                                chunk_val = ", ".join(map(str, item.get("chunk_ids", [])))
+                                sql = """
+                                REPLACE INTO history (id, date, query, answer, response_time, chunk, api_model) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(sql, (
+                                    str(item_id),
+                                    item.get("timestamp"),
+                                    item.get("query"),
+                                    item.get("answer"),
+                                    item.get("response_time"),
+                                    chunk_val,
+                                    item.get("model")
+                                ))
+                                
+                                # บันทึก Many-to-Many เข้าตาราง history_documents
+                                cursor.execute("""
+                                CREATE TABLE IF NOT EXISTS history_documents (
+                                    history_id VARCHAR(255),
+                                    document_filename VARCHAR(255),
+                                    PRIMARY KEY (history_id, document_filename),
+                                    FOREIGN KEY (history_id) REFERENCES history(id) ON DELETE CASCADE,
+                                    FOREIGN KEY (document_filename) REFERENCES documents(filename) ON DELETE CASCADE
+                                )
+                                """)
+                                ref_docs = item.get("referenced_docs", [])
+                                if not ref_docs and item.get("answer"):
+                                    ref_docs = re.findall(r'([\w\s\.-]+\.pdf)', item.get("answer", ""))
+                                for doc_file in set(ref_docs):
+                                    doc_file_clean = doc_file.strip()
+                                    if doc_file_clean:
+                                        cursor.execute("SELECT 1 FROM documents WHERE filename = %s", (doc_file_clean,))
+                                        if cursor.fetchone():
+                                            cursor.execute("""
+                                            INSERT IGNORE INTO history_documents (history_id, document_filename) 
+                                            VALUES (%s, %s)
+                                            """, (str(item_id), doc_file_clean))
+                        
+                        # B. Feedback Table Relational Save
+                        elif table_name == "feedback":
+                            cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS feedback (
+                                id VARCHAR(255) PRIMARY KEY,
+                                rating VARCHAR(50),
+                                comment TEXT,
+                                query TEXT,
+                                answer TEXT,
+                                date DATETIME,
+                                history_id VARCHAR(255),
+                                FOREIGN KEY (history_id) REFERENCES history(id) ON DELETE SET NULL
+                            )
+                            """)
+                            # บันทึกเฉพาะตัวที่อัปเดตล่าสุด ย้อนหลัง 5 ตัว
+                            for item in data[-5:]:
+                                history_id = item.get("history_id")
+                                if not history_id and item.get("query"):
+                                    cursor.execute(
+                                        "SELECT id FROM history WHERE LOWER(TRIM(query)) = %s ORDER BY date DESC LIMIT 1",
+                                        (item.get("query").strip().lower(),)
+                                    )
+                                    row = cursor.fetchone()
+                                    if row:
+                                        history_id = row["id"]
+                                sql = """
+                                REPLACE INTO feedback (id, rating, comment, query, answer, date, history_id) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(sql, (
+                                    str(item.get("msgId")),
+                                    item.get("rating"),
+                                    item.get("comment"),
+                                    item.get("query"),
+                                    item.get("answer"),
+                                    item.get("timestamp"),
+                                    history_id
+                                ))
+                                
+                        # C. Unanswered Table Relational Save
+                        elif table_name == "unanswered":
+                            cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS unanswered (
+                                id VARCHAR(255) PRIMARY KEY,
+                                query TEXT,
+                                count INT,
+                                date DATETIME,
+                                status VARCHAR(50)
+                            )
+                            """)
+                            cursor.execute("DELETE FROM unanswered")
+                            for item in data:
+                                sql = """
+                                INSERT INTO unanswered (id, query, count, date, status) 
+                                VALUES (%s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(sql, (
+                                    str(item.get("id")),
+                                    item.get("query"),
+                                    item.get("count"),
+                                    item.get("timestamp"),
+                                    item.get("status")
+                                ))
+                                
+                        # D. Documents Table Relational Save
+                        elif table_name == "documents":
+                            cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS documents (
+                                filename VARCHAR(255) PRIMARY KEY,
+                                upload_date DATETIME,
+                                status VARCHAR(50),
+                                pages INT,
+                                size INT,
+                                exclude_pages TEXT,
+                                display_name VARCHAR(255),
+                                chunking_duration FLOAT,
+                                embedding_duration FLOAT
+                            )
+                            """)
+                            cursor.execute("DELETE FROM documents")
+                            for item in data:
+                                exclude_str = ", ".join(map(str, item.get("exclude_pages", [])))
+                                sql = """
+                                INSERT INTO documents (filename, upload_date, status, pages, size, exclude_pages, display_name, chunking_duration, embedding_duration) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(sql, (
+                                    item.get("filename"),
+                                    item.get("upload_date"),
+                                    item.get("status"),
+                                    item.get("pages"),
+                                    item.get("size"),
+                                    exclude_str,
+                                    item.get("display_name"),
+                                    item.get("chunking_duration"),
+                                    item.get("embedding_duration")
+                                ))
+                                
+                        # E. Forms Table Relational Save
+                        elif table_name == "forms":
+                            cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS forms (
+                                id VARCHAR(255) PRIMARY KEY,
+                                name VARCHAR(255),
+                                filename VARCHAR(255),
+                                page VARCHAR(50),
+                                download_link VARCHAR(255)
+                            )
+                            """)
+                            cursor.execute("DELETE FROM forms")
+                            for item in data:
+                                sql = """
+                                INSERT INTO forms (id, name, filename, page, download_link) 
+                                VALUES (%s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(sql, (
+                                    str(item.get("id")),
+                                    item.get("name"),
+                                    item.get("filename"),
+                                    str(item.get("page") or ""),
+                                    item.get("download_link")
+                                ))
+                                
+                        # F. Announcements Table Relational Save
+                        elif table_name == "announcements":
+                            cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS announcements (
+                                id VARCHAR(255) PRIMARY KEY,
+                                title VARCHAR(255),
+                                content TEXT,
+                                start_date VARCHAR(100),
+                                end_date VARCHAR(100),
+                                pinned TINYINT(1)
+                            )
+                            """)
+                            cursor.execute("DELETE FROM announcements")
+                            for item in data:
+                                sql = """
+                                INSERT INTO announcements (id, title, content, start_date, end_date, pinned) 
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                                """
+                                cursor.execute(sql, (
+                                    str(item.get("id")),
+                                    item.get("title"),
+                                    item.get("content"),
+                                    item.get("start_date"),
+                                    item.get("end_date"),
+                                    1 if item.get("pinned") else 0
+                                ))
+                conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[DB Error] บันทึกลง TiDB ตาราง '{table_name}' ล้มเหลว (จะเขียนลง JSON เท่านั้น): {e}")
+
+    # เขียนลง JSON เสมอเพื่อความมั่นใจว่าข้อมูลไม่หาย
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -141,8 +654,10 @@ def log_unanswered_query(query_str):
         })
     save_db(path, logs)
 
-def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name):
+def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name, referenced_docs=None):
     """ฟังก์ชันการทำงานหลัก"""
+    if referenced_docs is None:
+        referenced_docs = []
     path = DB_HISTORY_PATH
     history = load_db(path, [])
     history.append({
@@ -152,7 +667,8 @@ def log_bot_response(query_str, answer_str, chunk_ids, response_time, model_name
         "chunk_ids": chunk_ids,
         "response_time": round(response_time, 4),
         "model": model_name,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "referenced_docs": referenced_docs
     })
     if len(history) > 50000:
         history = history[-50000:]
@@ -1044,7 +1560,8 @@ class SearchAPIHandler(BaseHTTPRequestHandler):
                 results = []
                 
             chunk_ids = [res['chunk_id'] for res in results if 'chunk_id' in res]
-            log_bot_response(query_str, answer, chunk_ids, response_time, model_tag)
+            referenced_docs = list({res['metadata'].get('source') for res in results if res.get('metadata') and res['metadata'].get('source')})
+            log_bot_response(query_str, answer, chunk_ids, response_time, model_tag, referenced_docs)
 
             
             is_unanswered = len(results) == 0 or any(k in answer for k in ["ไม่พบข้อมูล", "ขออภัย", "ไม่มีข้อมูล", "ไม่สามารถตอบได้"])
