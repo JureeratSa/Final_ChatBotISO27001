@@ -1,0 +1,59 @@
+[
+  {
+    "id": "ann-1783412826524",
+    "title": "ทดลองใช้ตาราง",
+    "content": "<p><strong>ประกาศ</strong></p>\n\n<table border=\"1\" cellpadding=\"1\" cellspacing=\"1\" style=\"width:100%;\">\n\t<tbody>\n\t\t<tr>\n\t\t\t<td>1</td>\n\t\t\t<td>21</td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<td>2</td>\n\t\t\t<td>22</td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<td>3</td>\n\t\t\t<td>23</td>\n\t\t</tr>\n\t</tbody>\n</table>\n\n<p><s>ทดสอบ</s></p>\n\n<ul>\n\t<li><s>1</s></li>\n\t<li><s>2</s></li>\n\t<li><s>3</s></li>\n\t<li><s>4</s></li>\n</ul>",
+    "start_date": "2026-07-07T15:26",
+    "end_date": "2026-07-08T15:27",
+    "created_at": "2026-07-07 15:27:06"
+  },
+  {
+    "id": "ann-1783925470828",
+    "title": "ประกาศเพิ่มข้อมูลเกี่ยวกับ iso 27001",
+    "content": "<p>สวัสดีครับ วันนี้น้องขาหมูสามารถสอบถามเกี่ยวกับ iso 27001 ได้แล้วนะครับพี่ๆ</p>",
+    "start_date": "2026-07-13T13:50",
+    "end_date": "2026-07-13T17:09",
+    "created_at": "2026-07-13 13:51:10"
+  },
+  {
+    "id": "ann-1784687963485",
+    "title": "ฆฏฮฆ",
+    "content": "<p>ผอ</p>",
+    "start_date": "2026-07-22T09:39",
+    "end_date": "2026-07-23T09:39",
+    "created_at": "2026-07-22 09:39:23"
+  },
+  {
+    "id": "ann-1784690530916",
+    "title": "Test Announcement",
+    "content": "<p>This is a test announcement</p>",
+    "start_date": "2026-07-22T10:00",
+    "end_date": "2026-07-23T10:00",
+    "created_at": "2026-07-22 10:22:10"
+  },
+  {
+    "id": "ann-1784692200881",
+    "title": "Special Pinned Announcement",
+    "content": "<p>This is a pinned announcement at the top for testing purposes.</p>",
+    "start_date": "2026-07-22T10:40",
+    "end_date": "2026-07-23T11:00",
+    "created_at": "2026-07-22 10:50:00"
+  },
+  {
+    "id": "ann-1784696148177",
+    "title": "e6dxt",
+    "content": "<p>rxucf6yk</p>",
+    "start_date": "2026-07-22T11:55",
+    "end_date": "2026-07-23T11:55",
+    "created_at": "2026-07-22 11:55:48"
+  },
+  {
+    "id": "ann-1785997850665",
+    "title": "แจ้งเพิ่มเติมเรื่องแชทบอทมีความรู้เพิ่มเติมเกี่ยวกับ iso",
+    "content": "<p>จำไว้นะเตงงงง</p>",
+    "start_date": "2026-08-06T13:30",
+    "end_date": "2026-08-06T13:33",
+    "pinned": true,
+    "created_at": "2026-08-06 13:30:50"
+  }
+]

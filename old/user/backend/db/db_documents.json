@@ -1,0 +1,267 @@
+[
+  {
+    "filename": "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf",
+    "upload_date": "2026-06-30 11:08:42",
+    "status": "Active",
+    "extract_duration": 0.45,
+    "embedding_duration": 90.8224,
+    "pages": 18,
+    "size": 606752,
+    "chunking_duration": 0.0891
+  },
+  {
+    "filename": "ประวัติโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ.pdf",
+    "status": "Inactive",
+    "pages": 4,
+    "upload_date": "2026-07-14 14:50:36",
+    "size": 34872,
+    "exclude_pages": [],
+    "chunking_duration": 0.1151,
+    "embedding_duration": 6.7915
+  },
+  {
+    "filename": "PDPA 2562.PDF",
+    "status": "Active",
+    "pages": 24,
+    "upload_date": "2026-07-16 13:45:00",
+    "size": 343490,
+    "exclude_pages": [],
+    "display_name": "PDPA 2562.PDF",
+    "chunking_duration": 0.1628,
+    "embedding_duration": 104.6215
+  },
+  {
+    "filename": "6601-WE.pdf",
+    "status": "Active",
+    "pages": 7,
+    "upload_date": "2026-07-16 14:30:10",
+    "size": 508799,
+    "exclude_pages": [],
+    "chunking_duration": 0.1746,
+    "embedding_duration": 23.089,
+    "display_name": "Cybersecurit y  Awareness.pdf"
+  },
+  {
+    "filename": "POL-01-191-01_ISMS Framework_V.0.pdf",
+    "status": "Active",
+    "pages": 19,
+    "upload_date": "2026-08-06 13:45:57",
+    "size": 311607,
+    "exclude_pages": [
+      1,
+      2,
+      3,
+      19
+    ],
+    "chunking_duration": 0.4038,
+    "embedding_duration": 60.2253
+  },
+  {
+    "filename": "POL-01-191-02_IS Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 4,
+    "upload_date": "2026-08-06 14:39:56",
+    "size": 85712,
+    "exclude_pages": [
+      1,
+      4
+    ],
+    "chunking_duration": 0.1142,
+    "embedding_duration": 8.0349
+  },
+  {
+    "filename": "POL-01-191-03_Mobile device_V.0.pdf",
+    "status": "Active",
+    "pages": 6,
+    "upload_date": "2026-08-06 14:41:05",
+    "size": 139890,
+    "exclude_pages": [
+      1,
+      2,
+      6
+    ],
+    "chunking_duration": 0.1158,
+    "embedding_duration": 10.8178
+  },
+  {
+    "filename": "POL-01-191-04_Asset management policy_V.0.pdf",
+    "status": "Active",
+    "pages": 8,
+    "upload_date": "2026-08-06 15:12:17",
+    "size": 213210,
+    "exclude_pages": [
+      1,
+      2,
+      8
+    ],
+    "chunking_duration": 0.1743,
+    "embedding_duration": 20.7557
+  },
+  {
+    "filename": "POL-01-191-05_Access control Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 7,
+    "upload_date": "2026-08-06 15:30:17",
+    "size": 153089,
+    "exclude_pages": [
+      1,
+      2,
+      7
+    ],
+    "chunking_duration": 0.1683,
+    "embedding_duration": 11.8408
+  },
+  {
+    "filename": "POL-01-191-06_Cryptographic Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 6,
+    "upload_date": "2026-08-06 15:30:59",
+    "size": 219213,
+    "exclude_pages": [
+      1,
+      2,
+      6
+    ],
+    "chunking_duration": 0.8013,
+    "embedding_duration": 31.8485
+  },
+  {
+    "filename": "POL-01-191-07_Clear desk and clear screen policy_V.0.pdf",
+    "status": "Active",
+    "pages": 5,
+    "upload_date": "2026-08-06 15:32:33",
+    "size": 206002,
+    "exclude_pages": [
+      1,
+      2,
+      5
+    ],
+    "chunking_duration": 0.2207,
+    "embedding_duration": 6.4297
+  },
+  {
+    "filename": "POL-01-191-08_Backup policy_V.0.pdf",
+    "status": "Active",
+    "pages": 4,
+    "upload_date": "2026-08-06 15:33:28",
+    "size": 209970,
+    "exclude_pages": [
+      1,
+      2,
+      4
+    ],
+    "chunking_duration": 0.2216,
+    "embedding_duration": 4.5488
+  },
+  {
+    "filename": "POL-01-191-09_Information transfer Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 5,
+    "upload_date": "2026-08-06 15:35:11",
+    "size": 187677,
+    "exclude_pages": [
+      1,
+      2,
+      5
+    ],
+    "chunking_duration": 0.9163,
+    "embedding_duration": 11.7239
+  },
+  {
+    "filename": "POL-01-191-10_Secure Development Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 6,
+    "upload_date": "2026-08-06 15:36:36",
+    "size": 226205,
+    "exclude_pages": [
+      1,
+      2,
+      6
+    ],
+    "chunking_duration": 0.253,
+    "embedding_duration": 10.0233
+  },
+  {
+    "filename": "POL-01-191-11_Supplier relationship policy_V.0.pdf",
+    "status": "Active",
+    "pages": 6,
+    "upload_date": "2026-08-06 15:39:16",
+    "size": 140341,
+    "exclude_pages": [
+      1,
+      2,
+      6
+    ],
+    "chunking_duration": 0.1281,
+    "embedding_duration": 11.0702
+  },
+  {
+    "filename": "POL-01-191-12_Compliance Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 6,
+    "upload_date": "2026-08-06 15:39:57",
+    "size": 208792,
+    "exclude_pages": [
+      1,
+      2,
+      6
+    ],
+    "chunking_duration": 0.2259,
+    "embedding_duration": 12.1747
+  },
+  {
+    "filename": "POL-01-191-13_Teleworking policy_V.0.pdf",
+    "status": "Active",
+    "pages": 6,
+    "upload_date": "2026-08-06 15:49:08",
+    "size": 183032,
+    "exclude_pages": [
+      1,
+      2,
+      6
+    ],
+    "chunking_duration": 0.4455,
+    "embedding_duration": 9.8123
+  },
+  {
+    "filename": "POL-01-191-14_Baseline Configuration Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 5,
+    "upload_date": "2026-08-06 15:50:34",
+    "size": 189053,
+    "exclude_pages": [
+      1,
+      2
+    ],
+    "chunking_duration": 0.1134,
+    "embedding_duration": 10.671
+  },
+  {
+    "filename": "POL-01-191-15_Business Continuity Management Policy_V.0.pdf",
+    "status": "Active",
+    "pages": 8,
+    "upload_date": "2026-08-06 15:51:33",
+    "size": 184623,
+    "exclude_pages": [
+      1,
+      2,
+      8
+    ],
+    "chunking_duration": 0.3116,
+    "embedding_duration": 16.2964
+  },
+  {
+    "filename": "POL-01-191-16_Physical and Environmental policy_V.0.pdf",
+    "status": "Active",
+    "pages": 17,
+    "upload_date": "2026-08-06 15:52:21",
+    "size": 255132,
+    "exclude_pages": [
+      1,
+      2,
+      17
+    ],
+    "chunking_duration": 0.2605,
+    "embedding_duration": 50.9011
+  }
+]
