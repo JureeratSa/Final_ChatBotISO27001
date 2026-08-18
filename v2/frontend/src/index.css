@@ -1,0 +1,380 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ปรับค่า Base ตรงนี้ให้ใหญ่ขึ้น */
+html {
+  font-size: 16px;
+}
+
+@layer base {
+  body {
+    @apply antialiased transition-colors duration-300;
+    font-weight: 500;
+    /* เปลี่ยนฟอนต์หลักที่นี่ */
+    font-family: 'Sarabun', sans-serif !important;
+  }
+
+  html:not(.dark) body {
+    @apply bg-slate-50 text-slate-800;
+  }
+
+  html.dark body {
+    @apply bg-[#050818] text-slate-100;
+  }
+}
+
+/* พื้นหลังแบบไล่เฉดสีพาสเทลในสไตล์ของ ZAY-G */
+.bg-zayg-gradient {
+  background: linear-gradient(-45deg, #C0D1FC, #E5ECFD, #E7C6FD, #F4D6FB);
+  background-size: 400% 400%;
+  animation: ambientGlow 15s ease infinite;
+}
+
+.dark .bg-zayg-gradient {
+  background: linear-gradient(-45deg, #04081c, #0d1235, #360759, #660f99);
+  background-size: 400% 400%;
+  animation: ambientGlow 15s ease infinite;
+}
+
+@keyframes ambientGlow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* รูปแบบสไตล์กระจก */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(25px) saturate(140%);
+  -webkit-backdrop-filter: blur(25px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+}
+
+.dark .glass-panel {
+  background: rgba(18, 12, 33, 0.7);
+  backdrop-filter: blur(25px) saturate(140%);
+  -webkit-backdrop-filter: blur(25px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 1rem;
+}
+
+.dark .glass-input {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* การเคลื่อนไหวของ Mascot */
+@keyframes mascotFloat {
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+}
+
+.animate-mascot-float {
+  animation: mascotFloat 4s ease-in-out infinite;
+}
+
+/* สี Royal Blue */
+.bg-zayg-blue {
+  background-color: #4E6EF5;
+}
+
+.text-zayg-blue {
+  color: #4E6EF5;
+}
+
+/* Custom Gradients */
+.bg-tuh-gradient-1 {
+  background: linear-gradient(135deg, #4E6EF5 0%, #7B90FF 100%);
+}
+
+.bg-tuh-gradient-2 {
+  background: #4E6EF5;
+}
+
+.bg-tuh-gradient-2:hover {
+  background: #3c5cd9;
+}
+
+.bg-tuh-gradient-3 {
+  background: linear-gradient(135deg, #4E6EF5 0%, #E7C6FD 100%);
+}
+
+.bg-tuh-gradient-4 {
+  background: linear-gradient(180deg, #4E6EF5 0%, #150E35 100%);
+}
+
+/* Text Gradients */
+.text-tuh-gradient {
+  background-image: linear-gradient(135deg, #4e6ef5 0%, #8b5cf6 50%, #d946ef 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dark .text-tuh-gradient {
+  background-image: linear-gradient(135deg, #8fa3ff 0%, #a78bfa 50%, #f472b6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-tuh-gradient-pink-coral {
+  background: linear-gradient(135deg, #8b5cf6 0%, #4e6ef5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Sidebar Item Styles */
+.tuh-sidebar-active {
+  background-color: #E6EBFD;
+  color: #4E6EF5;
+  @apply font-bold shadow-sm rounded-lg;
+}
+
+.dark .tuh-sidebar-active {
+  background-color: rgba(78, 110, 245, 0.15);
+  color: #9cb1ff;
+  @apply font-bold shadow-sm border border-blue-500/25;
+}
+
+.tuh-sidebar-inactive {
+  @apply hover:bg-slate-100/70 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg;
+}
+
+/* รูปแบบสไตล์ FAQ Button */
+.faq-pill-button {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(78, 110, 245, 0.15);
+  color: #3b59db;
+  padding: 1rem 2rem;
+  border-radius: 9999px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .faq-pill-button {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c0d1fc;
+}
+
+.faq-pill-button:hover {
+  background: #4E6EF5;
+  color: #ffffff !important;
+  border-color: #4E6EF5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(78, 110, 245, 0.25);
+}
+
+.dark .faq-pill-button:hover {
+  background: #4E6EF5;
+  color: #ffffff !important;
+  border-color: #4E6EF5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(78, 110, 245, 0.45);
+}
+
+/* แถบเลื่อน */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(78, 110, 245, 0.4);
+  border-radius: 9999px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* เฟรมหลักและแอนิเมชัน */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.tuh-resizable-sidebar {
+  width: var(--sidebar-width) !important;
+  min-width: var(--sidebar-width) !important;
+  max-width: var(--sidebar-width) !important;
+  transition: width 0.05s ease-out;
+}
+
+@media (max-width: 767px) {
+  .tuh-resizable-sidebar {
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+  }
+}
+
+@keyframes floatSlow {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate(10px, -15px) scale(1.02);
+  }
+}
+
+@keyframes floatSlower {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1.02);
+  }
+
+  50% {
+    transform: translate(-15px, 10px) scale(0.98);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 10s ease-in-out infinite;
+}
+
+.animate-float-slower {
+  animation: floatSlower 15s ease-in-out infinite;
+}
+
+/* แก้ไขบรรทัดนี้: ลบ !important และใช้ขนาดที่อ้างอิงจาก html base ได้เลย */
+*:not(i):not([class*="fa-"]):not(.font-roboto) {
+  font-family: 'Sarabun', sans-serif !important;
+}
+
+/* ขนาดตัวอักษร */
+body .text-2xl,
+body [class*="text-2xl"] {
+  font-size: 2.5rem !important;
+  line-height: 1.25 !important;
+}
+
+/*เริ่มการสนทนาของคุณ*/
+
+body .text-3xl,
+body [class*="text-3xl"] {
+  font-size: 3.5rem !important;
+  line-height: 1.25 !important;
+}
+
+/*TUH Chatbot AI*/
+
+body .text-5xl,
+body [class*="text-5xl"] {
+  font-size: 6rem !important;
+  line-height: 1.15 !important;
+}
+
+/* เริ่มการสนทนาของคุณ */
+
+/* Custom Font classes override wildcard rules */
+.font-lily, *:not(i):not([class*="fa-"]).font-lily {
+  font-family: 'Roboto', sans-serif !important;
+}
+
+.font-chonburi, *:not(i):not([class*="fa-"]).font-chonburi {
+  font-family: 'Roboto', sans-serif !important;
+}
+
+.font-bebas, *:not(i):not([class*="fa-"]).font-bebas {
+  font-family: 'Roboto', sans-serif !important;
+  font-weight: bold !important;
+  letter-spacing: 0.08em !important;
+}
+
+.font-roboto, *:not(i):not([class*="fa-"]).font-roboto {
+  font-family: 'Roboto', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+}
+
+/* Styling for Rich Text Content */
+.html-content ul {
+  list-style-type: disc !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.html-content ol {
+  list-style-type: decimal !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.html-content table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.html-content th, .html-content td {
+  border: 1px solid rgba(226, 232, 240, 0.4) !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+.html-content a {
+  color: #f43f5e !important; /* tuh-rose color */
+  text-decoration: underline !important;
+}

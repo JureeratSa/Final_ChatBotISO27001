@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  # ─── PostgreSQL Database ─────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: tuh_chatbot_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tuhchatbot
+      POSTGRES_PASSWORD: tuhchatbot2026
+      POSTGRES_DB: tuhchatbot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuhchatbot -d tuhchatbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── FastAPI Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tuh_chatbot_backend
+    restart: unless-stopped
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=tuhchatbot
+      - POSTGRES_PASSWORD=tuhchatbot2026
+      - POSTGRES_DB=tuhchatbot
+      - FRONTEND_URL=http://localhost:5173
+      - DEBUG=false
+      # Copy your API key here or use .env file
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      # ใช้ uploads/ และ index_db/ เดิมจาก parent project
+      - ../uploads:/app/uploads
+      - ../index_db:/app/index_db
+      - ../Admin:/app/Admin
+      - ../user/backend/db:/app/user/backend/db
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─── React Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tuh_chatbot_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    name: tuh_chatbot_postgres_data
