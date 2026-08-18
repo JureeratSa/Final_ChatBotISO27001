@@ -252,9 +252,26 @@ async def delete_document(
 
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings(
-    current_user: User = Depends(get_current_user),
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
+    # Determine if request is authenticated as admin
+    is_admin = False
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+        try:
+            from app.core.security import verify_access_token
+            payload = verify_access_token(token)
+            username = payload.get("sub")
+            if username:
+                result = await db.execute(select(User).where(User.username == username, User.is_active == True))
+                user = result.scalar_one_or_none()
+                if user:
+                    is_admin = True
+        except Exception:
+            pass
+
     result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
     cfg = result.scalar_one_or_none()
     if not cfg:
@@ -266,6 +283,11 @@ async def get_settings(
             top_k=3,
             embedding_tech="bge-m3"
         )
+        
+    gemini_key = ""
+    if cfg.gemini_api_key:
+        gemini_key = cfg.gemini_api_key if is_admin else "***masked***"
+        
     return SettingsResponse(
         model_name=cfg.model_name,
         temperature=cfg.temperature,
@@ -278,7 +300,7 @@ async def get_settings(
         custom_faqs=json.loads(cfg.custom_faqs or "[]"),
         predefined_faqs=json.loads(cfg.predefined_faqs or "[]"),
         last_build_duration=cfg.last_build_duration,
-        gemini_api_key="***masked***" if cfg.system_prompt else None
+        gemini_api_key=gemini_key
     )
 
 

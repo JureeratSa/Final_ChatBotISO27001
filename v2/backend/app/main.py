@@ -15,7 +15,8 @@ if sys.platform == 'win32':
     except Exception:
         pass
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from app.schemas.schemas import ChatRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -245,6 +246,169 @@ async def download_form_file(filename: str):
 uploads_path = Path(settings.UPLOADS_DIR)
 if uploads_path.exists():
     app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+
+
+# ─── Legacy Compatibility Endpoints ──────────────────────────────────────────
+
+@app.post("/api/search")
+async def compatibility_search(
+    request: Request,
+    body: ChatRequest,
+    background_tasks: BackgroundTasks
+):
+    import time
+    import json
+    from fastapi import BackgroundTasks
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.models import SystemSettings, Form
+    from app.services.rag_service import get_retriever, query_rag
+    from app.routers.chat import save_history, save_unanswered
+
+    start_time = time.time()
+    query = body.query.strip()
+    if not query:
+        return {"answer": "กรุณาพิมพ์คำถาม", "results": []}
+
+    async with AsyncSessionLocal() as db:
+        # Load settings
+        result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
+        config_row = result.scalar_one_or_none()
+        config = {}
+        custom_faqs = []
+        if config_row:
+            config = {
+                "model_name": config_row.model_name,
+                "temperature": config_row.temperature,
+                "max_tokens": config_row.max_tokens,
+                "top_k": config_row.top_k,
+                "system_prompt": config_row.system_prompt
+            }
+            try:
+                custom_faqs = json.loads(config_row.custom_faqs or "[]")
+            except Exception:
+                pass
+
+        # Check FAQs
+        for faq in custom_faqs:
+            faq_q = faq.get("question", "").strip().lower()
+            if faq_q and faq_q in query.lower():
+                answer = faq["answer"]
+                return {"answer": answer, "results": []}
+
+        # Query retriever
+        rag_results = []
+        try:
+            retriever = get_retriever()
+            if retriever:
+                top_k = config.get("top_k", 3)
+                rag_results = retriever.query(query, top_k=top_k)
+        except Exception as e:
+            print(f"[Compatibility Search RAG Error] {e}")
+
+        # Load Forms
+        forms_result = await db.execute(select(Form))
+        forms_list = forms_result.scalars().all()
+
+        # Query RAG
+        answer, used_rag, model_used = await query_rag(
+            query=query,
+            results=rag_results,
+            config=config,
+            history=body.history,
+            forms=forms_list
+        )
+
+        elapsed = time.time() - start_time
+        
+        # Unanswered check
+        is_unanswered = any(k in answer for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้"])
+        if is_unanswered:
+            background_tasks.add_task(save_unanswered, db, query)
+
+        # Log history in background
+        history_id = f"history-{int(time.time() * 1000)}"
+        chunk_ids = [res.get("id", 0) if isinstance(res, dict) else 0 for res in rag_results]
+        referenced_docs = list(set(res["metadata"].get("source", "") for res in rag_results if isinstance(res, dict) and "metadata" in res))
+        
+        background_tasks.add_task(
+            save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs
+        )
+
+        return {
+            "answer": answer,
+            "results": rag_results
+        }
+
+
+@app.get("/api/announcements/active")
+async def compatibility_active_announcements():
+    import datetime
+    from sqlalchemy import select
+    from app.core.database import AsyncSessionLocal
+    from app.models.models import Announcement
+    
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(Announcement).order_by(Announcement.pinned.desc(), Announcement.created_at.desc())
+        )
+        announcements = result.scalars().all()
+        
+        now = datetime.datetime.now()
+        now_str = now.strftime("%Y-%m-%dT%H:%M")
+        now_date_str = now.strftime("%Y-%m-%d")
+        active_list = []
+        
+        for a in announcements:
+            start = a.start_date or ""
+            end = a.end_date or ""
+            
+            if len(start) == 10:
+                start += "T00:00"
+            if len(end) == 10:
+                end += "T23:59"
+                
+            is_active = False
+            if len(now_str) == 16 and len(start) == 16 and len(end) == 16:
+                if start <= now_str <= end:
+                    is_active = True
+            else:
+                if start <= now_date_str <= end:
+                    is_active = True
+                    
+            if is_active:
+                active_list.append({
+                    "id": a.id,
+                    "title": a.title,
+                    "content": a.content,
+                    "start_date": a.start_date,
+                    "end_date": a.end_date,
+                    "pinned": a.pinned
+                })
+                
+        return active_list
+
+
+@app.get("/api/ip")
+async def compatibility_ip(request: Request):
+    import socket
+    client_ip = request.headers.get("x-forwarded-for")
+    if client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.headers.get("x-real-ip", request.client.host if request.client else "127.0.0.1")
+        
+    if client_ip in ("127.0.0.1", "localhost", "::1"):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 1))
+            client_ip = s.getsockname()[0]
+        except Exception:
+            pass
+        finally:
+            s.close()
+            
+    return {"ip": client_ip}
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
