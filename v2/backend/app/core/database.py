@@ -1,5 +1,5 @@
 """
-TUH Chatbot AI — Database Connection (async SQLAlchemy + PostgreSQL)
+TUH Chatbot AI — Database Connection (async SQLAlchemy + TiDB Cloud MySQL)
 """
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
@@ -7,13 +7,14 @@ from typing import AsyncGenerator
 
 from app.core.config import settings
 
-# Async Engine
+# Async Engine (TiDB Serverless requires SSL)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
+    connect_args={"ssl": True}
 )
 
 # Session Factory
@@ -44,6 +45,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def create_tables():
     """สร้างตาราง Database ทั้งหมด (ใช้ตอน startup)"""
-    from app.models import user, document, settings_model, feedback, unanswered, history, forms, announcements  # noqa
+    from app.models import models  # noqa
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

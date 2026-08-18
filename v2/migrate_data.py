@@ -1,8 +1,8 @@
-/**
- * TUH Chatbot AI v2 — Data Migration Script
- * PM / BA Role: สร้าง script migrate ข้อมูลจาก JSON files เก่าเข้า PostgreSQL
- * รัน: python migrate_data.py
- */
+# """
+# TUH Chatbot AI v2 — Data Migration Script
+# PM / BA Role: สร้าง script migrate ข้อมูลจาก JSON files เก่าเข้า TiDB Cloud (MySQL)
+# รัน: python migrate_data.py
+# """
 import json
 import os
 import sys
@@ -11,6 +11,13 @@ import hashlib
 import asyncio
 from pathlib import Path
 
+# Fix WinError 87 asyncio SSL bug on Windows
+if sys.platform == 'win32':
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
+
 # ตั้งค่า path
 ROOT_DIR = Path(__file__).parent.parent  # PJChatbot/
 OLD_DB_DIR = ROOT_DIR / "user" / "backend" / "db"
@@ -18,7 +25,7 @@ OLD_DB_DIR = ROOT_DIR / "user" / "backend" / "db"
 # Database connection
 DB_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+asyncpg://tuhchatbot:tuhchatbot2026@localhost:5432/tuhchatbot"
+    "mysql+aiomysql://2LejCpHSLet7wXP.root:***REMOVED***@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/chatbot"
 )
 
 
@@ -31,18 +38,24 @@ async def main():
         User, Document, SystemSettings, Feedback,
         UnansweredQuery, Form as FormModel, Announcement
     )
+    import bcrypt
     from app.core.database import Base
-    from passlib.context import CryptContext
 
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-    engine = create_async_engine(DB_URL, echo=True)
+    engine = create_async_engine(DB_URL, echo=True, connect_args={"ssl": True})
     SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
-    # สร้างตาราง
+    from sqlalchemy import text
+
+    # ลบตารางเดิมทั้งหมดเพื่อรองรับ Schema v2 ใหม่
     async with engine.begin() as conn:
+        await conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP TABLE IF EXISTS history_documents;"))
+        await conn.execute(text("DROP TABLE IF EXISTS admin;"))
+        await conn.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
+        
         await conn.run_sync(Base.metadata.create_all)
-    print("✅ Tables created")
+    print("✅ Tables dropped and recreated with v2 schema")
 
     async with SessionLocal() as session:
 
@@ -57,7 +70,8 @@ async def main():
 
             # Hash ใหม่ด้วย bcrypt (ค่าเริ่มต้น admin1234)
             # Note: ใน production ให้ user reset password เอง
-            new_hash = pwd_context.hash("admin1234")
+            salt = bcrypt.gensalt()
+            new_hash = bcrypt.hashpw("admin1234".encode('utf-8'), salt).decode('utf-8')
 
             user = User(
                 username=admin_data.get("username", "admin"),
@@ -178,7 +192,7 @@ async def main():
             migrated = 0
             for a in ann_data:
                 existing = (await session.execute(
-                    select(Announcement).where(Announcement.id == int(a.get("id", 0)))
+                    select(Announcement).where(Announcement.title == a.get("title", ""))
                 )).scalar_one_or_none()
                 if not existing:
                     session.add(Announcement(

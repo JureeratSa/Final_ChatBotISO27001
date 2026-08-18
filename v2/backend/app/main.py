@@ -4,13 +4,22 @@ Tech Lead Architecture: FastAPI + Pydantic + SQLAlchemy Async + PostgreSQL
 """
 import os
 import sys
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+# Fix WinError 87 asyncio SSL bug on Windows
+if sys.platform == 'win32':
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.database import create_tables
@@ -86,12 +95,17 @@ async def migrate_from_json():
     from app.core.database import AsyncSessionLocal
     from app.models.models import (
         SystemSettings, Document, Feedback, UnansweredQuery,
-        ChatHistory, FormModel, Announcement
+        ChatHistory, Form as FormModel, Announcement
     )
     from sqlalchemy import select
 
-    # Path ของ JSON files เดิม
-    old_backend_dir = Path("/app/user/backend/db")
+    # Path ของ JSON files เดิม (หาแบบ dynamic)
+    try:
+        base_dir = Path(__file__).parents[3]
+        old_backend_dir = base_dir / "user" / "backend" / "db"
+    except Exception:
+        old_backend_dir = Path("/app/user/backend/db")
+
     if not old_backend_dir.exists():
         return  # ไม่มี JSON files เดิม
 
@@ -182,7 +196,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        settings.FRONTEND_URL,
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -205,6 +226,18 @@ async def health_check():
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION
     }
+
+
+@app.get("/api/forms/download/{filename}")
+async def download_form_file(filename: str):
+    form_path = Path(settings.UPLOADS_DIR) / "forms" / filename
+    if not form_path.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์แบบฟอร์มนี้")
+    return FileResponse(
+        path=str(form_path),
+        filename=filename.split("_", 1)[-1],
+        media_type="application/pdf"
+    )
 
 
 # ─── Serve Static PDF Files ───────────────────────────────────────────────────

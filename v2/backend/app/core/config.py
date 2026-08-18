@@ -16,26 +16,26 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # PostgreSQL Database
-    POSTGRES_HOST: str = "postgres"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str = "tuhchatbot"
-    POSTGRES_PASSWORD: str = "tuhchatbot2026"
-    POSTGRES_DB: str = "tuhchatbot"
+    # TiDB Cloud (MySQL) Database
+    DB_HOST: str = "gateway01.ap-southeast-1.prod.aws.tidbcloud.com"
+    DB_PORT: int = 4000
+    DB_USER: str = "2LejCpHSLet7wXP.root"
+    DB_PASSWORD: str = "***REMOVED***"
+    DB_NAME: str = "chatbot"
 
     @property
     def DATABASE_URL(self) -> str:
         return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
     @property
     def DATABASE_URL_SYNC(self) -> str:
-        """สำหรับ Alembic (sync driver)"""
+        """สำหรับ Alembic / sync operations"""
         return (
-            f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
     # JWT Auth
@@ -51,10 +51,42 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
 
-    # File Storage (ใช้ path เดิมจาก parent project)
-    UPLOADS_DIR: str = "/app/uploads"
-    INDEX_DB_DIR: str = "/app/index_db"
-    ADMIN_DIR: str = "/app/Admin"
+    # File Storage (ปรับใช้ path ให้สามารถรันได้ทั้ง local และ docker)
+    @property
+    def UPLOADS_DIR(self) -> str:
+        from pathlib import Path
+        try:
+            base_dir = Path(__file__).parents[4]
+            uploads_path = base_dir / "uploads"
+            if uploads_path.exists():
+                return str(uploads_path.resolve())
+        except Exception:
+            pass
+        return "/app/uploads"
+
+    @property
+    def INDEX_DB_DIR(self) -> str:
+        from pathlib import Path
+        try:
+            base_dir = Path(__file__).parents[4]
+            index_path = base_dir / "index_db"
+            if index_path.exists():
+                return str(index_path.resolve())
+        except Exception:
+            pass
+        return "/app/index_db"
+
+    @property
+    def ADMIN_DIR(self) -> str:
+        from pathlib import Path
+        try:
+            base_dir = Path(__file__).parents[4]
+            admin_path = base_dir / "Admin"
+            if admin_path.exists():
+                return str(admin_path.resolve())
+        except Exception:
+            pass
+        return "/app/Admin"
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 30

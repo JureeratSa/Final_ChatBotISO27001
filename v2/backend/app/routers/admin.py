@@ -10,7 +10,9 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status, Request
+from pydantic import BaseModel
+from app.core.security import verify_password, create_access_token
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 
@@ -36,6 +38,37 @@ UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+class LegacyLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/login")
+async def legacy_admin_login(
+    payload: LegacyLoginRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(User).where(User.username == payload.username))
+    user = result.scalar_one_or_none()
+    
+    if not user or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+        
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="บัญชีนี้ถูกระงับการใช้งาน")
+        
+    # Generate JWT token
+    token = create_access_token(data={"sub": user.username})
+    
+    return {
+        "success": True,
+        "token": token,
+        "username": user.username,
+        "role": user.role,
+        "name": user.display_name
+    }
 
 # ─── Rebuild State ────────────────────────────────────────────────────────────
 _rebuild_status = {"status": "idle", "message": "ยังไม่ได้ประมวลผล", "duration": None}
@@ -82,18 +115,42 @@ async def list_documents(
 
 @router.post("/documents/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not file.filename.endswith(".pdf"):
+    from urllib.parse import unquote
+    content_type = request.headers.get("content-type", "")
+    
+    if "application/pdf" in content_type:
+        # Legacy adminSPO upload (raw binary PDF in request body)
+        filename = request.headers.get("x-file-name", "")
+        filename = unquote(filename)
+        exclude_pages = request.headers.get("x-exclude-pages", "")
+        display_name = request.headers.get("x-display-name", "")
+        if display_name:
+            display_name = unquote(display_name)
+        else:
+            display_name = filename.replace(".pdf", "").replace("_", " ")
+            
+        file_content = await request.body()
+        file_size = len(file_content)
+    else:
+        # Standard multipart upload (new v2 frontend)
+        if not file:
+            raise HTTPException(status_code=400, detail="ไม่พบไฟล์ที่อัปโหลด")
+        filename = file.filename
+        exclude_pages = ""  # multipart doesn't send page exclusions during file upload
+        display_name = filename.replace(".pdf", "").replace("_", " ")
+        file_content = await file.read()
+        file_size = len(file_content)
+
+    if not filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF เท่านั้น")
 
-    file_path = UPLOADS_DIR / file.filename
-    file_content = await file.read()
-    file_size = len(file_content)
-
+    file_path = UPLOADS_DIR / filename
     with open(str(file_path), "wb") as f:
         f.write(file_content)
 
@@ -108,21 +165,24 @@ async def upload_document(
         pass
 
     # Check if already exists
-    existing_result = await db.execute(select(Document).where(Document.filename == file.filename))
+    existing_result = await db.execute(select(Document).where(Document.filename == filename))
     existing = existing_result.scalar_one_or_none()
 
     if existing:
         existing.status = "Processing"
         existing.size = file_size
         existing.pages = pages
+        existing.exclude_pages = exclude_pages
+        existing.display_name = display_name
         doc_entry = existing
     else:
         doc_entry = Document(
-            filename=file.filename,
-            display_name=file.filename.replace(".pdf", "").replace("_", " "),
+            filename=filename,
+            display_name=display_name,
             status="Processing",
             pages=pages,
-            size=file_size
+            size=file_size,
+            exclude_pages=exclude_pages
         )
         db.add(doc_entry)
 
@@ -608,3 +668,132 @@ async def get_history(
         referenced_docs=json.loads(h.referenced_docs or "[]"),
         timestamp=h.timestamp.strftime("%Y-%m-%d %H:%M:%S") if h.timestamp else ""
     ) for h in items]
+
+
+# ─── Form Upload & Page Extraction (Legacy Compatibility) ─────────────────────
+
+def _parse_pages(page_str: str, total_pages: int) -> List[int]:
+    """Parse page specification like '1,3,5' or '2-5' or '1-3,7' into sorted 0-indexed page list."""
+    pages = set()
+    parts = page_str.replace(' ', '').split(',')
+    for part in parts:
+        if not part:
+            continue
+        if '-' in part:
+            bounds = part.split('-', 1)
+            try:
+                start = int(bounds[0]) - 1
+                end = int(bounds[1]) - 1
+            except ValueError:
+                continue
+            for p in range(start, end + 1):
+                if 0 <= p < total_pages:
+                    pages.add(p)
+        else:
+            try:
+                p = int(part) - 1
+                if 0 <= p < total_pages:
+                    pages.add(p)
+            except ValueError:
+                continue
+    return sorted(pages)
+
+
+@router.post("/forms/upload")
+async def upload_form_compatibility(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from urllib.parse import unquote, quote
+    
+    form_name = unquote(request.headers.get("x-form-name", "").strip())
+    filename = unquote(request.headers.get("x-file-name", "form.pdf").strip())
+    page = unquote(request.headers.get("x-form-page", "").strip())
+    
+    if not form_name or not filename:
+        raise HTTPException(status_code=400, detail="กรุณากรอกชื่อและเลือกไฟล์แบบฟอร์มให้ครบถ้วน")
+        
+    post_data = await request.body()
+    
+    forms_dir = Path(settings.UPLOADS_DIR) / "forms"
+    forms_dir.mkdir(parents=True, exist_ok=True)
+    
+    ts = int(time.time())
+    temp_filepath = forms_dir / f"_temp_{ts}_{filename}"
+    
+    with open(str(temp_filepath), "wb") as f:
+        f.write(post_data)
+        
+    final_filename = f"{ts}_{filename}"
+    final_filepath = forms_dir / final_filename
+    
+    if page:
+        try:
+            import fitz
+            src_doc = fitz.open(str(temp_filepath))
+            total = len(src_doc)
+            page_indices = _parse_pages(page, total)
+            
+            if not page_indices:
+                src_doc.close()
+                if temp_filepath.exists():
+                    temp_filepath.unlink()
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"หน้าที่ระบุ ({page}) ไม่อยู่ในไฟล์ PDF (มีทั้งหมด {total} หน้า)"
+                )
+                
+            new_doc = fitz.open()
+            for pi in page_indices:
+                new_doc.insert_pdf(src_doc, from_page=pi, to_page=pi)
+            new_doc.save(str(final_filepath))
+            new_doc.close()
+            src_doc.close()
+            
+            if temp_filepath.exists():
+                temp_filepath.unlink()
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Fallback
+            if temp_filepath.exists():
+                temp_filepath.rename(final_filepath)
+    else:
+        if temp_filepath.exists():
+            temp_filepath.rename(final_filepath)
+            
+    # Save/Update in DB
+    result = await db.execute(select(FormModel).where(func.lower(FormModel.name) == func.lower(form_name)))
+    existing_form = result.scalar_one_or_none()
+    
+    host_header = request.headers.get("host", "localhost:8000")
+    download_link = f"http://{host_header}/api/forms/download/{quote(final_filename)}"
+    
+    if existing_form:
+        # Delete old file
+        if existing_form.filename:
+            old_filepath = forms_dir / existing_form.filename
+            if old_filepath.exists():
+                try:
+                    old_filepath.unlink()
+                except Exception:
+                    pass
+        existing_form.filename = final_filename
+        existing_form.page = page
+        existing_form.download_link = download_link
+        message = "อัปเดตแบบฟอร์มเดิมและอัปโหลดไฟล์ใหม่สำเร็จ"
+    else:
+        new_form = FormModel(
+            id=f"form-{int(time.time() * 1000)}",
+            name=form_name,
+            filename=final_filename,
+            page=page,
+            download_link=download_link
+        )
+        db.add(new_form)
+        message = "บันทึกและอัปโหลดแบบฟอร์มสำเร็จ"
+        
+    await db.commit()
+    
+    return {"success": True, "message": message}

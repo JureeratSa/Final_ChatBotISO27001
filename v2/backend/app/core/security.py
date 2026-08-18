@@ -10,24 +10,27 @@ import secrets
 import base64
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-
+import bcrypt
 from app.core.config import settings
-
-# Password hashing context (bcrypt)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 # ─── Password Utilities ────────────────────────────────────────────────────────
 
 def hash_password(plain_password: str) -> str:
     """Hash รหัสผ่านด้วย bcrypt"""
-    return pwd_context.hash(plain_password)
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(plain_password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """ตรวจสอบรหัสผ่านกับ hash ที่เก็บไว้"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode('utf-8'),
+            hashed_password.encode('utf-8')
+        )
+    except Exception:
+        return False
 
 
 def verify_legacy_password(plain_password: str, salt_hex: str, hash_hex: str) -> bool:
