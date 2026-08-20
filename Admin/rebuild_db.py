@@ -129,8 +129,8 @@ def chunk_document_text(full_text, filename, start_chunk_id=1):
     chunks = []
     chunk_id = start_chunk_id
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=400,
+        chunk_size=800,
+        chunk_overlap=200,
         separators=["\n\n", "\n", " "],  # เพื่อไม่ให้ตัดคำ
         add_start_index=True
     )
@@ -461,7 +461,11 @@ def rebuild():
                 subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
                 import chromadb
                 
-            chroma_dir = os.path.join(index_dir, "chroma_db")
+            if sys.platform.startswith('win') or os.name == 'nt':
+                chroma_dir = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
+            else:
+                chroma_dir = os.path.join(index_dir, "chroma_db")
+            os.makedirs(chroma_dir, exist_ok=True)
             chroma_client = chromadb.PersistentClient(path=chroma_dir)
             try:
                 chroma_client.delete_collection("tuh_collection")

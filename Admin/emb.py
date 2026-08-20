@@ -274,7 +274,10 @@ class HybridRetriever:
         print(f"กำลังโหลดดัชนีเวกเตอร์สำหรับเทคโนโลยี: {self.embedding_tech}")
         
         if self.embedding_tech == "local_chroma":
-            chroma_path = os.path.join(self.index_dir, "chroma_db")
+            if sys.platform.startswith('win') or os.name == 'nt':
+                chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
+            else:
+                chroma_path = os.path.join(self.index_dir, "chroma_db")
             if os.path.exists(chroma_path):
                 try:
                     import chromadb

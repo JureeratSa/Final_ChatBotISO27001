@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # AI / LLM
     GEMINI_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
+    DEFAULT_LLM_MODEL: str = "xiaomi/mimo-v2.5-pro"
+
+    @property
+    def LLM_API_KEY(self) -> str:
+        """ดึง API key สำหรับ LLM — ใช้ GEMINI_API_KEY หรือ OPENROUTER_API_KEY ตัวใดก็ได้ที่มีค่า"""
+        return self.GEMINI_API_KEY or self.OPENROUTER_API_KEY or ""
 
     # File Storage (ปรับใช้ path ให้สามารถรันได้ทั้ง local และ docker)
     @property

@@ -114,6 +114,11 @@ async def list_users(
     db: AsyncSession = Depends(get_db)
 ):
     """ดูรายชื่อ Admin Users ทั้งหมด"""
+    if current_user.role != "System Administrator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลผู้ใช้งานระบบ"
+        )
     result = await db.execute(select(User).order_by(User.created_at))
     return result.scalars().all()
 
@@ -125,6 +130,11 @@ async def create_user(
     db: AsyncSession = Depends(get_db)
 ):
     """สร้าง Admin User ใหม่"""
+    if current_user.role != "System Administrator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลผู้ใช้งานระบบ"
+        )
     # ตรวจสอบว่า username ซ้ำหรือไม่
     result = await db.execute(select(User).where(User.username == body.username))
     if result.scalar_one_or_none():
@@ -150,6 +160,11 @@ async def update_user(
     db: AsyncSession = Depends(get_db)
 ):
     """แก้ไข Admin User"""
+    if current_user.role != "System Administrator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลผู้ใช้งานระบบ"
+        )
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -176,6 +191,11 @@ async def delete_user(
     db: AsyncSession = Depends(get_db)
 ):
     """ลบ Admin User (ป้องกันลบตัวเอง)"""
+    if current_user.role != "System Administrator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลผู้ใช้งานระบบ"
+        )
     if current_user.id == user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ไม่สามารถลบบัญชีของตัวเองได้")
 

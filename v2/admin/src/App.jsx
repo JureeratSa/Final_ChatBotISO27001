@@ -89,9 +89,9 @@ function App() {
 
   const fetch = (url, options = {}) => {
     const urlStr = typeof url === 'string' ? url : (url.url || '');
-    const isLogin = urlStr.includes('/api/admin/login');
+    const isLogin = urlStr.includes('/api/admin/login') || urlStr.includes('/api/auth/login');
     const isFeedbackOrUnansweredSubmit = urlStr.includes('/api/admin/feedback/submit') || urlStr.includes('/api/admin/unanswered/submit');
-    const isAdmin = urlStr.includes('/api/admin/');
+    const isAdmin = urlStr.includes('/api/admin/') || urlStr.includes('/api/auth/');
 
     if (isAdmin && !isLogin && !isFeedbackOrUnansweredSubmit) {
       const token = localStorage.getItem('tuh_admin_token');
@@ -230,6 +230,7 @@ function App() {
   const [docSearchQuery, setDocSearchQuery] = useState('');
   const [docSortField, setDocSortField] = useState('upload_date'); // default by upload date
   const [docSortOrder, setDocSortOrder] = useState('desc'); // default desc (newest first)
+  const [docCurrentPage, setDocCurrentPage] = useState(1);
 
   // Welfare Forms States
   const [forms, setForms] = useState([]);
@@ -250,8 +251,21 @@ function App() {
   const [isAnnFormOpen, setIsAnnFormOpen] = useState(false);
   const [annPinned, setAnnPinned] = useState(false);
 
+  // User Management States
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userFormMode, setUserFormMode] = useState('create'); // 'create' | 'edit'
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userFormUsername, setUserFormUsername] = useState('');
+  const [userFormPassword, setUserFormPassword] = useState('');
+  const [userFormDisplayName, setUserFormDisplayName] = useState('');
+  const [userFormRole, setUserFormRole] = useState('admin');
+  const [userFormIsActive, setUserFormIsActive] = useState(true);
+
   // Bot Response History States
   const [history, setHistory] = useState([]);
+  const [chunksMap, setChunksMap] = useState({});
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [satPeriod, setSatPeriod] = useState('weekly');
   const [historyPeriod, setHistoryPeriod] = useState('weekly');
@@ -302,6 +316,9 @@ function App() {
       fetchHistory();
       fetchForms();
       fetchAnnouncements();
+      if (adminUser.role === 'System Administrator') {
+        fetchUsers();
+      }
     }
   }, [isLoggedIn]);
 
@@ -309,6 +326,7 @@ function App() {
   useEffect(() => {
     if (isLoggedIn && activeTab === 'history') {
       fetchHistory();
+      fetchHistoryChunksMap();
     }
   }, [activeTab, isLoggedIn]);
 
@@ -318,6 +336,18 @@ function App() {
       fetchAnnouncements();
     }
   }, [activeTab, isLoggedIn]);
+
+  // Refetch users when switching to users tab and is System Administrator
+  useEffect(() => {
+    if (isLoggedIn && activeTab === 'users' && adminUser.role === 'System Administrator') {
+      fetchUsers();
+    }
+  }, [activeTab, isLoggedIn, adminUser.role]);
+
+  // Reset document page when search query or sort field/order changes
+  useEffect(() => {
+    setDocCurrentPage(1);
+  }, [docSearchQuery, docSortField, docSortOrder]);
 
   // Alert Banner Helpers
   const showSuccess = (msg) => {
@@ -607,7 +637,86 @@ function App() {
         });
     } else if (deleteModalState.type === 'announcement') {
       handleDeleteAnnouncement(deleteModalState.targetId);
+    } else if (deleteModalState.type === 'user') {
+      fetch(API_URL + `/api/auth/users/${deleteModalState.targetId}`, {
+        method: 'DELETE'
+      })
+        .then(res => {
+          if (res.status === 204 || res.ok) {
+            showSuccess("ลบบัญชีแอดมินเรียบร้อยแล้ว");
+            fetchUsers();
+          } else {
+            return res.json().then(data => {
+              throw new Error(data.detail || "ไม่สามารถลบผู้ใช้นี้ได้");
+            });
+          }
+        })
+        .catch(err => showError(err.message || "เกิดข้อผิดพลาดในการลบบัญชี"))
+        .finally(() => {
+          setDeleteModalState({ show: false, type: null, targetId: null, targetName: null });
+        });
     }
+  };
+
+  const fetchUsers = () => {
+    setLoadingUsers(true);
+    fetch(API_URL + '/api/auth/users')
+      .then(res => {
+        if (!res.ok) throw new Error("ไม่สามารถโหลดข้อมูลบัญชีผู้ใช้ได้");
+        return res.json();
+      })
+      .then(data => setUsers(data))
+      .catch(err => console.error("Error fetching users:", err))
+      .finally(() => setLoadingUsers(false));
+  };
+
+  const handleCreateOrUpdateUser = (e) => {
+    e.preventDefault();
+    if (!userFormUsername.trim() || !userFormDisplayName.trim()) {
+      showError("กรุณากรอกข้อมูล Username และ ชื่อแสดงผล");
+      return;
+    }
+
+    if (userFormMode === 'create' && !userFormPassword.trim()) {
+      showError("กรุณากรอกรหัสผ่านสำหรับผู้ใช้ใหม่");
+      return;
+    }
+
+    const url = userFormMode === 'create'
+      ? API_URL + '/api/auth/users'
+      : API_URL + `/api/auth/users/${selectedUser.id}`;
+    const method = userFormMode === 'create' ? 'POST' : 'PUT';
+
+    const payload = {
+      username: userFormUsername,
+      display_name: userFormDisplayName,
+      role: userFormRole,
+      is_active: userFormIsActive
+    };
+
+    if (userFormPassword.trim()) {
+      payload.password = userFormPassword;
+    }
+
+    fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) {
+          return res.json().then(data => {
+            throw new Error(data.detail || "บันทึกข้อมูลไม่สำเร็จ");
+          });
+        }
+        return res.json();
+      })
+      .then(() => {
+        showSuccess(userFormMode === 'create' ? "สร้างบัญชีแอดมินใหม่สำเร็จ" : "แก้ไขบัญชีแอดมินสำเร็จ");
+        setShowUserModal(false);
+        fetchUsers();
+      })
+      .catch(err => showError(err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล"));
   };
 
 
@@ -748,7 +857,7 @@ function App() {
       log.timestamp,
       log.query,
       log.answer,
-      log.model,
+      log.api_model || log.model || "Direct FAQ",
       (log.chunk_ids || []).join(", "),
       log.response_time
     ]);
@@ -772,6 +881,15 @@ function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const fetchHistoryChunksMap = () => {
+    fetch(API_URL + '/api/admin/history/chunks-map')
+      .then(r => r.json())
+      .then(data => {
+        setChunksMap(data || {});
+      })
+      .catch(err => console.error("Error fetching chunks map:", err));
   };
 
   const fetchHistory = () => {
@@ -1694,6 +1812,16 @@ function App() {
           </button>
 
 
+          {adminUser.role === 'System Administrator' && (
+            <button
+              onClick={() => handleTabClick('users')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'users' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-users text-sm"></i>
+              <span>จัดการบัญชีแอดมิน</span>
+            </button>
+          )}
+
           <button
             onClick={() => handleTabClick('profile')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'profile' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
@@ -1763,6 +1891,7 @@ function App() {
                 {activeTab === 'faqs' && <i className="fa-solid fa-book"></i>}
                 {activeTab === 'settings' && <i className="fa-solid fa-sliders"></i>}
                 {activeTab === 'profile' && <i className="fa-solid fa-user-gear"></i>}
+                {activeTab === 'users' && <i className="fa-solid fa-users"></i>}
               </span>
               <span className={`${activeTab === 'dashboard' ? 'text-tuh-gradient-light' : 'text-tuh-gradient'} font-black`}>
                 {activeTab === 'dashboard' && 'ภาพรวม'}
@@ -1774,6 +1903,7 @@ function App() {
                 {activeTab === 'faqs' && 'ทะเบียนคู่มือคำตอบ FAQs'}
                 {activeTab === 'settings' && 'การตั้งค่าระบบ AI แชทบอท'}
                 {activeTab === 'profile' && 'โปรไฟล์ผู้ดูแลระบบ'}
+                {activeTab === 'users' && 'จัดการบัญชีแอดมินระบบ'}
               </span>
             </h1>
           </div>
@@ -1795,139 +1925,114 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-in">
 
                 {/* 1. Q&A History Portal */}
-                <div
+                <PortalCard
                   onClick={() => setActiveTab('history')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-sky-500/40 dark:hover:border-sky-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>ประวัติการตอบของบอท</span>
-                      <h3 className="text-[30px] font-black tracking-tight text-sky-600 dark:text-sky-400">
-                        {stats.total_queries} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามทั้งหมด</span>
-                      </h3>
-                    </div>
-                    <span className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center text-base"><i className="fa-solid fa-clock-rotate-left"></i></span>
-                  </div>
-                  <div className="space-y-2 mt-3">
-                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      บันทึกคิวรีถามตอบของผู้ใช้ย้อนหลัง ความเร็วตอบสนอง และข้อมูลอ้างอิง
-                    </p>
-                    <span className="text-[14px] text-sky-600 dark:text-sky-400 font-bold flex items-center gap-1">เข้าสู่เมนูประวัติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
-                  </div>
-                </div>
+                  title="ประวัติการตอบของบอท"
+                  value={stats.total_queries}
+                  unit="คำถามทั้งหมด"
+                  description="บันทึกคิวรีถามตอบของผู้ใช้ย้อนหลัง ความเร็วตอบสนอง และข้อมูลอ้างอิง"
+                  linkText="เข้าสู่เมนูประวัติ"
+                  iconClass="fa-solid fa-clock-rotate-left"
+                  colorClasses={{
+                    border: "hover:border-sky-500/40 dark:hover:border-sky-500/50",
+                    text: "text-sky-600 dark:text-sky-400",
+                    badge: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+                    link: "text-sky-600 dark:text-sky-400"
+                  }}
+                  isDarkMode={isDarkMode}
+                />
 
                 {/* 2. Satisfaction Stats Portal */}
-                <div
+                <PortalCard
                   onClick={() => setActiveTab('satisfaction')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-emerald-500/40 dark:hover:border-emerald-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>สถิติความพึงพอใจ</span>
-                      <h3 className="text-[30px] font-black tracking-tight text-emerald-600 dark:text-emerald-400">
-                        {stats.likes + stats.dislikes > 0 ? Math.round((stats.likes / (stats.likes + stats.dislikes)) * 100) : 100}%
-                      </h3>
-                    </div>
-                    <span className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base"><i className="fa-solid fa-face-smile"></i></span>
-                  </div>
-                  <div className="space-y-2 mt-3">
-                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      วิเคราะห์ความพึงพอใจย้อนหลังรายวัน/สัปดาห์/เดือน/ปี และสถิติแยกตามหมวดหมู่คำถามหลัก
-                    </p>
-                    <span className="text-[14px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">เข้าสู่เมนูสถิติ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
-                  </div>
-                </div>
+                  title="สถิติความพึงพอใจ"
+                  value={`${stats.likes + stats.dislikes > 0 ? Math.round((stats.likes / (stats.likes + stats.dislikes)) * 100) : 100}%`}
+                  description="วิเคราะห์ความพึงพอใจย้อนหลังรายวัน/สัปดาห์/เดือน/ปี และสถิติแยกตามหมวดหมู่คำถามหลัก"
+                  linkText="เข้าสู่เมนูสถิติ"
+                  iconClass="fa-solid fa-face-smile"
+                  colorClasses={{
+                    border: "hover:border-emerald-500/40 dark:hover:border-emerald-500/50",
+                    text: "text-emerald-600 dark:text-emerald-400",
+                    badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                    link: "text-emerald-600 dark:text-emerald-400"
+                  }}
+                  isDarkMode={isDarkMode}
+                />
 
                 {/* 3. Unanswered Logs Portal */}
-                <div
+                <PortalCard
                   onClick={() => setActiveTab('logs')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-rose-500/40 dark:hover:border-rose-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามที่บอทตอบไม่ได้</span>
-                      <h3 className={`text-[30px] font-black tracking-tight ${stats.pending_unanswered > 0 ? (isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400') : (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>
-                        {stats.pending_unanswered} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามค้างตอบ</span>
-                      </h3>
-                    </div>
-                    <span className={`w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}><i className="fa-solid fa-circle-question"></i></span>
-                  </div>
-                  <div className="space-y-2 mt-3">
-                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      คำถามจากผู้ใช้ที่บอทไม่มีความรู้อ้างอิง รอการเพิ่มคู่มือคำตอบจากแอดมินโดยตรง
-                    </p>
-                    <span className={`text-[14px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f06292]' : 'text-rose-600 dark:text-rose-400'}`}>เข้าสู่เมนูตอบคำถาม <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
-                  </div>
-                </div>
+                  title="คำถามที่บอทตอบไม่ได้"
+                  value={stats.pending_unanswered}
+                  unit="คำถามค้างตอบ"
+                  description="คำถามจากผู้ใช้ที่บอทไม่มีความรู้อ้างอิง รอการเพิ่มคู่มือคำตอบจากแอดมินโดยตรง"
+                  linkText="เข้าสู่เมนูตอบคำถาม"
+                  iconClass="fa-solid fa-circle-question"
+                  colorClasses={{
+                    border: "hover:border-rose-500/40 dark:hover:border-rose-500/50",
+                    text: stats.pending_unanswered > 0 ? (isDarkMode ? "text-[#f06292]" : "text-rose-600 dark:text-rose-400") : (isDarkMode ? "text-slate-300" : "text-slate-600"),
+                    badge: `bg-rose-500/10 ${isDarkMode ? "text-[#f06292]" : "text-rose-600 dark:text-rose-400"}`,
+                    link: isDarkMode ? "text-[#f06292]" : "text-rose-600 dark:text-rose-400"
+                  }}
+                  isDarkMode={isDarkMode}
+                />
 
                 {/* 4. PDF Manage Portal */}
-                <div
+                <PortalCard
                   onClick={() => setActiveTab('documents')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-purple-500/40 dark:hover:border-purple-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>จัดการเอกสาร PDF</span>
-                      <h3 className={`text-[30px] font-black tracking-tight ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>
-                        {stats.active_documents} / {stats.total_documents} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>แฟ้มเปิดใช้งาน</span>
-                      </h3>
-                    </div>
-                    <span className={`w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-base ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}><i className="fa-solid fa-file-pdf"></i></span>
-                  </div>
-                  <div className="space-y-2 mt-3">
-                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      อัปโหลดแฟ้มข้อมูล PDF ค้นหา ลบ และจัดการสิทธิ์การข้ามบางหน้าของการเรียนรู้ของระบบ RAG
-                    </p>
-                    <span className={`text-[14px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-[#f69988]' : 'text-purple-600 dark:text-purple-400'}`}>เข้าสู่เมนูจัดการไฟล์ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
-                  </div>
-                </div>
+                  title="จัดการเอกสาร PDF"
+                  value={`${stats.active_documents} / ${stats.total_documents}`}
+                  unit="แฟ้มเปิดใช้งาน"
+                  description="อัปโหลดแฟ้มข้อมูล PDF ค้นหา ลบ และจัดการสิทธิ์การข้ามบางหน้าของการเรียนรู้ของระบบ RAG"
+                  linkText="เข้าสู่เมนูจัดการไฟล์"
+                  iconClass="fa-solid fa-file-pdf"
+                  colorClasses={{
+                    border: "hover:border-purple-500/40 dark:hover:border-purple-500/50",
+                    text: isDarkMode ? "text-[#f69988]" : "text-purple-600 dark:text-purple-400",
+                    badge: `bg-purple-500/10 ${isDarkMode ? "text-[#f69988]" : "text-purple-600 dark:text-purple-400"}`,
+                    link: isDarkMode ? "text-[#f69988]" : "text-purple-600 dark:text-purple-400"
+                  }}
+                  isDarkMode={isDarkMode}
+                />
 
                 {/* 5. FAQs Portal */}
-                <div
+                <PortalCard
                   onClick={() => setActiveTab('faqs')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-amber-500/40 dark:hover:border-amber-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คู่มือตอบกลับ (FAQs)</span>
-                      <h3 className="text-[30px] font-black tracking-tight text-amber-600 dark:text-amber-400">
-                        {settings.predefined_faqs?.length || 0} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>คำถามด่วนหน้าแรก</span>
-                      </h3>
-                    </div>
-                    <span className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-base"><i className="fa-solid fa-book"></i></span>
-                  </div>
-                  <div className="space-y-2 mt-3">
-                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      จัดการไอคอน คำถาม และคำตอบด่วนสำหรับการคลิกถามยอดฮิต {settings.predefined_faqs?.length || 0} ปุ่มบนหน้าแรกของผู้ใช้
-                    </p>
-                    <span className="text-[14px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">เข้าสู่เมนู FAQs <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
-                  </div>
-                </div>
+                  title="คู่มือตอบกลับ (FAQs)"
+                  value={settings.predefined_faqs?.length || 0}
+                  unit="คำถามด่วนหน้าแรก"
+                  description={`จัดการไอคอน คำถาม และคำตอบด่วนสำหรับการคลิกถามยอดฮิต ${settings.predefined_faqs?.length || 0} ปุ่มบนหน้าแรกของผู้ใช้`}
+                  linkText="เข้าสู่เมนู FAQs"
+                  iconClass="fa-solid fa-book"
+                  colorClasses={{
+                    border: "hover:border-amber-500/40 dark:hover:border-amber-500/50",
+                    text: "text-amber-600 dark:text-amber-400",
+                    badge: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                    link: "text-amber-600 dark:text-amber-400"
+                  }}
+                  isDarkMode={isDarkMode}
+                />
 
                 {/* 6. System Announcements Portal */}
-                <div
+                <PortalCard
                   onClick={() => setActiveTab('announcements')}
-                  className="p-6 bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl shadow-sm hover:shadow-lg hover:border-pink-500/40 dark:hover:border-pink-500/50 hover:translate-y-[-2px] active:scale-95 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[12rem] h-auto pb-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className={`text-[14px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>สร้างและจัดการประกาศ</span>
-                      <h3 className="text-[30px] font-black tracking-tight text-pink-600 dark:text-pink-400">
-                        {announcements.filter(ann => {
-                          const now = new Date();
-                          return now >= new Date(ann.start_date) && now <= new Date(ann.end_date);
-                        }).length} / {announcements.length} <span className={`text-[14px] font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700 dark:text-slate-300'}`}>เปิดใช้งาน</span>
-                      </h3>
-                    </div>
-                    <span className="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center text-base"><i className="fa-solid fa-bullhorn"></i></span>
-                  </div>
-                  <div className="space-y-2 mt-3">
-                    <p className={`text-[14px] font-semibold leading-relaxed line-clamp-2 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      สร้างข่าวประชาสัมพันธ์ ตั้งเวลาแสดงผล และเปิด/ปิดป้ายประกาศข่าวสารถึงผู้ใช้แชทบอท
-                    </p>
-                    <span className="text-[14px] text-pink-600 dark:text-pink-400 font-bold flex items-center gap-1">เข้าสู่เมนูจัดการประกาศ <i className="fa-solid fa-arrow-right text-[10px]"></i></span>
-                  </div>
-                </div>
+                  title="สร้างและจัดการประกาศ"
+                  value={`${announcements.filter(ann => {
+                    const now = new Date();
+                    return now >= new Date(ann.start_date) && now <= new Date(ann.end_date);
+                  }).length} / ${announcements.length}`}
+                  unit="เปิดใช้งาน"
+                  description="สร้างข่าวประชาสัมพันธ์ ตั้งเวลาแสดงผล และเปิด/ปิดป้ายประกาศข่าวสารถึงผู้ใช้แชทบอท"
+                  linkText="เข้าสู่เมนูจัดการประกาศ"
+                  iconClass="fa-solid fa-bullhorn"
+                  colorClasses={{
+                    border: "hover:border-pink-500/40 dark:hover:border-pink-500/50",
+                    text: "text-pink-600 dark:text-pink-400",
+                    badge: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+                    link: "text-pink-600 dark:text-pink-400"
+                  }}
+                  isDarkMode={isDarkMode}
+                />
 
               </div>
             </div>
@@ -1989,7 +2094,35 @@ function App() {
               </div>
 
               {/* Documents Table */}
-              <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
+              {(() => {
+                const filtered = documents.filter(doc =>
+                  doc.filename.toLowerCase().includes(docSearchQuery.toLowerCase())
+                );
+
+                const sorted = [...filtered].sort((a, b) => {
+                  let valA = a[docSortField];
+                  let valB = b[docSortField];
+
+                  if (docSortField === 'size' || docSortField === 'pages') {
+                    valA = valA || 0;
+                    valB = valB || 0;
+                  } else if (docSortField === 'filename' || docSortField === 'upload_date' || docSortField === 'uploaded_by') {
+                    valA = (valA || '').toLowerCase();
+                    valB = (valB || '').toLowerCase();
+                  }
+
+                  if (valA < valB) return docSortOrder === 'asc' ? -1 : 1;
+                  if (valA > valB) return docSortOrder === 'asc' ? 1 : -1;
+                  return 0;
+                });
+
+                const totalDocs = sorted.length;
+                const totalPages = Math.ceil(totalDocs / 5) || 1;
+                const startIndex = (docCurrentPage - 1) * 5;
+                const paginatedDocs = sorted.slice(startIndex, startIndex + 5);
+
+                return (
+                  <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4 flex-wrap">
                     <h3 className="text-lg font-extrabold flex items-center gap-2"><i className="fa-solid fa-table text-tuh-rose"></i> แฟ้มเอกสารทั้งหมด</h3>
@@ -2050,45 +2183,28 @@ function App() {
                             <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
                           )}
                         </th>
+                        <th className="px-6 py-4 cursor-pointer hover:text-tuh-rose transition" onClick={() => handleSort('uploaded_by')}>
+                          ผู้อัปโหลด
+                          {docSortField === 'uploaded_by' ? (
+                            docSortOrder === 'asc' ? <i className="fa-solid fa-arrow-up text-[10px] ml-1 text-tuh-rose"></i> : <i className="fa-solid fa-arrow-down text-[10px] ml-1 text-tuh-rose"></i>
+                          ) : (
+                            <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
+                          )}
+                        </th>
                         <th className="px-6 py-4 text-center">สถานะการทำงาน</th>
                         <th className="px-6 py-4 text-center">เปิดใช้งาน</th>
                         <th className="px-6 py-4 text-right">เครื่องมือ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
-                      {(() => {
-                        const filtered = documents.filter(doc =>
-                          doc.filename.toLowerCase().includes(docSearchQuery.toLowerCase())
-                        );
-
-                        const sorted = [...filtered].sort((a, b) => {
-                          let valA = a[docSortField];
-                          let valB = b[docSortField];
-
-                          if (docSortField === 'size' || docSortField === 'pages') {
-                            valA = valA || 0;
-                            valB = valB || 0;
-                          } else if (docSortField === 'filename' || docSortField === 'upload_date') {
-                            valA = (valA || '').toLowerCase();
-                            valB = (valB || '').toLowerCase();
-                          }
-
-                          if (valA < valB) return docSortOrder === 'asc' ? -1 : 1;
-                          if (valA > valB) return docSortOrder === 'asc' ? 1 : -1;
-                          return 0;
-                        });
-
-                        if (sorted.length === 0) {
-                          return (
-                            <tr>
-                              <td colSpan="7" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
-                                {documents.length === 0 ? 'ไม่มีไฟล์เอกสารที่บันทึกไว้ในขณะนี้' : 'ไม่พบเอกสารที่ตรงกับการค้นหา'}
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        return sorted.map(doc => {
+                      {sorted.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
+                            {documents.length === 0 ? 'ไม่มีไฟล์เอกสารที่บันทึกไว้ในขณะนี้' : 'ไม่พบเอกสารที่ตรงกับการค้นหา'}
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedDocs.map(doc => {
                           const isProcessing = doc.status === 'Processing';
                           const isActive = doc.status === 'Active';
                           const isPipeline = ['Step_Raw_Text', 'Step_Clean_Text', 'Step_Chunk_Preview'].includes(doc.status);
@@ -2118,6 +2234,9 @@ function App() {
                               </td>
                               <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                                 {doc.upload_date}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                {doc.uploaded_by || 'ระบบ (Migration)'}
                               </td>
                               <td className="px-6 py-4 text-center">
                                 {isProcessing ? (
@@ -2230,12 +2349,53 @@ function App() {
                               </td>
                             </tr>
                           );
-                        });
-                      })()}
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="p-4 border-t border-slate-100 dark:border-tuh-purple/20 flex items-center justify-between flex-wrap gap-4 bg-slate-50/50 dark:bg-tuh-navy/10">
+                    <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      แสดง {startIndex + 1} ถึง {Math.min(startIndex + 5, totalDocs)} จากทั้งหมด {totalDocs} เอกสาร
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setDocCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={docCurrentPage === 1}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-tuh-purple/20 text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 active:scale-95 text-tuh-navy dark:text-white"
+                      >
+                        <i className="fa-solid fa-angle-left mr-1"></i> ก่อนหน้า
+                      </button>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                        <button
+                          key={pageNum}
+                          onClick={() => setDocCurrentPage(pageNum)}
+                          className={`w-8 h-8 rounded-lg text-xs font-extrabold transition active:scale-95 ${docCurrentPage === pageNum
+                            ? 'bg-tuh-rose text-white shadow-sm'
+                            : 'border border-slate-200 dark:border-tuh-purple/20 hover:bg-slate-50 dark:hover:bg-white/5 text-tuh-navy dark:text-white'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      ))}
+                      
+                      <button
+                        onClick={() => setDocCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={docCurrentPage === totalPages}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-tuh-purple/20 text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-white/5 text-tuh-navy dark:text-white"
+                      >
+                        ถัดไป <i className="fa-solid fa-angle-right ml-1"></i>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
+            );
+          })()}
 
               {/* Welfare Forms Management Panel */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
@@ -3061,7 +3221,8 @@ function App() {
                           const sliced = sorted.slice(0, limitVal);
 
                           return sliced.map((log) => {
-                            const isFaq = log.model === "Direct FAQ";
+                            const modelName = log.api_model || log.model || "";
+                            const isFaq = modelName === "Direct FAQ" || modelName === "custom_faq" || !modelName;
                             return (
                               <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
                                 {/* Time */}
@@ -3086,12 +3247,12 @@ function App() {
                                 <td className="px-6 py-4 align-top whitespace-nowrap">
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold ${isFaq
                                     ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
-                                    : log.model.includes("Ollama")
+                                    : modelName.includes("Ollama")
                                       ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                       : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                     }`}>
                                     <i className={isFaq ? "fa-solid fa-book" : "fa-solid fa-robot"}></i>
-                                    {log.model}
+                                    {modelName || "Direct FAQ"}
                                   </span>
                                 </td>
 
@@ -3101,11 +3262,29 @@ function App() {
                                     <span className="text-slate-500 dark:text-slate-400 text-xs">-</span>
                                   ) : (
                                     <div className="flex flex-wrap gap-1 justify-center max-w-[120px]">
-                                      {log.chunk_ids.map(cid => (
-                                        <span key={cid} className="bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded">
-                                          #{cid}
-                                        </span>
-                                      ))}
+                                      {log.chunk_ids.map(cid => {
+                                        const chunkInfo = chunksMap[String(cid)] || chunksMap[Number(cid)];
+                                        if (chunkInfo && chunkInfo.source) {
+                                          const pdfUrl = `${API_URL}/api/documents/serve/${encodeURIComponent(chunkInfo.source)}${chunkInfo.page ? `#page=${chunkInfo.page}` : ''}`;
+                                          return (
+                                            <a
+                                              key={cid}
+                                              href={pdfUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                                              title={`เปิดดู ${chunkInfo.source} หน้า ${chunkInfo.page || 1}`}
+                                            >
+                                              #{cid}
+                                            </a>
+                                          );
+                                        }
+                                        return (
+                                          <span key={cid} className="bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded">
+                                            #{cid}
+                                          </span>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </td>
@@ -3683,6 +3862,129 @@ function App() {
             </div>
           )}
 
+          {/* TAB 7: USER MANAGEMENT */}
+          {activeTab === 'users' && adminUser.role === 'System Administrator' && (
+            <div className="space-y-6 animate-slide-in">
+              <div className="bg-white dark:bg-[#2c0548] border border-slate-200 dark:border-tuh-purple/20 rounded-3xl overflow-hidden shadow-sm">
+                <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-extrabold flex items-center gap-2">
+                      <i className="fa-solid fa-users-gear text-tuh-rose"></i> การบริหารจัดการสิทธิ์บัญชีผู้ดูแลระบบ (Administrators)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
+                      คุณสามารถสร้าง แก้ไข หรือลบบัญชีแอดมิน รวมถึงรีเซ็ตรหัสผ่านและเปลี่ยนสิทธิ์การเข้าถึงระบบได้ที่นี่
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setUserFormMode('create');
+                      setSelectedUser(null);
+                      setUserFormUsername('');
+                      setUserFormPassword('');
+                      setUserFormDisplayName('');
+                      setUserFormRole('admin');
+                      setUserFormIsActive(true);
+                      setShowUserModal(true);
+                    }}
+                    className="bg-tuh-rose hover:bg-tuh-rose/90 text-white font-bold py-2.5 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs shadow-sm"
+                  >
+                    <i className="fa-solid fa-user-plus"></i> เพิ่มแอดมินใหม่
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
+                        <th className="px-6 py-4">ชื่อแสดงผล (Display Name)</th>
+                        <th className="px-6 py-4">Username</th>
+                        <th className="px-6 py-4">บทบาท (Role)</th>
+                        <th className="px-6 py-4 text-center">สถานะใช้งาน</th>
+                        <th className="px-6 py-4 text-center">วันที่สร้างบัญชี</th>
+                        <th className="px-6 py-4 text-right">การจัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
+                      {loadingUsers ? (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-12 text-center text-slate-500 font-bold">
+                            <div className="inline-block w-6 h-6 border-2 border-tuh-rose border-t-transparent rounded-full animate-spin mr-2"></div>
+                            กำลังโหลดรายชื่อแอดมิน...
+                          </td>
+                        </tr>
+                      ) : users.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
+                            ไม่พบบัญชีผู้ใช้ใดๆ ในระบบ
+                          </td>
+                        </tr>
+                      ) : (
+                        users.map((u) => {
+                          const isSelf = adminUser.username === u.username;
+                          return (
+                            <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
+                              <td className="px-6 py-4 text-slate-800 dark:text-slate-100 font-bold">
+                                {u.display_name} {isSelf && <span className="text-[10px] bg-sky-500/10 text-sky-500 px-1.5 py-0.5 rounded font-extrabold ml-1">บัญชีของคุณ</span>}
+                              </td>
+                              <td className="px-6 py-4 text-slate-600 dark:text-slate-305">
+                                {u.username}
+                              </td>
+                              <td className="px-6 py-4 align-top">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-extrabold ${u.role === 'System Administrator'
+                                  ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                                  : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
+                                  }`}>
+                                  {u.role}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-extrabold ${u.is_active
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                  }`}>
+                                  {u.is_active ? "พร้อมใช้งาน" : "ระงับชั่วคราว"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                                {new Date(u.created_at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
+                              </td>
+                              <td className="px-6 py-4 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setUserFormMode('edit');
+                                      setSelectedUser(u);
+                                      setUserFormUsername(u.username);
+                                      setUserFormPassword('');
+                                      setUserFormDisplayName(u.display_name);
+                                      setUserFormRole(u.role);
+                                      setUserFormIsActive(u.is_active);
+                                      setShowUserModal(true);
+                                    }}
+                                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-3 rounded-xl transition active:scale-95 text-xs flex items-center gap-1"
+                                  >
+                                    <i className="fa-solid fa-pen-to-square"></i> แก้ไข / รีเซ็ตรหัส
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteModalState({ show: true, type: 'user', targetId: u.id, targetName: u.username })}
+                                    disabled={isSelf}
+                                    className="bg-rose-500 hover:bg-rose-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-xl transition active:scale-95 text-xs flex items-center gap-1"
+                                  >
+                                    <i className="fa-solid fa-trash"></i> ลบ
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
 
@@ -3818,11 +4120,13 @@ function App() {
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2.5">
               {deleteModalState.type === 'document' ? 'ยืนยันการลบเอกสาร' : 
-               deleteModalState.type === 'announcement' ? 'ยืนยันการลบประกาศ' : 'ยืนยันการลบแบบฟอร์ม'}
+               deleteModalState.type === 'announcement' ? 'ยืนยันการลบประกาศ' :
+               deleteModalState.type === 'user' ? 'ยืนยันการลบบัญชีแอดมิน' : 'ยืนยันการลบแบบฟอร์ม'}
             </h3>
             <p className="text-sm font-semibold text-slate-600 dark:text-slate-200 mb-6 leading-relaxed whitespace-pre-line">
               คุณแน่ใจหรือไม่ว่าต้องการลบ <span className="font-extrabold text-[#E97D30] dark:text-[#F2619C]">"{deleteModalState.targetName}"</span>?
               {deleteModalState.type === 'document' && '\nข้อมูลใน Vector Index ของเอกสารนี้จะถูกนำออกทั้งหมด'}
+              {deleteModalState.type === 'user' && '\nบัญชีแอดมินนี้จะไม่สามารถใช้งานเข้าสู่ระบบหลังบ้านได้อีกต่อไป'}
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
@@ -4475,6 +4779,116 @@ function App() {
                   className="bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98]"
                 >
                   <i className="fa-solid fa-floppy-disk mr-1.5"></i> บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT ADMIN USER MODAL */}
+      {showUserModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#2c0548]/95 rounded-3xl border border-slate-200 dark:border-tuh-purple/35 shadow-2xl overflow-hidden animate-slide-in">
+            <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
+              <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
+                <i className="fa-solid fa-user-gear text-tuh-rose"></i>
+                {userFormMode === 'create' ? 'เพิ่มผู้ดูแลระบบ (Admin) ใหม่' : 'แก้ไขข้อมูลบัญชีแอดมิน'}
+              </h3>
+              <button
+                onClick={() => { setShowUserModal(false); setSelectedUser(null); }}
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateOrUpdateUser} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">ชื่อแสดงผล (Display Name)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น สมชาย ใจดี"
+                  value={userFormDisplayName}
+                  onChange={(e) => setUserFormDisplayName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Username (ใช้เข้าระบบ)</label>
+                <input
+                  type="text"
+                  required
+                  disabled={userFormMode === 'edit'}
+                  placeholder="เช่น somchayd"
+                  value={userFormUsername}
+                  onChange={(e) => setUserFormUsername(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#100220]/45 disabled:opacity-50 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  {userFormMode === 'create' ? 'รหัสผ่าน (Password)' : 'ตั้งรหัสผ่านใหม่ (Reset Password)'}
+                  {userFormMode === 'edit' && <span className="text-[10px] text-slate-400 font-normal ml-1">(ปล่อยว่างไว้หากต้องการรักษารหัสผ่านเดิม)</span>}
+                </label>
+                <input
+                  type="password"
+                  required={userFormMode === 'create'}
+                  placeholder={userFormMode === 'create' ? "พิมพ์รหัสผ่านสำหรับล็อกอิน..." : "ปล่อยว่างเพื่อไม่เปลี่ยน หรือพิมพ์รหัสใหม่..."}
+                  value={userFormPassword}
+                  onChange={(e) => setUserFormPassword(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">บทบาท (Role)</label>
+                  <select
+                    value={userFormRole}
+                    onChange={(e) => setUserFormRole(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-[#100220]/45 border border-slate-200 dark:border-tuh-purple/20 rounded-2xl py-2.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
+                  >
+                    <option value="admin">admin</option>
+                    <option value="System Administrator">System Administrator</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">สถานะใช้งาน</label>
+                  <div className="flex items-center h-10 mt-1">
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={userFormIsActive}
+                        onChange={(e) => setUserFormIsActive(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-none peer-checked:bg-emerald-500 dark:peer-checked:bg-emerald-500"></div>
+                      <span className="ml-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                        {userFormIsActive ? "เปิดการใช้งาน" : "ระงับสิทธิ์"}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-tuh-purple/10">
+                <button
+                  type="button"
+                  onClick={() => { setShowUserModal(false); setSelectedUser(null); }}
+                  className="px-5 py-2.5 rounded-2xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 font-semibold transition active:scale-95 text-xs"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="bg-tuh-gradient-2 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98] text-xs flex items-center gap-1.5"
+                >
+                  <i className="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
                 </button>
               </div>
             </form>

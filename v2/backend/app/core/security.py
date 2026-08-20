@@ -4,6 +4,7 @@ TUH Chatbot AI — Security Module (Cybersecurity Engineer)
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
+from pathlib import Path
 import hashlib
 import hmac
 import secrets
@@ -106,3 +107,16 @@ def generate_token_pair(username: str) -> Dict[str, str]:
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+
+def safe_path(base_dir: Path, relative_path: str) -> Path:
+    """
+    คืนค่า Path ที่ปลอดภัยและถูกจำกัดให้อยู่ภายใต้ base_dir เท่านั้น
+    เพื่อป้องกัน Path Traversal Attack (CWE-22)
+    """
+    from fastapi import HTTPException
+    base_abs = base_dir.resolve()
+    target_abs = (base_abs / relative_path).resolve()
+    if not str(target_abs).startswith(str(base_abs)):
+        raise HTTPException(status_code=400, detail="รูปแบบชื่อไฟล์ไม่ปลอดภัย (Path Traversal Detected)")
+    return target_abs

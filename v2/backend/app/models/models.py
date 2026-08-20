@@ -13,6 +13,9 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 
+from app.core.config import settings
+
+
 # ─── Users (Admin Accounts) ────────────────────────────────────────────────────
 
 class User(Base):
@@ -46,6 +49,7 @@ class Document(Base):
     chunking_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     embedding_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     upload_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    uploaded_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 
 # ─── Settings ──────────────────────────────────────────────────────────────────
@@ -54,17 +58,18 @@ class SystemSettings(Base):
     __tablename__ = "settings"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, default="config")
-    model_name: Mapped[str] = mapped_column(String(100), nullable=False, default="google/gemini-2.5-flash")
+    model_name: Mapped[str] = mapped_column(String(100), nullable=False, default=settings.DEFAULT_LLM_MODEL)
     temperature: Mapped[float] = mapped_column(Float, nullable=False, default=0.4)
     max_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=1000)
     top_k: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
-    embedding_tech: Mapped[str] = mapped_column(String(50), nullable=False, default="bge-m3")
+    embedding_tech: Mapped[str] = mapped_column(String(50), nullable=False, default="local_chroma")
     system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     welcome_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     chat_greeting: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     custom_faqs: Mapped[Optional[str]] = mapped_column(Text, nullable=True)     # JSON string
     predefined_faqs: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
     last_build_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    gemini_api_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # OpenRouter/Gemini API key
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -132,6 +137,10 @@ class Form(Base):
     filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     page: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     download_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    @property
+    def link(self) -> Optional[str]:
+        return self.download_link
 
 
 # ─── Announcements ─────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import uuid
 import shutil
 import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status, Request
 from pydantic import BaseModel
@@ -70,6 +70,26 @@ async def legacy_admin_login(
         "name": user.display_name
     }
 
+
+class PasswordUpdatePayload(BaseModel):
+    new_password: str
+
+
+@router.post("/password/update")
+async def update_password(
+    payload: PasswordUpdatePayload,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """เปลี่ยนรหัสผ่านส่วนตัวของผู้ดูแลระบบที่กำลังล็อกอินอยู่"""
+    if len(payload.new_password) < 4:
+        raise HTTPException(status_code=400, detail="รหัสผ่านสั้นเกินไป")
+    
+    from app.core.security import hash_password
+    current_user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+    return {"success": True, "detail": "เปลี่ยนรหัสผ่านสำเร็จแล้ว"}
+
 # ─── Rebuild State ────────────────────────────────────────────────────────────
 _rebuild_status = {"status": "idle", "message": "ยังไม่ได้ประมวลผล", "duration": None}
 
@@ -99,7 +119,8 @@ def _doc_to_response(doc: Document) -> DocumentResponse:
         exclude_pages=_parse_exclude_pages(doc.exclude_pages),
         chunking_duration=doc.chunking_duration,
         embedding_duration=doc.embedding_duration,
-        upload_date=doc.upload_date.strftime("%Y-%m-%d %H:%M:%S") if doc.upload_date else ""
+        upload_date=doc.upload_date.strftime("%Y-%m-%d %H:%M:%S") if doc.upload_date else "",
+        uploaded_by=doc.uploaded_by
     )
 
 
@@ -154,43 +175,55 @@ async def upload_document(
     with open(str(file_path), "wb") as f:
         f.write(file_content)
 
-    # Count PDF pages
+    # Count PDF pages and extract raw text for Step 1
     pages = None
+    raw_text_blocks = []
     try:
         import fitz
+        import re
         doc_pdf = fitz.open(str(file_path))
         pages = len(doc_pdf)
+        for i, page in enumerate(doc_pdf):
+            page_text = page.get_text()
+            # Clean Thai spacing and split sara-am characters
+            cleaned_page_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', page_text)
+            raw_text_blocks.append(f"# Page {i+1}\n{cleaned_page_text}")
         doc_pdf.close()
-    except Exception:
-        pass
+    except Exception as parse_err:
+        print(f"Error parsing raw text on upload: {parse_err}")
+        raw_text_blocks = ["(ไม่สามารถถอดข้อความภาษาไทยได้)"]
+
+    raw_text = "\n\n".join(raw_text_blocks)
+    raw_text_path = UPLOADS_DIR / f"{filename}.raw.txt"
+    with open(str(raw_text_path), "w", encoding="utf-8") as f:
+        f.write(raw_text)
 
     # Check if already exists
     existing_result = await db.execute(select(Document).where(Document.filename == filename))
     existing = existing_result.scalar_one_or_none()
 
     if existing:
-        existing.status = "Processing"
+        existing.status = "Step_Raw_Text"
         existing.size = file_size
         existing.pages = pages
         existing.exclude_pages = exclude_pages
         existing.display_name = display_name
+        existing.uploaded_by = current_user.display_name or current_user.username
         doc_entry = existing
     else:
         doc_entry = Document(
             filename=filename,
             display_name=display_name,
-            status="Processing",
+            status="Step_Raw_Text",
             pages=pages,
             size=file_size,
-            exclude_pages=exclude_pages
+            exclude_pages=exclude_pages,
+            uploaded_by=current_user.display_name or current_user.username
         )
         db.add(doc_entry)
 
     await db.commit()
     await db.refresh(doc_entry)
-
-    # Trigger rebuild in background
-    background_tasks.add_task(_trigger_rebuild_background)
 
     return _doc_to_response(doc_entry)
 
@@ -240,10 +273,339 @@ async def delete_document(
     if file_path.exists():
         file_path.unlink()
 
+    # Delete associated workflow files
+    for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
+        assoc_file = UPLOADS_DIR / f"{filename}{ext}"
+        if assoc_file.exists():
+            assoc_file.unlink()
+
     await db.delete(doc)
     await db.commit()
 
     background_tasks.add_task(_trigger_rebuild_background)
+
+
+class ToggleDocumentRequest(BaseModel):
+    filename: str
+    active: bool
+
+
+class DeleteDocumentRequest(BaseModel):
+    filename: str
+
+
+class UpdateExcludeRequest(BaseModel):
+    filename: str
+    exclude_pages: List[int]
+
+
+@router.post("/documents/toggle")
+async def toggle_document(
+    payload: ToggleDocumentRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    filename = payload.filename
+    active = payload.active
+
+    result = await db.execute(select(Document).where(Document.filename == filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+
+    doc.status = "Active" if active else "Inactive"
+    await db.commit()
+    await db.refresh(doc)
+
+    background_tasks.add_task(_trigger_rebuild_background)
+    return {"success": True}
+
+
+@router.post("/documents/delete")
+async def delete_document_post(
+    payload: DeleteDocumentRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    filename = payload.filename
+
+    result = await db.execute(select(Document).where(Document.filename == filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+
+    file_path = UPLOADS_DIR / filename
+    if file_path.exists():
+        file_path.unlink()
+
+    # Delete associated workflow files
+    for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
+        assoc_file = UPLOADS_DIR / f"{filename}{ext}"
+        if assoc_file.exists():
+            assoc_file.unlink()
+
+    await db.delete(doc)
+    await db.commit()
+
+    background_tasks.add_task(_trigger_rebuild_background)
+    return {"success": True}
+
+
+@router.post("/documents/update_exclude")
+async def update_exclude_pages(
+    payload: UpdateExcludeRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    filename = payload.filename
+    exclude_pages = payload.exclude_pages
+
+    result = await db.execute(select(Document).where(Document.filename == filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+
+    doc.exclude_pages = ",".join(map(str, exclude_pages))
+    await db.commit()
+    await db.refresh(doc)
+
+    background_tasks.add_task(_trigger_rebuild_background)
+    return {"success": True}
+
+
+class ApproveRequest(BaseModel):
+    filename: str
+    current_status: str
+
+
+class UpdateContentRequest(BaseModel):
+    filename: str
+    type: str
+    content: Union[str, List[Any]]
+
+
+@router.post("/documents/approve")
+async def approve_document(
+    payload: ApproveRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    filename = payload.filename
+    current_status = payload.current_status
+
+    result = await db.execute(select(Document).where(Document.filename == filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้ในระบบ")
+
+    exclude_pages = _parse_exclude_pages(doc.exclude_pages)
+    new_status = current_status
+
+    if current_status == "Step_Raw_Text":
+        # Step 2: Clean the raw text
+        raw_text_path = UPLOADS_DIR / f"{filename}.raw.txt"
+        if not raw_text_path.exists():
+            raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความดิบสำหรับการคลีนคำ")
+        
+        with open(str(raw_text_path), "r", encoding="utf-8") as f:
+            raw_text = f.read()
+
+        # Import clean functions
+        import sys
+        import re
+        admin_parent = str(Path(settings.ADMIN_DIR).parent)
+        if admin_parent not in sys.path:
+            sys.path.insert(0, admin_parent)
+        
+        from Admin.cleanData import replace_thai_numbers
+        cleaned_text = replace_thai_numbers(raw_text)
+        cleaned_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', cleaned_text)
+
+        # Filter out excluded pages
+        pages_blocks = re.split(r'(# Page \d+\n)', cleaned_text)
+        reconstructed_blocks = []
+        current_page_num = 1
+        
+        if pages_blocks[0].strip():
+            reconstructed_blocks.append(pages_blocks[0])
+            
+        for idx in range(1, len(pages_blocks), 2):
+            marker = pages_blocks[idx]
+            content = pages_blocks[idx+1] if idx+1 < len(pages_blocks) else ""
+            
+            page_match = re.search(r'# Page (\d+)', marker)
+            p_num = int(page_match.group(1)) if page_match else current_page_num
+            
+            if p_num not in exclude_pages:
+                reconstructed_blocks.append(marker + content)
+            current_page_num = p_num + 1
+            
+        cleaned_filtered_text = "".join(reconstructed_blocks)
+
+        cleaned_path = UPLOADS_DIR / f"{filename}.cleaned.md"
+        with open(str(cleaned_path), "w", encoding="utf-8") as f:
+            f.write(cleaned_filtered_text)
+
+        new_status = "Step_Clean_Text"
+
+    elif current_status == "Step_Clean_Text":
+        # Step 3: Split cleaned text into chunks
+        cleaned_path = UPLOADS_DIR / f"{filename}.cleaned.md"
+        if not cleaned_path.exists():
+            raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความที่เคลียร์แล้วสำหรับแบ่ง Chunk")
+        
+        with open(str(cleaned_path), "r", encoding="utf-8") as f:
+            full_text = f.read()
+
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        import re
+
+        pages_raw = re.split(r'(# Page \d+\n)', full_text)
+        chunks = []
+        chunk_id = 1
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=400,
+            separators=["\n\n", "\n", " "],
+            add_start_index=True
+        )
+
+        current_page_num = 1
+        header_content = pages_raw[0].strip()
+        if header_content:
+            docs_split = splitter.create_documents([header_content])
+            for doc_chunk in docs_split:
+                chunks.append({
+                    "chunk_id": chunk_id,
+                    "content": doc_chunk.page_content.strip(),
+                    "metadata": {
+                        "source": filename,
+                        "page": 1,
+                        "type": "text"
+                    }
+                })
+                chunk_id += 1
+
+        for idx in range(1, len(pages_raw), 2):
+            marker = pages_raw[idx]
+            page_content = pages_raw[idx+1] if idx+1 < len(pages_raw) else ""
+            
+            page_match = re.search(r'# Page (\d+)', marker)
+            page_num = int(page_match.group(1)) if page_match else current_page_num
+            current_page_num = page_num
+            
+            if page_content.strip():
+                docs_split = splitter.create_documents([page_content])
+                for doc_chunk in docs_split:
+                    chunks.append({
+                        "chunk_id": chunk_id,
+                        "content": doc_chunk.page_content.strip(),
+                        "metadata": {
+                            "source": filename,
+                            "page": page_num,
+                            "type": "text"
+                        }
+                    })
+                    chunk_id += 1
+
+        chunks_path = UPLOADS_DIR / f"{filename}.chunks.json"
+        with open(str(chunks_path), "w", encoding="utf-8") as f:
+            json.dump(chunks, f, ensure_ascii=False, indent=2)
+
+        new_status = "Step_Chunk_Preview"
+
+    elif current_status == "Step_Chunk_Preview":
+        # Step 4: Go live / Active and Rebuild Vector
+        new_status = "Active"
+        background_tasks.add_task(_trigger_rebuild_background)
+
+    doc.status = new_status
+    await db.commit()
+    await db.refresh(doc)
+
+    return {"success": True, "new_status": new_status}
+
+
+@router.get("/documents/view_raw")
+async def view_raw_document(
+    filename: str,
+    current_user: User = Depends(get_current_user)
+):
+    filepath = UPLOADS_DIR / f"{filename}.raw.txt"
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความดิบ")
+    
+    with open(str(filepath), "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"filename": filename, "content": content}
+
+
+@router.get("/documents/view_cleaned")
+async def view_cleaned_document(
+    filename: str,
+    current_user: User = Depends(get_current_user)
+):
+    filepath = UPLOADS_DIR / f"{filename}.cleaned.md"
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความที่เคลียร์แล้ว")
+    
+    with open(str(filepath), "r", encoding="utf-8") as f:
+        content = f.read()
+    return {"filename": filename, "content": content}
+
+
+@router.get("/documents/view_chunks")
+async def view_chunks_document(
+    filename: str,
+    current_user: User = Depends(get_current_user)
+):
+    filepath = UPLOADS_DIR / f"{filename}.chunks.json"
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์พรีวิวแบ่ง Chunk")
+    
+    try:
+        with open(str(filepath), "r", encoding="utf-8") as f:
+            chunks = json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ไม่สามารถโหลดไฟล์ Chunks ได้: {e}")
+    return {"filename": filename, "chunks": chunks}
+
+
+@router.post("/documents/update_content")
+async def update_content_document(
+    payload: UpdateContentRequest,
+    current_user: User = Depends(get_current_user)
+):
+    filename = payload.filename
+    content_type = payload.type
+    content = payload.content
+
+    if content_type == "raw":
+        if not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="Content สำหรับข้อความดิบต้องเป็น string")
+        filepath = UPLOADS_DIR / f"{filename}.raw.txt"
+        with open(str(filepath), "w", encoding="utf-8") as f:
+            f.write(content)
+    elif content_type == "cleaned":
+        if not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="Content สำหรับข้อความเคลียร์ต้องเป็น string")
+        filepath = UPLOADS_DIR / f"{filename}.cleaned.md"
+        with open(str(filepath), "w", encoding="utf-8") as f:
+            f.write(content)
+    elif content_type == "chunks":
+        if not isinstance(content, list):
+            raise HTTPException(status_code=400, detail="Content สำหรับ Chunk ต้องเป็น list")
+        filepath = UPLOADS_DIR / f"{filename}.chunks.json"
+        with open(str(filepath), "w", encoding="utf-8") as f:
+            json.dump(content, f, ensure_ascii=False, indent=2)
+    else:
+        raise HTTPException(status_code=400, detail=f"ประเภทเนื้อหาไม่ถูกต้อง: {content_type}")
+        
+    return {"success": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -277,19 +639,21 @@ async def get_settings(
     if not cfg:
         # Return defaults
         return SettingsResponse(
-            model_name="google/gemini-2.5-flash",
+            model_name=settings.DEFAULT_LLM_MODEL,
             temperature=0.4,
             max_tokens=1000,
             top_k=3,
-            embedding_tech="bge-m3"
+            embedding_tech="bge-m3",
+            gemini_api_key=settings.LLM_API_KEY if is_admin else "***masked***"
         )
         
     gemini_key = ""
-    if cfg.gemini_api_key:
-        gemini_key = cfg.gemini_api_key if is_admin else "***masked***"
+    api_key_source = settings.LLM_API_KEY or cfg.gemini_api_key
+    if api_key_source:
+        gemini_key = api_key_source if is_admin else "***masked***"
         
     return SettingsResponse(
-        model_name=cfg.model_name,
+        model_name=cfg.model_name or settings.DEFAULT_LLM_MODEL,
         temperature=cfg.temperature,
         max_tokens=cfg.max_tokens,
         top_k=cfg.top_k,
@@ -304,6 +668,7 @@ async def get_settings(
     )
 
 
+@router.post("/settings", response_model=SettingsResponse)
 @router.put("/settings", response_model=SettingsResponse)
 async def update_settings(
     body: SettingsUpdate,
@@ -317,8 +682,10 @@ async def update_settings(
         cfg = SystemSettings(id="config")
         db.add(cfg)
 
-    if body.model_name is not None:
-        cfg.model_name = body.model_name
+    # บังคับให้อ่านค่าจากโค้ดและ env config เท่านั้น (ไม่ให้แก้ไขจากหน้าเว็บ)
+    cfg.model_name = settings.DEFAULT_LLM_MODEL
+    cfg.gemini_api_key = settings.LLM_API_KEY
+
     if body.temperature is not None:
         cfg.temperature = body.temperature
     if body.max_tokens is not None:
@@ -335,9 +702,6 @@ async def update_settings(
         cfg.custom_faqs = json.dumps([f.model_dump() for f in body.custom_faqs], ensure_ascii=False)
     if body.predefined_faqs is not None:
         cfg.predefined_faqs = json.dumps([f.model_dump() for f in body.predefined_faqs], ensure_ascii=False)
-    if body.gemini_api_key is not None:
-        # Store API key in environment (not DB for security)
-        os.environ["OPENROUTER_API_KEY"] = body.gemini_api_key
 
     await db.commit()
     await db.refresh(cfg)
@@ -353,7 +717,8 @@ async def update_settings(
         chat_greeting=cfg.chat_greeting,
         custom_faqs=json.loads(cfg.custom_faqs or "[]"),
         predefined_faqs=json.loads(cfg.predefined_faqs or "[]"),
-        last_build_duration=cfg.last_build_duration
+        last_build_duration=cfg.last_build_duration,
+        success=True
     )
 
 
@@ -378,6 +743,21 @@ async def get_feedback(
 @router.post("/feedback/submit", status_code=status.HTTP_201_CREATED)
 async def submit_feedback(body: FeedbackSubmit, db: AsyncSession = Depends(get_db)):
     """User submits feedback (ไม่ต้องการ auth)"""
+    if body.query and body.answer:
+        result = await db.execute(
+            select(Feedback).where(
+                Feedback.query == body.query,
+                Feedback.answer == body.answer
+            )
+        )
+        existing = result.scalars().first()
+        if existing:
+            existing.rating = body.rating
+            if body.comment is not None:
+                existing.comment = body.comment
+            await db.commit()
+            return {"success": True}
+
     entry = Feedback(
         id=f"fb-{int(time.time() * 1000)}",
         rating=body.rating,
@@ -608,6 +988,37 @@ async def delete_form(
     await db.commit()
 
 
+class DeleteFormRequest(BaseModel):
+    id: str
+
+
+@router.post("/forms/delete")
+async def delete_form_compatibility(
+    payload: DeleteFormRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    form_id = payload.id
+    result = await db.execute(select(FormModel).where(FormModel.id == form_id))
+    form = result.scalar_one_or_none()
+    if not form:
+        raise HTTPException(status_code=404, detail="ไม่พบแบบฟอร์มนี้")
+
+    # Delete file from disk
+    if form.filename:
+        forms_dir = Path(settings.UPLOADS_DIR) / "forms"
+        filepath = forms_dir / form.filename
+        if filepath.exists():
+            try:
+                filepath.unlink()
+            except Exception:
+                pass
+
+    await db.delete(form)
+    await db.commit()
+    return {"success": True}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ANNOUNCEMENTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -666,6 +1077,84 @@ async def delete_announcement(
     await db.commit()
 
 
+class LegacyAnnouncementCreateRequest(BaseModel):
+    title: str
+    content: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    pinned: bool = False
+
+
+class LegacyAnnouncementUpdateRequest(BaseModel):
+    id: int
+    title: str
+    content: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    pinned: bool = False
+
+
+class LegacyAnnouncementDeleteRequest(BaseModel):
+    id: int
+
+
+@router.post("/announcements/create")
+async def create_announcement_compatibility(
+    payload: LegacyAnnouncementCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    ann = Announcement(
+        title=payload.title,
+        content=payload.content,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        pinned=payload.pinned
+    )
+    db.add(ann)
+    await db.commit()
+    await db.refresh(ann)
+    return ann
+
+
+@router.post("/announcements/update")
+async def update_announcement_compatibility(
+    payload: LegacyAnnouncementUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Announcement).where(Announcement.id == payload.id))
+    ann = result.scalar_one_or_none()
+    if not ann:
+        raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
+        
+    ann.title = payload.title
+    ann.content = payload.content
+    ann.start_date = payload.start_date
+    ann.end_date = payload.end_date
+    ann.pinned = payload.pinned
+    
+    await db.commit()
+    await db.refresh(ann)
+    return ann
+
+
+@router.post("/announcements/delete")
+async def delete_announcement_compatibility(
+    payload: LegacyAnnouncementDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Announcement).where(Announcement.id == payload.id))
+    ann = result.scalar_one_or_none()
+    if not ann:
+        raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
+        
+    await db.delete(ann)
+    await db.commit()
+    return {"success": True}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # HISTORY
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -690,6 +1179,30 @@ async def get_history(
         referenced_docs=json.loads(h.referenced_docs or "[]"),
         timestamp=h.timestamp.strftime("%Y-%m-%d %H:%M:%S") if h.timestamp else ""
     ) for h in items]
+
+
+@router.get("/history/chunks-map")
+async def get_history_chunks_map(current_user: User = Depends(get_current_user)):
+    """ดึงแผนผัง Chunk ID -> {source, page} เพื่อให้หน้าบ้านคลิกลิงก์ไปยัง PDF หน้าคู่มือของ Chunk ได้"""
+    chunks_path = Path(settings.ADMIN_DIR).parent / "sample_chunks.json"
+    if not chunks_path.exists():
+        chunks_path = Path(settings.INDEX_DB_DIR) / "faiss_metadata.json"
+    if not chunks_path.exists():
+        return {}
+    try:
+        with open(chunks_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            str(item["chunk_id"]): {
+                "source": item["metadata"].get("source", ""),
+                "page": item["metadata"].get("page", 1)
+            }
+            for item in data if "chunk_id" in item and "metadata" in item
+        }
+    except Exception as e:
+        print(f"[Chunks Map Error] {e}")
+        return {}
+
 
 
 # ─── Form Upload & Page Extraction (Legacy Compatibility) ─────────────────────

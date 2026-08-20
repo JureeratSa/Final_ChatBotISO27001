@@ -46,5 +46,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def create_tables():
     """สร้างตาราง Database ทั้งหมด (ใช้ตอน startup)"""
     from app.models import models  # noqa
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by VARCHAR(100) NULL;"))
+            print("🚀 Column 'uploaded_by' successfully added to 'documents' table.")
+        except Exception:
+            pass

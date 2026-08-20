@@ -13,7 +13,7 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 # Paths
 base_dir = os.path.dirname(os.path.abspath(__file__))
-src_frontend = os.path.join(base_dir, "adminSPO", "frontend")
+src_frontend = os.path.join(base_dir, "v2", "admin")
 dest_frontend = r"C:\Users\ITS\tuh-admin-frontend"
 log_file_path = os.path.join(base_dir, "admin_dev_server.log")
 

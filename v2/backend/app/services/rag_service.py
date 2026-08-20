@@ -222,8 +222,8 @@ async def query_rag(
     messages.append({"role": "user", "content": user_content})
 
     # ─ Call OpenRouter API ─
-    api_key = config.get("gemini_api_key", "") or settings.OPENROUTER_API_KEY or ""
-    model_name = config.get("model_name", "google/gemini-2.5-flash")
+    api_key = config.get("gemini_api_key", "") or settings.LLM_API_KEY or ""
+    model_name = config.get("model_name") or settings.DEFAULT_LLM_MODEL
     temperature = float(config.get("temperature", 0.4))
     max_tokens = max(int(config.get("max_tokens", 1000)), 1000)
 

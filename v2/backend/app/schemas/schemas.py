@@ -80,6 +80,7 @@ class SettingsResponse(BaseModel):
     predefined_faqs: List[FAQ] = []
     last_build_duration: Optional[float] = None
     gemini_api_key: Optional[str] = None  # masked on response
+    success: bool = True
 
 
 class SettingsUpdate(BaseModel):
@@ -107,6 +108,7 @@ class DocumentResponse(BaseModel):
     chunking_duration: Optional[float] = None
     embedding_duration: Optional[float] = None
     upload_date: str
+    uploaded_by: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -232,6 +234,7 @@ class FormResponse(BaseModel):
     filename: Optional[str] = None
     page: Optional[str] = None
     download_link: Optional[str] = None
+    link: Optional[str] = None
 
     class Config:
         from_attributes = True

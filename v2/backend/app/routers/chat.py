@@ -24,6 +24,8 @@ from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLin
 from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form, Document
 from app.services.rag_service import get_retriever, query_rag
 
+from app.core.security import safe_path
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
@@ -61,7 +63,7 @@ async def chat(
             "welcome_message": config_row.welcome_message,
             "custom_faqs": json.loads(config_row.custom_faqs or "[]"),
             "predefined_faqs": json.loads(config_row.predefined_faqs or "[]"),
-            "gemini_api_key": settings.GEMINI_API_KEY or settings.OPENROUTER_API_KEY or "",
+            "gemini_api_key": settings.LLM_API_KEY,
         }
 
     # ─── 2. ตรวจสอบ Custom FAQs ก่อน ──────────────────────────────────────
@@ -131,7 +133,7 @@ async def chat(
 
         for source, pages in grouped.items():
             display = filename_to_display.get(source, source.replace(".pdf", "").replace("_", " "))
-            pdf_url = f"/api/documents/serve/{quote(source)}?page={min(pages)}" if pages else f"/api/documents/serve/{quote(source)}"
+            pdf_url = f"/api/documents/serve/{quote(source)}#page={min(pages)}" if pages else f"/api/documents/serve/{quote(source)}"
             citations.append(CitationInfo(
                 source=source,
                 pages=sorted(pages),
@@ -151,7 +153,7 @@ async def chat(
 
     # ─── 9. บันทึกประวัติ ──────────────────────────────────────────────────
     history_id = f"history-{int(time.time() * 1000)}"
-    chunk_ids = [res.get("id", 0) for res in rag_results]
+    chunk_ids = [res.get("chunk_id", res.get("id", 0)) for res in rag_results]
     referenced_docs = list(set(res["metadata"].get("source", "") for res in rag_results))
     background_tasks.add_task(
         save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs
@@ -188,7 +190,11 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
 @router.get("/documents/serve/{filename}")
 async def serve_pdf(filename: str):
     """Serve PDF ไฟล์ให้ User เปิดดูใน browser"""
-    file_path = UPLOADS_DIR / filename
+    try:
+        file_path = safe_path(UPLOADS_DIR, filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
     return FileResponse(str(file_path), media_type="application/pdf")
@@ -199,7 +205,8 @@ async def serve_pdf(filename: str):
 async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_name, referenced_docs):
     """บันทึกประวัติการสนทนา (Background Task)"""
     try:
-        async with db.__class__(bind=db.get_bind()) as session:
+        from app.core.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
             entry = ChatHistory(
                 id=history_id,
                 query=query,

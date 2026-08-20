@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.database import create_tables
-from app.core.security import hash_password
+from app.core.security import hash_password, safe_path
 from app.routers import auth, chat, admin
 
 
@@ -119,7 +119,7 @@ async def migrate_from_json():
                 data = json.loads(settings_file.read_text(encoding="utf-8"))
                 cfg = SystemSettings(
                     id="config",
-                    model_name=data.get("model_name", "google/gemini-2.5-flash"),
+                    model_name=data.get("model_name") or settings.DEFAULT_LLM_MODEL,
                     temperature=float(data.get("temperature", 0.4)),
                     max_tokens=int(data.get("max_tokens", 1000)),
                     top_k=int(data.get("top_k", 3)),
@@ -178,6 +178,15 @@ async def migrate_from_json():
                         status=u.get("status", "Pending")
                     ))
 
+        # Force SystemSettings embedding_tech to local_chroma
+        result_force = await session.execute(select(SystemSettings).where(SystemSettings.id == "config"))
+        cfg_force = result_force.scalar_one_or_none()
+        if cfg_force:
+            cfg_force.embedding_tech = "local_chroma"
+        else:
+            cfg_force = SystemSettings(id="config", embedding_tech="local_chroma")
+            session.add(cfg_force)
+
         await session.commit()
 
 
@@ -195,16 +204,17 @@ app = FastAPI(
 
 # ─── Middleware ───────────────────────────────────────────────────────────────
 
+# Configure explicit allowed origins for CORS security (CWE-942 mitigation)
+allowed_origins = [
+    settings.FRONTEND_URL,
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://localhost:3000"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -231,7 +241,12 @@ async def health_check():
 
 @app.get("/api/forms/download/{filename}")
 async def download_form_file(filename: str):
-    form_path = Path(settings.UPLOADS_DIR) / "forms" / filename
+    try:
+        forms_dir = Path(settings.UPLOADS_DIR) / "forms"
+        form_path = safe_path(forms_dir, filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
     if not form_path.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์แบบฟอร์มนี้")
     return FileResponse(
@@ -239,6 +254,19 @@ async def download_form_file(filename: str):
         filename=filename.split("_", 1)[-1],
         media_type="application/pdf"
     )
+
+
+@app.get("/api/documents/serve/{filename}")
+async def main_serve_pdf(filename: str):
+    try:
+        uploads_dir = Path(settings.UPLOADS_DIR)
+        file_path = safe_path(uploads_dir, filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+    return FileResponse(str(file_path), media_type="application/pdf")
 
 
 # ─── Serve Static PDF Files ───────────────────────────────────────────────────
@@ -328,7 +356,7 @@ async def compatibility_search(
 
         # Log history in background
         history_id = f"history-{int(time.time() * 1000)}"
-        chunk_ids = [res.get("id", 0) if isinstance(res, dict) else 0 for res in rag_results]
+        chunk_ids = [res.get("chunk_id", res.get("id", 0)) if isinstance(res, dict) else 0 for res in rag_results]
         referenced_docs = list(set(res["metadata"].get("source", "") for res in rag_results if isinstance(res, dict) and "metadata" in res))
         
         background_tasks.add_task(
