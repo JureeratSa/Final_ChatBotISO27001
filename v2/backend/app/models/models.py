@@ -26,6 +26,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False, default="Admin")
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="admin")
+    department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -153,5 +154,7 @@ class Announcement(Base):
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     start_date: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     end_date: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

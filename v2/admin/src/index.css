@@ -6,6 +6,49 @@ html {
   font-size: 16px;
 }
 
+/* ==========================================
+   Glass surface design tokens
+   (replaces scattered bg-white/dark:bg-tuh-indigo|navy/N + border-tuh-purple/N
+   + backdrop-blur-* combos with a single tuh-glass-1/2/3 utility)
+   All values are derived from the existing tuh.purple #A78BFA,
+   tuh.indigo #0d1235, tuh.navy #04081c palette — no new hues introduced.
+   ========================================== */
+:root {
+  --tuh-surface-1: rgba(255, 255, 255, 0.78);
+  --tuh-surface-2: rgba(255, 255, 255, 0.55);
+  --tuh-surface-3: rgba(255, 255, 255, 0.30);
+  --tuh-border-glass: rgba(139, 92, 246, 0.18);
+  --tuh-border-glass-strong: rgba(139, 92, 246, 0.35);
+}
+
+.dark {
+  --tuh-surface-1: rgba(30, 24, 66, 0.85);
+  --tuh-surface-2: rgba(22, 20, 51, 0.70);
+  --tuh-surface-3: rgba(22, 20, 51, 0.45);
+  --tuh-border-glass: rgba(255, 255, 255, 0.14);
+  --tuh-border-glass-strong: rgba(255, 255, 255, 0.30);
+}
+
+.tuh-glass-1 {
+  background: var(--tuh-surface-1);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--tuh-border-glass);
+}
+.tuh-glass-2 {
+  background: var(--tuh-surface-2);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid var(--tuh-border-glass);
+}
+.tuh-glass-3 {
+  background: var(--tuh-surface-3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--tuh-border-glass);
+}
+.tuh-border-glass-strong { border-color: var(--tuh-border-glass-strong) !important; }
+
 @layer base {
   body {
     @apply antialiased transition-colors duration-300;
@@ -37,14 +80,6 @@ html {
   background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 50%, #C0D1FC 100%);
 }
 
-.bg-tuh-gradient-3 {
-  background: linear-gradient(135deg, #C0D1FC 0%, #8B5CF6 100%);
-}
-
-.bg-tuh-gradient-4 {
-  background: linear-gradient(180deg, #8B5CF6 0%, #0d1235 50%, #04081c 100%);
-}
-
 /* Text Gradients */
 .text-tuh-gradient {
   background-image: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 50%, #809BFE 100%);
@@ -65,12 +100,6 @@ html {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-.text-tuh-gradient-pink-coral {
-  background: linear-gradient(135deg, #a78bfa 0%, #809BFE 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 /* Premium Glassmorphism and Cards */
@@ -219,38 +248,9 @@ html.dark .dark\:bg-tuh-indigo\/90 {
   border-right-color: rgba(139, 92, 246, 0.15) !important;
 }
 
-html.dark .dark\:bg-tuh-indigo\/40 {
-  background-color: rgba(30, 24, 66, 0.85) !important; /* Premium glass-panel card */
-  backdrop-filter: blur(25px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
-}
-
-html.dark .dark\:bg-\[\#2c0548\] {
-  background-color: rgba(58, 12, 92, 0.85) !important; /* #3a0c5c with opacity */
-  backdrop-filter: blur(25px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
-}
-
-html.dark .dark\:bg-tuh-indigo\/25 {
-  background-color: rgba(22, 20, 51, 0.75) !important; /* Secondary card background */
-  border-color: rgba(255, 255, 255, 0.14) !important;
-}
-
 html.dark .dark\:bg-tuh-indigo\/20 {
   background-color: rgba(22, 20, 51, 0.70) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-html.dark .dark\:bg-\[\#100220\]\/40 {
-  background-color: rgba(22, 20, 51, 0.70) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-html.dark .dark\:bg-\[\#100220\]\/45 {
-  background-color: rgba(30, 24, 66, 0.85) !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 html.dark .dark\:bg-tuh-navy\/30 {
@@ -263,18 +263,6 @@ html.dark .dark\:bg-tuh-navy\/40 {
 
 html.dark .dark\:border-tuh-purple\/20 {
   border-color: rgba(255, 255, 255, 0.18) !important;
-}
-
-html.dark .dark\:border-tuh-purple\/15 {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-html.dark .dark\:border-tuh-purple\/25 {
-  border-color: rgba(255, 255, 255, 0.24) !important;
-}
-
-html.dark .dark\:border-tuh-purple\/35 {
-  border-color: rgba(255, 255, 255, 0.32) !important;
 }
 
 /* Text visibility enhancements in Dark Mode */
@@ -318,12 +306,6 @@ html.dark .hover\:border-tuh-rose\/40:hover {
   box-shadow: 0 0 15px rgba(255, 77, 128, 0.15) !important;
 }
 
-/* Subtle transitions for cards */
-html.dark .dark\:bg-tuh-indigo\/40,
-html.dark .dark\:bg-tuh-indigo\/25 {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 /* Force font globally for all text elements, excluding icons */
 *:not(i):not([class*="fa-"]):not(.font-roboto) {
   font-family: 'Sarabun', sans-serif !important;
@@ -346,20 +328,6 @@ body [class*="text-5xl"] {
 }
 
 /* Custom Font classes override wildcard rules */
-.font-lily, *:not(i):not([class*="fa-"]).font-lily {
-  font-family: 'Roboto', sans-serif !important;
-}
-
-.font-chonburi, *:not(i):not([class*="fa-"]).font-chonburi {
-  font-family: 'Roboto', sans-serif !important;
-}
-
-.font-bebas, *:not(i):not([class*="fa-"]).font-bebas {
-  font-family: 'Roboto', sans-serif !important;
-  font-weight: bold !important;
-  letter-spacing: 0.08em !important;
-}
-
 .font-roboto, *:not(i):not([class*="fa-"]).font-roboto {
   font-family: 'Roboto', sans-serif !important;
   font-weight: 700 !important;

@@ -39,12 +39,14 @@ class UserCreate(BaseModel):
     password: str
     display_name: str = "Admin"
     role: str = "admin"
+    department: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
     display_name: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
+    department: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -53,6 +55,7 @@ class UserResponse(BaseModel):
     username: str
     display_name: str
     role: str
+    department: Optional[str] = None
     is_active: bool
     created_at: datetime
 
@@ -255,6 +258,8 @@ class AnnouncementResponse(BaseModel):
     content: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    category: Optional[str] = None
+    created_by: Optional[str] = None
     pinned: bool = False
 
     class Config:
@@ -266,6 +271,7 @@ class AnnouncementCreate(BaseModel):
     content: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    category: Optional[str] = None
     pinned: bool = False
 
 
@@ -274,6 +280,7 @@ class AnnouncementUpdate(BaseModel):
     content: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    category: Optional[str] = None
     pinned: Optional[bool] = None
 
 

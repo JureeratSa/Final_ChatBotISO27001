@@ -51,6 +51,17 @@ async def create_tables():
         await conn.run_sync(Base.metadata.create_all)
         try:
             await conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by VARCHAR(100) NULL;"))
-            print("🚀 Column 'uploaded_by' successfully added to 'documents' table.")
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN department VARCHAR(100) NULL;"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE announcements ADD COLUMN category VARCHAR(100) NULL;"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE announcements ADD COLUMN created_by VARCHAR(100) NULL;"))
         except Exception:
             pass

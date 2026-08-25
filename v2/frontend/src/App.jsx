@@ -278,7 +278,6 @@ function App() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
   const [showFaqs, setShowFaqs] = useState(true);
-  const [isChatOpen, setIsChatOpen] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
   const [faqsList, setFaqsList] = useState([]);
 
@@ -836,16 +835,6 @@ function App() {
     });
   };
 
-  const handleCloseChatbot = () => {
-    const feedbackSubmitted = sessionStorage.getItem('tuh_feedback_submitted');
-    if (feedbackSubmitted === 'true') {
-      window.location.href = "https://intranet.hospital.tu.ac.th/";
-    } else {
-      setIsForcedFeedback(true);
-      setShowFeedback(true);
-    }
-  };
-
   const handleFeedbackSubmit = (e) => {
     e.preventDefault();
 
@@ -1151,7 +1140,6 @@ function App() {
                     <MessageBubble
                       key={msg.id || index}
                       msg={msg}
-                      index={index}
                       isDarkMode={isDarkMode}
                       copiedId={copiedId}
                       isTyping={isTyping}

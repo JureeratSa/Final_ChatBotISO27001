@@ -675,6 +675,11 @@ async def update_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    if current_user.role != "System Administrator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์ตั้งค่าระบบ AI"
+        )
     result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
     cfg = result.scalar_one_or_none()
 
@@ -1039,6 +1044,7 @@ async def create_announcement(
     db: AsyncSession = Depends(get_db)
 ):
     ann = Announcement(**body.model_dump())
+    ann.created_by = current_user.display_name or current_user.username
     db.add(ann)
     await db.commit()
     await db.refresh(ann)
@@ -1082,6 +1088,7 @@ class LegacyAnnouncementCreateRequest(BaseModel):
     content: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    category: Optional[str] = None
     pinned: bool = False
 
 
@@ -1091,6 +1098,7 @@ class LegacyAnnouncementUpdateRequest(BaseModel):
     content: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    category: Optional[str] = None
     pinned: bool = False
 
 
@@ -1109,7 +1117,9 @@ async def create_announcement_compatibility(
         content=payload.content,
         start_date=payload.start_date,
         end_date=payload.end_date,
-        pinned=payload.pinned
+        category=payload.category,
+        pinned=payload.pinned,
+        created_by=current_user.display_name or current_user.username
     )
     db.add(ann)
     await db.commit()
@@ -1133,6 +1143,8 @@ async def update_announcement_compatibility(
     ann.start_date = payload.start_date
     ann.end_date = payload.end_date
     ann.pinned = payload.pinned
+    if payload.category is not None:
+        ann.category = payload.category
     
     await db.commit()
     await db.refresh(ann)

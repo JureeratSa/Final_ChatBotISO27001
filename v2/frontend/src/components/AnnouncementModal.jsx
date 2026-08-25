@@ -34,21 +34,36 @@ export const AnnouncementModal = ({
               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${ann.pinned ? 'bg-gradient-to-b from-emerald-500 to-teal-500' : 'bg-gradient-to-b from-tuh-rose to-tuh-pink'}`}></div>
 
               <div className="pl-2">
-                <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2">
+                <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2 flex-wrap">
                   {ann.pinned && <i className="fa-solid fa-thumbtack text-emerald-500 text-xs rotate-45" title="ประกาศปักหมุด"></i>}
-                  {ann.title}
+                  <span>{ann.title}</span>
+                  {ann.category && (
+                    <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/25 px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0">
+                      {ann.category}
+                    </span>
+                  )}
                 </h4>
                 <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 whitespace-pre-line mb-3">
                   {stripHtml(ann.content)}
                 </p>
 
-                {/* Date display at the bottom-left */}
-                {ann.start_date && (
-                  <div className="text-[11px] font-medium text-slate-400 dark:text-tuh-pink/40 flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100 dark:border-tuh-purple/10">
-                    <i className="fa-regular fa-clock text-tuh-rose/80 dark:text-tuh-pink/70"></i>
-                    <span>เริ่มประกาศ: {formatAnnDate(ann.start_date)}</span>
-                  </div>
-                )}
+                {/* Footer metadata for dates and admin creator */}
+                <div className="flex justify-between items-center text-[11px] font-medium text-slate-400 dark:text-tuh-pink/40 mt-2 pt-2 border-t border-slate-100 dark:border-tuh-purple/10">
+                  {ann.start_date ? (
+                    <div className="flex items-center gap-1.5">
+                      <i className="fa-regular fa-clock text-tuh-rose/80 dark:text-tuh-pink/70"></i>
+                      <span>เริ่มประกาศ: {formatAnnDate(ann.start_date)}</span>
+                    </div>
+                  ) : (
+                    <div></div>
+                  )}
+                  {ann.created_by && (
+                    <div className="flex items-center gap-1.5 font-bold text-slate-500 dark:text-slate-350">
+                      <i className="fa-solid fa-user-tie text-[10px]"></i>
+                      <span>แอดมิน: {ann.created_by}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

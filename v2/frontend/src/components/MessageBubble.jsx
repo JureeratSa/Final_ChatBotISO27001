@@ -2,7 +2,6 @@ import React from 'react';
 
 export const MessageBubble = ({
   msg,
-  index,
   isDarkMode,
   copiedId,
   isTyping,

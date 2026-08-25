@@ -144,7 +144,8 @@ async def create_user(
         username=body.username,
         password_hash=hash_password(body.password),
         display_name=body.display_name,
-        role=body.role
+        role=body.role,
+        department=body.department
     )
     db.add(new_user)
     await db.commit()
@@ -176,6 +177,8 @@ async def update_user(
         user.password_hash = hash_password(body.password)
     if body.role is not None:
         user.role = body.role
+    if body.department is not None:
+        user.department = body.department
     if body.is_active is not None:
         user.is_active = body.is_active
 

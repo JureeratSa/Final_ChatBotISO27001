@@ -33,6 +33,20 @@ root_files = [
     "index.html"
 ]
 
+def safe_copy(src_file, dest_file):
+    dest_dir = os.path.dirname(dest_file)
+    temp_file = os.path.join(dest_dir, f".{os.path.basename(dest_file)}.tmp")
+    try:
+        shutil.copy2(src_file, temp_file)
+        os.replace(temp_file, dest_file)
+    except Exception as e:
+        if os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+            except Exception:
+                pass
+        raise e
+
 def sync_root_files():
     for filename in root_files:
         src_file = os.path.join(src_frontend, filename)
@@ -40,7 +54,7 @@ def sync_root_files():
         try:
             if os.path.exists(src_file):
                 if not os.path.exists(dest_file) or os.path.getmtime(src_file) > os.path.getmtime(dest_file):
-                    shutil.copy2(src_file, dest_file)
+                    safe_copy(src_file, dest_file)
         except Exception as e:
             print(f"\n[Sync Warning] Failed to copy {filename}: {e}")
 
@@ -61,11 +75,15 @@ def sync_src_directory():
         os.makedirs(target_dir, exist_ok=True)
         
         for file in files:
+            # Skip temporary, backup, and hidden files
+            if file.startswith('.') or file.startswith('~') or '.tmp' in file:
+                continue
+                
             src_file = os.path.join(root, file)
             dest_file = os.path.join(target_dir, file)
             try:
                 if not os.path.exists(dest_file) or os.path.getmtime(src_file) > os.path.getmtime(dest_file):
-                    shutil.copy2(src_file, dest_file)
+                    safe_copy(src_file, dest_file)
                     print(f"Synced Chatbot: {os.path.join('src', rel_path if rel_path != '.' else '', file)}")
             except Exception as e:
                 print(f"\n[Sync Warning] Failed to copy {file}: {e}")
