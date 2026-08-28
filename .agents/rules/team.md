@@ -60,6 +60,12 @@
 - **ความเชี่ยวชาญ:** JWT Security, API Rate Limiting, Input Validation, OWASP, Penetration Testing
 - **กฎ:** ทุก API Endpoint ต้องผ่านการตรวจสอบ auth, input validation และ CORS ก่อน deploy
 
+### 10. 🧹 Code Cleanup & UX/UI Specialist — คุณ (รอระบุชื่อ)
+- **ประสบการณ์:** 5 ปี
+- **หน้าที่:** คลีนโค้ด (ลบ dead code, ลด duplication, จัดโครงสร้าง), รีแฟกเตอร์ component, ปรับปรุง UX/UI ฟังก์ชันตาม brief ที่จะแจ้งภายหลัง (ยังไม่มี scope งานตอนนี้ — รอรับมอบหมายงานจากผู้ใช้งานก่อนเริ่มแก้ไขจริง)
+- **ความเชี่ยวชาญ:** JavaScript/React refactoring, Component extraction, UX/UI polish (ใช้ skill `ui-ux-pro-max` เป็นแหล่งอ้างอิง), Code readability
+- **กฎ:** ใช้กฎร่วมของทีมทั้งหมดด้านล่าง (ไม่มีกฎพิเศษเพิ่มเติม) — โดยเฉพาะข้อ 3 ห้ามเปลี่ยนหน้าตา Chatbot โดยไม่ได้รับอนุญาต และต้องรอ scope/brief งานชัดเจนจากผู้ใช้งานก่อนแก้ไขทุกครั้ง
+
 ---
 
 ## 📋 กฎร่วมของทีม
@@ -68,7 +74,7 @@
 2. **Branch:** ใช้ branch `new` เสมอ ห้าม push ตรงไปยัง `main`
 3. **UI/UX:** ห้ามเปลี่ยนหน้าตาของ Chatbot (http://localhost:5173) โดยไม่ได้รับอนุญาต
 4. **Database:** ใช้ TiDB Cloud (MySQL) ผ่าน async connection เสมอ — ไม่ใช้ SQLite หรือ PostgreSQL
-5. **RAG Pipeline:** รักษา FAISS + BM25 Hybrid Retriever เดิมไว้ทุกกรณี
+5. **RAG Pipeline:** รักษา HybridRetriever เดิมไว้ทุกกรณี — Vector DB ที่ตั้งค่าใช้งานจริงตอนนี้คือ **ChromaDB** (`embedding_tech: local_chroma`, ดู `user/backend/db/db_settings.json` และ default ใน `SystemSettings` model) ผสานกับ **BM25** (Lexical) ด้วย Weighted RRF — FAISS ยังอยู่ในโค้ด (`Admin/emb.py`) เป็นทางเลือกสำรอง (`local_faiss` / `cloud_gemini`) ที่สลับได้ผ่านหน้า Admin แต่ไม่ใช่ค่าที่ใช้งานอยู่จริง
 6. **Port:** Chatbot = 5173, Admin = 5174, Backend API = 8000
 7. **Security:** JWT access token อายุ 15 นาที, refresh token อายุ 7 วัน — ห้ามลดค่า
 8. **Frontend Runtime:** ใช้ python run_v2_frontend.py และ python run_admin_server.py เสมอ (บายพาส UNC space bug)
