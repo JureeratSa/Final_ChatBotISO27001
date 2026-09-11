@@ -8,6 +8,7 @@ export const DislikeModal = ({
   dislikeReason,
   setDislikeReason,
   dislikeSuccess,
+  dislikeError,
   handleDislikeSubmit
 }) => {
   if (!showDislikeModal) return null;
@@ -70,6 +71,13 @@ export const DislikeModal = ({
                 className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-tuh-navy/55 border border-slate-200 dark:border-tuh-purple/30 text-sm focus:outline-none focus:ring-2 focus:ring-tuh-rose text-tuh-navy dark:text-white placeholder-slate-400 dark:placeholder-tuh-pink/40 resize-none font-medium"
               ></textarea>
             </div>
+
+            {/* ข้อความแจ้งเตือนเมื่อส่งไม่สำเร็จ */}
+            {dislikeError && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-500/30 text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                <i className="fa-solid fa-circle-exclamation"></i> {dislikeError}
+              </div>
+            )}
 
             {/* ปุ่มส่งข้อเสนอแนะที่ไม่พึงพอใจและยกเลิก */}
             <div className="flex justify-end gap-2 pt-2">

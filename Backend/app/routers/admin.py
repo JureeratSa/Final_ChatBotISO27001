@@ -7,12 +7,14 @@ import time
 import uuid
 import shutil
 import threading
+import logging
 from pathlib import Path
 from typing import List, Optional, Union, Any
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status, Request
 from pydantic import BaseModel
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, create_access_token, safe_path, safe_filename
+from app.utils.sanitize import sanitize_html
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 
@@ -37,6 +39,7 @@ from app.schemas.schemas import (
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
@@ -82,8 +85,8 @@ async def update_password(
     db: AsyncSession = Depends(get_db)
 ):
     """เปลี่ยนรหัสผ่านส่วนตัวของผู้ดูแลระบบที่กำลังล็อกอินอยู่"""
-    if len(payload.new_password) < 4:
-        raise HTTPException(status_code=400, detail="รหัสผ่านสั้นเกินไป")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร")
     
     from app.core.security import hash_password
     current_user.password_hash = hash_password(payload.new_password)
@@ -91,7 +94,10 @@ async def update_password(
     return {"success": True, "detail": "เปลี่ยนรหัสผ่านสำเร็จแล้ว"}
 
 # ─── Rebuild State ────────────────────────────────────────────────────────────
-_rebuild_status = {"status": "idle", "message": "ยังไม่ได้ประมวลผล", "duration": None}
+# เดิมเก็บสถานะ rebuild ใน module-level dict ในหน่วยความจำของ process เดียว — ถ้ารัน
+# uvicorn หลาย worker (--workers > 1) แต่ละ worker จะเห็นสถานะคนละค่ากัน ทำให้หน้า Admin
+# เห็นสถานะ rebuild สุ่มไม่ตรงกัน (ขึ้นกับว่า request ตกไปที่ worker ไหน) — ย้ายไปเก็บใน
+# ตาราง settings แทน (คอลัมน์ rebuild_status/rebuild_message เพิ่มด้วย Alembic migration)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -168,7 +174,11 @@ async def upload_document(
         file_content = await file.read()
         file_size = len(file_content)
 
-    if not filename.endswith(".pdf"):
+    # ตัด path component ทิ้งก่อนเช็คนามสกุล/ต่อ path ป้องกัน Path Traversal (CWE-22)
+    # เดิมเอา filename จาก header x-file-name ไปต่อ path ตรงๆ ส่ง "../../x.pdf" เขียนไฟล์
+    # นอก UPLOADS_DIR ได้เลย
+    filename = safe_filename(filename)
+    if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF เท่านั้น")
 
     file_path = UPLOADS_DIR / filename
@@ -190,7 +200,7 @@ async def upload_document(
             raw_text_blocks.append(f"# Page {i+1}\n{cleaned_page_text}")
         doc_pdf.close()
     except Exception as parse_err:
-        print(f"Error parsing raw text on upload: {parse_err}")
+        logger.error("Error parsing raw text on upload: %s", parse_err)
         raw_text_blocks = ["(ไม่สามารถถอดข้อความภาษาไทยได้)"]
 
     raw_text = "\n\n".join(raw_text_blocks)
@@ -281,13 +291,13 @@ async def delete_document(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
-    file_path = UPLOADS_DIR / filename
+    file_path = safe_path(UPLOADS_DIR, filename)
     if file_path.exists():
         file_path.unlink()
 
     # Delete associated workflow files
     for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
-        assoc_file = UPLOADS_DIR / f"{filename}{ext}"
+        assoc_file = safe_path(UPLOADS_DIR, f"{filename}{ext}")
         if assoc_file.exists():
             assoc_file.unlink()
 
@@ -350,13 +360,13 @@ async def delete_document_post(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
-    file_path = UPLOADS_DIR / filename
+    file_path = safe_path(UPLOADS_DIR, filename)
     if file_path.exists():
         file_path.unlink()
 
     # Delete associated workflow files
     for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
-        assoc_file = UPLOADS_DIR / f"{filename}{ext}"
+        assoc_file = safe_path(UPLOADS_DIR, f"{filename}{ext}")
         if assoc_file.exists():
             assoc_file.unlink()
 
@@ -388,6 +398,30 @@ async def update_exclude_pages(
     await db.refresh(doc)
 
     background_tasks.add_task(_trigger_rebuild_background)
+    return {"success": True}
+
+
+class UpdateDocDetailsRequest(BaseModel):
+    filename: str
+    display_name: str
+
+
+@router.post("/documents/update_details")
+async def update_document_details(
+    payload: UpdateDocDetailsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """แก้ไขชื่อแสดงผล (display_name) ของเอกสาร — เรียกจากหน้าต่างแก้ไขรายละเอียดเอกสารใน AdminWeb"""
+    result = await db.execute(select(Document).where(Document.filename == payload.filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+    _check_doc_ownership(doc, current_user)
+
+    doc.display_name = payload.display_name.strip() or doc.filename
+    await db.commit()
+    await db.refresh(doc)
     return {"success": True}
 
 
@@ -423,7 +457,7 @@ async def approve_document(
 
     if current_status == "Step_Raw_Text":
         # Step 2: Clean the raw text
-        raw_text_path = UPLOADS_DIR / f"{filename}.raw.txt"
+        raw_text_path = safe_path(UPLOADS_DIR, f"{filename}.raw.txt")
         if not raw_text_path.exists():
             raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความดิบสำหรับการคลีนคำ")
         
@@ -462,7 +496,7 @@ async def approve_document(
             
         cleaned_filtered_text = "".join(reconstructed_blocks)
 
-        cleaned_path = UPLOADS_DIR / f"{filename}.cleaned.md"
+        cleaned_path = safe_path(UPLOADS_DIR, f"{filename}.cleaned.md")
         with open(str(cleaned_path), "w", encoding="utf-8") as f:
             f.write(cleaned_filtered_text)
 
@@ -470,7 +504,7 @@ async def approve_document(
 
     elif current_status == "Step_Clean_Text":
         # Step 3: Split cleaned text into chunks
-        cleaned_path = UPLOADS_DIR / f"{filename}.cleaned.md"
+        cleaned_path = safe_path(UPLOADS_DIR, f"{filename}.cleaned.md")
         if not cleaned_path.exists():
             raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความที่เคลียร์แล้วสำหรับแบ่ง Chunk")
         
@@ -528,7 +562,7 @@ async def approve_document(
                     })
                     chunk_id += 1
 
-        chunks_path = UPLOADS_DIR / f"{filename}.chunks.json"
+        chunks_path = safe_path(UPLOADS_DIR, f"{filename}.chunks.json")
         with open(str(chunks_path), "w", encoding="utf-8") as f:
             json.dump(chunks, f, ensure_ascii=False, indent=2)
 
@@ -551,10 +585,10 @@ async def view_raw_document(
     filename: str,
     current_user: User = Depends(get_current_user)
 ):
-    filepath = UPLOADS_DIR / f"{filename}.raw.txt"
+    filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.raw.txt")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความดิบ")
-    
+
     with open(str(filepath), "r", encoding="utf-8") as f:
         content = f.read()
     return {"filename": filename, "content": content}
@@ -565,10 +599,10 @@ async def view_cleaned_document(
     filename: str,
     current_user: User = Depends(get_current_user)
 ):
-    filepath = UPLOADS_DIR / f"{filename}.cleaned.md"
+    filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.cleaned.md")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความที่เคลียร์แล้ว")
-    
+
     with open(str(filepath), "r", encoding="utf-8") as f:
         content = f.read()
     return {"filename": filename, "content": content}
@@ -579,10 +613,10 @@ async def view_chunks_document(
     filename: str,
     current_user: User = Depends(get_current_user)
 ):
-    filepath = UPLOADS_DIR / f"{filename}.chunks.json"
+    filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.chunks.json")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์พรีวิวแบ่ง Chunk")
-    
+
     try:
         with open(str(filepath), "r", encoding="utf-8") as f:
             chunks = json.load(f)
@@ -607,27 +641,28 @@ async def update_content_document(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    safe_name = safe_filename(filename)
     if content_type == "raw":
         if not isinstance(content, str):
             raise HTTPException(status_code=400, detail="Content สำหรับข้อความดิบต้องเป็น string")
-        filepath = UPLOADS_DIR / f"{filename}.raw.txt"
+        filepath = safe_path(UPLOADS_DIR, f"{safe_name}.raw.txt")
         with open(str(filepath), "w", encoding="utf-8") as f:
             f.write(content)
     elif content_type == "cleaned":
         if not isinstance(content, str):
             raise HTTPException(status_code=400, detail="Content สำหรับข้อความเคลียร์ต้องเป็น string")
-        filepath = UPLOADS_DIR / f"{filename}.cleaned.md"
+        filepath = safe_path(UPLOADS_DIR, f"{safe_name}.cleaned.md")
         with open(str(filepath), "w", encoding="utf-8") as f:
             f.write(content)
     elif content_type == "chunks":
         if not isinstance(content, list):
             raise HTTPException(status_code=400, detail="Content สำหรับ Chunk ต้องเป็น list")
-        filepath = UPLOADS_DIR / f"{filename}.chunks.json"
+        filepath = safe_path(UPLOADS_DIR, f"{safe_name}.chunks.json")
         with open(str(filepath), "w", encoding="utf-8") as f:
             json.dump(content, f, ensure_ascii=False, indent=2)
     else:
         raise HTTPException(status_code=400, detail=f"ประเภทเนื้อหาไม่ถูกต้อง: {content_type}")
-        
+
     return {"success": True}
 
 
@@ -640,7 +675,9 @@ async def get_settings(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    # Determine if request is authenticated as admin
+    # เปิดเผย gemini_api_key ตัวจริงเฉพาะ System Administrator เท่านั้น ให้สอดคล้องกับ
+    # update_settings ด้านล่างที่บังคับ role นี้อยู่แล้ว (เดิมเช็คแค่ "login อยู่ไหม" ทำให้
+    # admin role ธรรมดาที่แก้ค่านี้ไม่ได้ กลับอ่านค่าคีย์จริงได้)
     is_admin = False
     auth_header = request.headers.get("authorization")
     if auth_header and auth_header.startswith("Bearer "):
@@ -652,7 +689,7 @@ async def get_settings(
             if username:
                 result = await db.execute(select(User).where(User.username == username, User.is_active == True))
                 user = result.scalar_one_or_none()
-                if user:
+                if user and user.role == "System Administrator":
                     is_admin = True
         except Exception:
             pass
@@ -762,7 +799,7 @@ async def get_feedback(
     result = await db.execute(select(Feedback).order_by(Feedback.timestamp.desc()))
     items = result.scalars().all()
     return [FeedbackResponse(
-        id=f.id, rating=f.rating, comment=f.comment, query=f.query, answer=f.answer,
+        id=f.id, rating=f.rating, stars=f.stars, comment=f.comment, query=f.query, answer=f.answer,
         timestamp=f.timestamp.strftime("%Y-%m-%d %H:%M:%S") if f.timestamp else "",
         history_id=f.history_id
     ) for f in items]
@@ -781,6 +818,8 @@ async def submit_feedback(body: FeedbackSubmit, db: AsyncSession = Depends(get_d
         existing = result.scalars().first()
         if existing:
             existing.rating = body.rating
+            if body.stars is not None:
+                existing.stars = body.stars
             if body.comment is not None:
                 existing.comment = body.comment
             await db.commit()
@@ -789,6 +828,7 @@ async def submit_feedback(body: FeedbackSubmit, db: AsyncSession = Depends(get_d
     entry = Feedback(
         id=f"fb-{int(time.time() * 1000)}",
         rating=body.rating,
+        stars=body.stars,
         comment=body.comment,
         query=body.query,
         answer=body.answer,
@@ -884,6 +924,71 @@ async def delete_unanswered(
     await db.commit()
 
 
+class AnalyzeQueryRequest(BaseModel):
+    query: str
+
+
+@router.post("/unanswered/analyze")
+async def analyze_unanswered_query(
+    payload: AnalyzeQueryRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    ใช้ AI วิเคราะห์คำถามที่ตอบไม่ได้ ก่อนแอดมินเขียนคำตอบ FAQ ด้วยมือ
+    คืนค่า: is_valid_query (เป็นคำถามจริงหรือขยะ/ทักทาย) + suggested_keywords (คำค้นหาแนะนำ)
+    ถ้าไม่มี LLM API key หรือเรียกไม่สำเร็จ ให้ fallback เป็นค่าที่ไม่ทำให้ UI พัง แทนการโยน error
+    """
+    from app.services.rag_service import make_http_post, contains_profanity, is_chit_chat
+
+    query = (payload.query or "").strip()
+    if not query:
+        return {"is_valid_query": False, "suggested_keywords": []}
+
+    if contains_profanity(query) or is_chit_chat(query):
+        return {"is_valid_query": False, "suggested_keywords": []}
+
+    api_key = settings.LLM_API_KEY
+    if not api_key:
+        # ไม่มี LLM key — คืนค่ากลางๆ ให้แอดมินเขียนคำตอบเองได้ตามปกติ ไม่ error
+        return {"is_valid_query": True, "suggested_keywords": []}
+
+    try:
+        prompt = (
+            "คุณคือผู้ช่วยวิเคราะห์คำถามสำหรับระบบ FAQ ของโรงพยาบาล "
+            "ตอบกลับเป็น JSON เท่านั้น ไม่มีคำอธิบายอื่น รูปแบบ: "
+            '{"is_valid_query": true/false, "suggested_keywords": ["คำ1", "คำ2", ...]}\n'
+            "is_valid_query = false ถ้าข้อความเป็นคำทักทาย/ขยะ/ไม่ใช่คำถามเกี่ยวกับสวัสดิการหรือ ISO ของโรงพยาบาล\n"
+            "suggested_keywords = คำสำคัญ 3-5 คำที่ควรใช้แต่งประโยคคำถาม FAQ ให้ค้นหาเจอง่ายขึ้น (ถ้า is_valid_query เป็น false ให้เป็น list ว่าง)\n\n"
+            f"ข้อความที่ต้องวิเคราะห์: {query}"
+        )
+        payload_llm = {
+            "model": settings.DEFAULT_LLM_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 300,
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "TUH Chatbot v2",
+        }
+        loop = __import__("asyncio").get_event_loop()
+        res_data = await loop.run_in_executor(
+            None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload_llm, headers, 20
+        )
+        content = res_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        match = __import__("re").search(r'\{.*\}', content, __import__("re").DOTALL)
+        parsed = json.loads(match.group(0)) if match else {}
+        return {
+            "is_valid_query": bool(parsed.get("is_valid_query", True)),
+            "suggested_keywords": list(parsed.get("suggested_keywords", []) or [])[:5],
+        }
+    except Exception as e:
+        logger.error("[Analyze Query Error] %s", e)
+        return {"is_valid_query": True, "suggested_keywords": []}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # STATS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -929,29 +1034,75 @@ async def get_stats(
 # REBUILD
 # ═══════════════════════════════════════════════════════════════════════════════
 
+async def _get_or_create_settings_row(db: AsyncSession) -> SystemSettings:
+    result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        cfg = SystemSettings(id="config")
+        db.add(cfg)
+        await db.flush()
+    return cfg
+
+
 @router.post("/rebuild", response_model=RebuildStatus)
 async def trigger_rebuild(
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Trigger การ Rebuild Vector Index ใน Background"""
-    global _rebuild_status
-    if _rebuild_status["status"] == "processing":
+    cfg = await _get_or_create_settings_row(db)
+    if cfg.rebuild_status == "processing":
         return RebuildStatus(status="processing", message="กำลังประมวลผลอยู่แล้ว กรุณารอสักครู่")
 
-    _rebuild_status = {"status": "processing", "message": "กำลังเริ่มประมวลผล...", "duration": None}
+    cfg.rebuild_status = "processing"
+    cfg.rebuild_message = "กำลังเริ่มประมวลผล..."
+    await db.commit()
+
     background_tasks.add_task(_trigger_rebuild_background)
     return RebuildStatus(status="processing", message="เริ่มประมวลผล Background Task แล้ว")
 
 
 @router.get("/rebuild/status", response_model=RebuildStatus)
-async def get_rebuild_status(current_user: User = Depends(get_current_user)):
-    return RebuildStatus(**_rebuild_status)
+async def get_rebuild_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        return RebuildStatus(status="idle", message="ยังไม่ได้ประมวลผล")
+    return RebuildStatus(status=cfg.rebuild_status, message=cfg.rebuild_message or "", duration=cfg.last_build_duration)
+
+
+def _sync_update_rebuild_status(status: str, message: str, duration: Optional[float] = None):
+    """
+    เขียนสถานะ rebuild ลง DB แบบ sync — เรียกจาก _trigger_rebuild_background() ซึ่งรันอยู่ใน
+    thread pool ของ BackgroundTasks (ไม่ใช่ event loop) จึงใช้ AsyncSession ตรงๆ ไม่ได้
+    ใช้ DATABASE_URL_SYNC (pymysql) แยกต่างหาก เปิด/ปิด engine ทุกครั้งเพราะเรียกไม่บ่อย
+    (แค่ตอนเริ่ม/จบ rebuild หนึ่งรอบ) ไม่คุ้มที่จะเก็บ engine ไว้เป็น singleton ข้าม thread
+    """
+    from sqlalchemy import create_engine, update as sql_update
+
+    sync_engine = create_engine(settings.DATABASE_URL_SYNC)
+    try:
+        with sync_engine.begin() as conn:
+            values = {"rebuild_status": status, "rebuild_message": message}
+            if duration is not None:
+                values["last_build_duration"] = duration
+            result = conn.execute(
+                sql_update(SystemSettings.__table__).where(SystemSettings.id == "config").values(**values)
+            )
+            if result.rowcount == 0:
+                conn.execute(SystemSettings.__table__.insert().values(id="config", **values))
+    except Exception as e:
+        logger.error("[Rebuild Status Write Error] %s", e)
+    finally:
+        sync_engine.dispose()
 
 
 def _trigger_rebuild_background():
     """Background thread สำหรับ Rebuild Index"""
-    global _rebuild_status
     start = time.time()
     try:
         import sys
@@ -960,16 +1111,16 @@ def _trigger_rebuild_background():
             sys.path.insert(0, admin_parent)
 
         from Admin.rebuild_db import rebuild
-        _rebuild_status["message"] = "กำลัง rebuild index..."
+        _sync_update_rebuild_status("processing", "กำลัง rebuild index...")
         rebuild()
 
         from app.services.rag_service import reload_retriever
         reload_retriever()
 
         duration = round(time.time() - start, 2)
-        _rebuild_status = {"status": "success", "message": f"Rebuild สำเร็จใน {duration} วินาที", "duration": duration}
+        _sync_update_rebuild_status("success", f"Rebuild สำเร็จใน {duration} วินาที", duration=duration)
     except Exception as e:
-        _rebuild_status = {"status": "error", "message": f"เกิดข้อผิดพลาด: {e}", "duration": None}
+        _sync_update_rebuild_status("error", f"เกิดข้อผิดพลาด: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1035,7 +1186,7 @@ async def delete_form_compatibility(
     # Delete file from disk
     if form.filename:
         forms_dir = Path(settings.UPLOADS_DIR) / "forms"
-        filepath = forms_dir / form.filename
+        filepath = safe_path(forms_dir, form.filename)
         if filepath.exists():
             try:
                 filepath.unlink()
@@ -1066,7 +1217,9 @@ async def create_announcement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    ann = Announcement(**body.model_dump())
+    data = body.model_dump()
+    data["content"] = sanitize_html(data.get("content"))  # กัน Stored XSS จาก CKEditor ก่อนเก็บ DB
+    ann = Announcement(**data)
     ann.created_by = current_user.display_name or current_user.username
     db.add(ann)
     await db.commit()
@@ -1085,7 +1238,10 @@ async def update_announcement(
     ann = result.scalar_one_or_none()
     if not ann:
         raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
-    for field, value in body.model_dump(exclude_none=True).items():
+    data = body.model_dump(exclude_none=True)
+    if "content" in data:
+        data["content"] = sanitize_html(data["content"])
+    for field, value in data.items():
         setattr(ann, field, value)
     await db.commit()
     await db.refresh(ann)
@@ -1137,7 +1293,7 @@ async def create_announcement_compatibility(
 ):
     ann = Announcement(
         title=payload.title,
-        content=payload.content,
+        content=sanitize_html(payload.content),
         start_date=payload.start_date,
         end_date=payload.end_date,
         category=payload.category,
@@ -1160,9 +1316,9 @@ async def update_announcement_compatibility(
     ann = result.scalar_one_or_none()
     if not ann:
         raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
-        
+
     ann.title = payload.title
-    ann.content = payload.content
+    ann.content = sanitize_html(payload.content)
     ann.start_date = payload.start_date
     ann.end_date = payload.end_date
     ann.pinned = payload.pinned
@@ -1221,8 +1377,6 @@ async def get_history_chunks_map(current_user: User = Depends(get_current_user))
     """ดึงแผนผัง Chunk ID -> {source, page, content} เพื่อให้หน้าบ้านคลิกลิงก์ไปยัง PDF หน้าคู่มือของ Chunk ได้"""
     chunks_path = Path(settings.ADMIN_DIR).parent / "sample_chunks.json"
     if not chunks_path.exists():
-        chunks_path = Path(settings.INDEX_DB_DIR) / "faiss_metadata.json"
-    if not chunks_path.exists():
         return {}
     try:
         with open(chunks_path, "r", encoding="utf-8") as f:
@@ -1236,7 +1390,7 @@ async def get_history_chunks_map(current_user: User = Depends(get_current_user))
             for item in data if "chunk_id" in item and "metadata" in item
         }
     except Exception as e:
-        print(f"[Chunks Map Error] {e}")
+        logger.error("[Chunks Map Error] %s", e)
         return {}
 
 
@@ -1281,9 +1435,10 @@ async def upload_form_compatibility(
     form_name = unquote(request.headers.get("x-form-name", "").strip())
     filename = unquote(request.headers.get("x-file-name", "form.pdf").strip())
     page = unquote(request.headers.get("x-form-page", "").strip())
-    
+
     if not form_name or not filename:
         raise HTTPException(status_code=400, detail="กรุณากรอกชื่อและเลือกไฟล์แบบฟอร์มให้ครบถ้วน")
+    filename = safe_filename(filename)  # ป้องกัน Path Traversal จาก x-file-name header
         
     post_data = await request.body()
     
@@ -1344,7 +1499,7 @@ async def upload_form_compatibility(
     if existing_form:
         # Delete old file
         if existing_form.filename:
-            old_filepath = forms_dir / existing_form.filename
+            old_filepath = safe_path(forms_dir, existing_form.filename)
             if old_filepath.exists():
                 try:
                     old_filepath.unlink()

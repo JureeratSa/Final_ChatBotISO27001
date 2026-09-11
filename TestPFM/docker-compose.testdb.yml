@@ -1,0 +1,30 @@
+# Local MySQL สำหรับ TestPFM (load test) และรัน server แบบ local เท่านั้น
+# แยกขาดจาก TiDB Cloud production โดยสิ้นเชิง — ข้อมูลในนี้ทิ้งได้ตลอดเวลา
+#
+# app/core/database.py เปิด connect_args={"ssl": True} เสมอ (เดิมออกแบบไว้สำหรับ TiDB Serverless)
+# MySQL 8 image นี้ auto-generate self-signed SSL cert ให้เองตั้งแต่ initialize ครั้งแรก
+# จึงต่อผ่าน ssl=True ได้โดยไม่ต้อง config เพิ่ม
+#
+# รัน:   docker compose -f TestPFM/docker-compose.testdb.yml up -d
+# หยุด:  docker compose -f TestPFM/docker-compose.testdb.yml down
+# ลบข้อมูลทั้งหมด (เริ่มนับหนึ่งใหม่): docker compose -f TestPFM/docker-compose.testdb.yml down -v
+
+services:
+  testdb:
+    image: mysql:8.0
+    container_name: tuh_chatbot_testdb
+    environment:
+      MYSQL_ROOT_PASSWORD: testpassword
+      MYSQL_DATABASE: tuh_chatbot_test
+    ports:
+      - "3306:3306"
+    volumes:
+      - testdb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ptestpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  testdb_data:

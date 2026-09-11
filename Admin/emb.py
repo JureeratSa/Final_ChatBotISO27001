@@ -8,14 +8,6 @@ import argparse
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["HF_HUB_OFFLINE"] = "1"
 
-# --- [ ตรวจสอบไลบรารีภายนอกสำหรับระบบ Hybrid Retrieval ] ---
-try:
-    import faiss
-    import numpy as np
-    HAS_DENSE = True
-except ImportError:
-    HAS_DENSE = False
-
 try:
     from rank_bm25 import BM25Okapi
     from pythainlp.tokenize import word_tokenize
@@ -24,36 +16,12 @@ except ImportError:
     HAS_LEXICAL = False
 
 
-def _get_gemini_query_embedding(query, api_key):
-    """ส่งคำสั่งแปลงคำถามผู้ใช้เป็นเวกเตอร์ 768 มิติด้วย Google Gemini API"""
-    import urllib.request
-    import json
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={api_key}"
-    payload = {
-        "model": "models/text-embedding-004",
-        "content": {
-            "parts": [{"text": query}]
-        }
-    }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=15) as response:
-        res_data = json.loads(response.read().decode("utf-8"))
-        return res_data["embedding"]["values"]
-
-
 def build_indices():
     """
     ฟังก์ชันสำหรับอ่านไฟล์ chunks แล้วนำมาสร้างดัชนีค้นหาตามเทคโนโลยีที่ตั้งค่าไว้
     """
     # ตรวจสอบการติดตั้งไลบรารีที่จำเป็น
     missing = []
-    if not HAS_DENSE:
-        missing.extend(["faiss-cpu", "numpy"])
     if not HAS_LEXICAL:
         missing.extend(["rank-bm25", "pythainlp"])
         
@@ -89,104 +57,44 @@ def build_indices():
         except Exception:
             pass
 
-    tech = config.get("embedding_tech", "local_faiss")
-    api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+    tech = config.get("embedding_tech", "local_chroma")
 
     print(f"กำลังสกัดเวกเตอร์ด้วยเทคโนโลยี: {tech}")
     os.makedirs(index_dir, exist_ok=True)
     texts = [chunk["content"] for chunk in chunks]
 
-    # --- [ 1. สร้างดัชนีเวกเตอร์ ] ---
-    if tech == "local_chroma":
-        try:
-            import chromadb
-        except ImportError:
-            print("ไม่พบไลบรารี chromadb กำลังดำเนินการติดตั้งผ่าน pip...")
-            import subprocess
-            subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
-            import chromadb
+    # --- [ 1. สร้างดัชนีเวกเตอร์ด้วย ChromaDB ] ---
+    try:
+        import chromadb
+    except ImportError:
+        print("ไม่พบไลบรารี chromadb กำลังดำเนินการติดตั้งผ่าน pip...")
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
+        import chromadb
 
-        from sentence_transformers import SentenceTransformer
-        dense_model = SentenceTransformer("BAAI/bge-m3")
-        embeddings = dense_model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
-        
-        chroma_dir = os.path.join(index_dir, "chroma_db")
-        chroma_client = chromadb.PersistentClient(path=chroma_dir)
-        # เคลียร์คอลเลกชันเดิม
-        try:
-            chroma_client.delete_collection("tuh_collection")
-        except Exception:
-            pass
-        collection = chroma_client.create_collection("tuh_collection")
-        
-        ids = [str(chunk["chunk_id"]) for chunk in chunks]
-        metadatas = [chunk["metadata"] for chunk in chunks]
-        
-        collection.add(
-            ids=ids,
-            embeddings=embeddings.tolist(),
-            metadatas=metadatas,
-            documents=texts
-        )
-        print(f"บันทึกดัชนี Chroma DB สำเร็จที่: {chroma_dir}")
-        
-    else:
-        # local_faiss หรือ cloud_gemini
-        if tech == "cloud_gemini":
-            if not api_key:
-                raise ValueError("ไม่พบ Gemini API Key ในระบบหลังบ้าน กรุณากรอก API Key ในหน้าแอดมินก่อนใช้งาน")
-            
-            # ยิงแปลงเวกเตอร์ผ่าน Gemini API (Batch)
-            # จำกัดขนาด Batch 100 ข้อความต่อหนึ่ง request
-            batch_size = 100
-            embeddings_list = []
-            print("ยิงเรียกเวกเตอร์ผ่าน Google Gemini API...")
-            for i in range(0, len(texts), batch_size):
-                batch_texts = texts[i:i+batch_size]
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key={api_key}"
-                requests_payload = []
-                for t in batch_texts:
-                    requests_payload.append({
-                        "model": "models/text-embedding-004",
-                        "content": {"parts": [{"text": t}]}
-                    })
-                import urllib.request
-                req = urllib.request.Request(
-                    url,
-                    data=json.dumps({"requests": requests_payload}).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    method="POST"
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    res_data = json.loads(resp.read().decode("utf-8"))
-                    batch_embs = [item["values"] for item in res_data["embeddings"]]
-                    embeddings_list.extend(batch_embs)
-            embeddings = np.array(embeddings_list, dtype=np.float32)
-        else:
-            # local_faiss
-            from sentence_transformers import SentenceTransformer
-            dense_model = SentenceTransformer("BAAI/bge-m3")
-            embeddings = dense_model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
+    from sentence_transformers import SentenceTransformer
+    dense_model = SentenceTransformer("BAAI/bge-m3")
+    embeddings = dense_model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
 
-        faiss.normalize_L2(embeddings)
-        dimension = embeddings.shape[1]
-        faiss_index = faiss.IndexFlatIP(dimension)
-        faiss_index.add(embeddings)
-        faiss_index_path = os.path.join(index_dir, "faiss.index")
-        faiss_meta_path = os.path.join(index_dir, "faiss_metadata.json")
-        try:
-            import tempfile
-            import shutil
-            temp_dir = tempfile.gettempdir()
-            local_temp_write = os.path.join(temp_dir, "tuh_write_faiss.index")
-            faiss.write_index(faiss_index, local_temp_write)
-            shutil.move(local_temp_write, faiss_index_path)
-        except Exception as e_write:
-            print(f"Failed local write bypass, trying direct write: {e_write}")
-            faiss.write_index(faiss_index, faiss_index_path)
-        with open(faiss_meta_path, "w", encoding="utf-8") as f:
-            json.dump(chunks, f, ensure_ascii=False, indent=2)
-        print(f"บันทึกดัชนี FAISS สำเร็จที่: {index_dir}")
+    chroma_dir = os.path.join(index_dir, "chroma_db")
+    chroma_client = chromadb.PersistentClient(path=chroma_dir)
+    # เคลียร์คอลเลกชันเดิม
+    try:
+        chroma_client.delete_collection("tuh_collection")
+    except Exception:
+        pass
+    collection = chroma_client.create_collection("tuh_collection")
+
+    ids = [str(chunk["chunk_id"]) for chunk in chunks]
+    metadatas = [chunk["metadata"] for chunk in chunks]
+
+    collection.add(
+        ids=ids,
+        embeddings=embeddings.tolist(),
+        metadatas=metadatas,
+        documents=texts
+    )
+    print(f"บันทึกดัชนี Chroma DB สำเร็จที่: {chroma_dir}")
 
     # --- [ 2. สร้างดัชนีข้อความด้วย BM25 ] ---
     print("\n ทำ index BM25 ")
@@ -224,19 +132,14 @@ class HybridRetriever:
         else:
             self.index_dir = index_dir
 
-        self.faiss_index_path = os.path.join(self.index_dir, "faiss.index")
-        self.faiss_meta_path = os.path.join(self.index_dir, "faiss_metadata.json")
         self.bm25_path = os.path.join(self.index_dir, "bm25.pkl")
 
         self.model = None
-        self.faiss_index = None
-        self.faiss_chunks = None
         self.bm25 = None
         self.bm25_chunks = None
         self.is_loaded = False
         self.dense_enabled = True
-        self.embedding_tech = "local_faiss"
-        self.gemini_api_key = None
+        self.embedding_tech = "local_chroma"
         self.chroma_client = None
         self.chroma_collection = None
 
@@ -267,127 +170,64 @@ class HybridRetriever:
                     config = json.load(f)
             except Exception:
                 pass
-        self.embedding_tech = config.get("embedding_tech", "local_faiss")
-        self.gemini_api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+        self.embedding_tech = config.get("embedding_tech", "local_chroma")
 
-        # 2. โหลดโมเดลเวกเตอร์หนาแน่นและข้อมูลตามเทคโนโลยี
+        # 2. โหลดโมเดลเวกเตอร์หนาแน่นและ ChromaDB
         print(f"กำลังโหลดดัชนีเวกเตอร์สำหรับเทคโนโลยี: {self.embedding_tech}")
-        
-        if self.embedding_tech == "local_chroma":
-            if sys.platform.startswith('win') or os.name == 'nt':
-                chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-            else:
-                chroma_path = os.path.join(self.index_dir, "chroma_db")
-            if os.path.exists(chroma_path):
-                try:
-                    import chromadb
-                    self.chroma_client = chromadb.PersistentClient(path=chroma_path)
-                    self.chroma_collection = self.chroma_client.get_collection("tuh_collection")
-                    
-                    from sentence_transformers import SentenceTransformer
-                    self.model = SentenceTransformer("BAAI/bge-m3")
-                    self.dense_enabled = True
-                    print(" โหลดดัชนีเวกเตอร์ Chroma DB สำเร็จ (เปิดใช้การค้นหาเวกเตอร์หนาแน่น)")
-                except Exception as e:
-                    print(f" คำเตือน: โหลด Chroma DB ล้มเหลว ({e}) ระบบจะทำงานในโหมด Lexical/BM25 เท่านั้น")
-                    self.dense_enabled = False
-            else:
-                print(" คำเตือน: ไม่พบโฟลเดอร์ Chroma DB ดัชนีเวกเตอร์หนาแน่นจะออฟไลน์")
+
+        if sys.platform.startswith('win') or os.name == 'nt':
+            chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
+        else:
+            chroma_path = os.path.join(self.index_dir, "chroma_db")
+        if os.path.exists(chroma_path):
+            try:
+                import chromadb
+                self.chroma_client = chromadb.PersistentClient(path=chroma_path)
+                self.chroma_collection = self.chroma_client.get_collection("tuh_collection")
+
+                from sentence_transformers import SentenceTransformer
+                self.model = SentenceTransformer("BAAI/bge-m3")
+                self.dense_enabled = True
+                print(" โหลดดัชนีเวกเตอร์ Chroma DB สำเร็จ (เปิดใช้การค้นหาเวกเตอร์หนาแน่น)")
+            except Exception as e:
+                print(f" คำเตือน: โหลด Chroma DB ล้มเหลว ({e}) ระบบจะทำงานในโหมด Lexical/BM25 เท่านั้น")
                 self.dense_enabled = False
         else:
-            # local_faiss หรือ cloud_gemini
-            if HAS_DENSE and os.path.exists(self.faiss_index_path) and os.path.exists(self.faiss_meta_path):
-                try:
-                    import tempfile
-                    import shutil
-                    temp_dir = tempfile.gettempdir()
-                    local_faiss_path = os.path.join(temp_dir, "tuh_faiss.index")
-                    try:
-                        shutil.copy2(self.faiss_index_path, local_faiss_path)
-                        self.faiss_index = faiss.read_index(local_faiss_path)
-                    except Exception as e_copy:
-                        print(f"Failed local copy load fallback, trying direct read: {e_copy}")
-                        self.faiss_index = faiss.read_index(self.faiss_index_path)
-
-                    with open(self.faiss_meta_path, "r", encoding="utf-8") as f:
-                        self.faiss_chunks = json.load(f)
-                    
-                    if self.embedding_tech == "local_faiss":
-                        from sentence_transformers import SentenceTransformer
-                        self.model = SentenceTransformer("BAAI/bge-m3")
-                    else:
-                        # cloud_gemini: ไม่ต้องดึงโมเดล BGE-M3 มาโหลดลง RAM แต่อย่างใด
-                        self.model = None
-                        
-                    self.dense_enabled = True
-                    print(f" โหลดดัชนีเวกเตอร์ FAISS สำหรับ {self.embedding_tech} สำเร็จ")
-                except Exception as e:
-                    print(f" คำเตือน: โหลด FAISS ล้มเหลว ({e}) ระบบจะทำงานในโหมด Lexical/BM25 เท่านั้น")
-                    self.dense_enabled = False
-            else:
-                print(" คำเตือน: ไลบรารีเวกเตอร์หนาแน่นไม่พบหรือไฟล์ดัชนีไม่มี ระบบจะสลับไปทำงานเฉพาะ BM25 เท่านั้น")
-                self.dense_enabled = False
+            print(" คำเตือน: ไม่พบโฟลเดอร์ Chroma DB ดัชนีเวกเตอร์หนาแน่นจะออฟไลน์")
+            self.dense_enabled = False
 
         self.is_loaded = True
 
     def _search_dense(self, query, top_k):
-        """ค้นหาข้อมูลโดยหาค่าเวกเตอร์คำจำกัดความเชิงความหมายใกล้เคียง (Semantic Search) บน FAISS หรือ Chroma DB"""
-        if self.embedding_tech == "local_chroma":
-            # เข้ารหัส Query ด้วย BGE-M3
-            query_vector = self.model.encode([query], convert_to_numpy=True, normalize_embeddings=True)[0].tolist()
-            
-            # ค้นหาใน Chroma
-            results_chroma = self.chroma_collection.query(
-                query_embeddings=[query_vector],
-                n_results=top_k
-            )
-            
-            results = []
-            if results_chroma and "ids" in results_chroma and len(results_chroma["ids"][0]) > 0:
-                ids = results_chroma["ids"][0]
-                distances = results_chroma["distances"][0]
-                metadatas = results_chroma["metadatas"][0]
-                documents = results_chroma["documents"][0]
-                
-                for rank, (chunk_id, dist, meta, content) in enumerate(zip(ids, distances, metadatas, documents), start=1):
-                    # Cosine distance ใน Chroma ปกติมีค่า 0 (ใกล้สุด) ถึง 2 (ไกลสุด)
-                    # แปลงเป็น similarity score: 1.0 - (dist / 2.0)
-                    score = 1.0 - (dist / 2.0) if dist is not None else 0.5
-                    results.append({
-                        "chunk_id": int(chunk_id) if str(chunk_id).isdigit() else chunk_id,
-                        "content": content,
-                        "metadata": meta,
-                        "score": float(score),
-                        "rank": rank
-                    })
-            return results
-            
-        else:
-            # ใช้ FAISS
-            if self.embedding_tech == "cloud_gemini":
-                if not self.gemini_api_key:
-                    raise ValueError("ไม่พบ Gemini API Key สำหรับเทคโนโลยี cloud_gemini")
-                query_vector = _get_gemini_query_embedding(query, self.gemini_api_key)
-                query_vector = np.array([query_vector], dtype=np.float32)
-            else:
-                # local_faiss
-                query_vector = self.model.encode([query], convert_to_numpy=True, normalize_embeddings=True)
-            
-            faiss.normalize_L2(query_vector)
-            scores, indices = self.faiss_index.search(query_vector, top_k)
-            
-            results = []
-            for rank, (score, idx) in enumerate(zip(scores[0], indices[0]), start=1):
-                if idx != -1 and idx < len(self.faiss_chunks):
-                    chunk = self.faiss_chunks[idx]
-                    results.append({
-                        "chunk_id": chunk["chunk_id"],
-                        "content": chunk["content"],
-                        "metadata": chunk["metadata"],
-                        "score": float(score),
-                        "rank": rank
-                    })
-            return results
+        """ค้นหาข้อมูลโดยหาค่าเวกเตอร์คำจำกัดความเชิงความหมายใกล้เคียง (Semantic Search) บน Chroma DB"""
+        # เข้ารหัส Query ด้วย BGE-M3
+        query_vector = self.model.encode([query], convert_to_numpy=True, normalize_embeddings=True)[0].tolist()
+
+        # ค้นหาใน Chroma
+        results_chroma = self.chroma_collection.query(
+            query_embeddings=[query_vector],
+            n_results=top_k
+        )
+
+        results = []
+        if results_chroma and "ids" in results_chroma and len(results_chroma["ids"][0]) > 0:
+            ids = results_chroma["ids"][0]
+            distances = results_chroma["distances"][0]
+            metadatas = results_chroma["metadatas"][0]
+            documents = results_chroma["documents"][0]
+
+            for rank, (chunk_id, dist, meta, content) in enumerate(zip(ids, distances, metadatas, documents), start=1):
+                # Cosine distance ใน Chroma ปกติมีค่า 0 (ใกล้สุด) ถึง 2 (ไกลสุด)
+                # แปลงเป็น similarity score: 1.0 - (dist / 2.0)
+                score = 1.0 - (dist / 2.0) if dist is not None else 0.5
+                results.append({
+                    "chunk_id": int(chunk_id) if str(chunk_id).isdigit() else chunk_id,
+                    "content": content,
+                    "metadata": meta,
+                    "score": float(score),
+                    "rank": rank
+                })
+        return results
 
     def _search_lexical(self, query, top_k):
         """ค้นหาข้อความแบบอิงคำตรงความถี่คำ (Lexical Keyword Search) บน BM25"""
@@ -558,7 +398,7 @@ class HybridRetriever:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ระบบค้นหา Hybrid RAG Search (FAISS + BM25)")
+    parser = argparse.ArgumentParser(description="ระบบค้นหา Hybrid RAG Search (ChromaDB + BM25)")
     parser.add_argument("--build", action="store_true", help="ประมวลผลดัชนีเวกเตอร์และคำค้นจาก sample_chunks.json")
     parser.add_argument("--query", type=str, help="คำค้นหาภาษาไทยสำหรับการทดสอบ")
     parser.add_argument("--top_k", type=int, default=5, help="จำนวนผลลัพธ์ที่จะแสดง (ดีฟอลต์: 5)")
@@ -575,7 +415,7 @@ if __name__ == "__main__":
             for idx, res in enumerate(results, 1):
                 print(f"ลำดับที่ {idx} | คะแนนผสาน RRF: {res['rrf_score']:.6f}")
                 print(f"Chunk ID: {res['chunk_id']} | เอกสารต้นทาง: {res['metadata']['source']} | หน้า: {res['metadata']['page']}")
-                print(f"เวกเตอร์ (FAISS) - อันดับ: {res['dense_rank']} | คะแนน: {f'{res['dense_score']:.4f}' if res['dense_score'] is not None else 'N/A'}")
+                print(f"เวกเตอร์ (ChromaDB) - อันดับ: {res['dense_rank']} | คะแนน: {f'{res['dense_score']:.4f}' if res['dense_score'] is not None else 'N/A'}")
                 print(f"คำตรง (BM25)    - อันดับ: {res['lexical_rank']} | คะแนน: {f'{res['lexical_score']:.4f}' if res['lexical_score'] is not None else 'N/A'}")
                 print("-" * 80)
                 

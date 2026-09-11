@@ -117,6 +117,21 @@ def safe_path(base_dir: Path, relative_path: str) -> Path:
     from fastapi import HTTPException
     base_abs = base_dir.resolve()
     target_abs = (base_abs / relative_path).resolve()
-    if not str(target_abs).startswith(str(base_abs)):
+    # เดิมใช้ str(...).startswith(...) ซึ่ง bypass ได้ง่าย เช่น base_dir="/app/uploads"
+    # จะจับ "/app/uploads_evil" ผ่านด้วย เพราะ string ขึ้นต้นตรงกัน ทั้งที่เป็นคนละโฟลเดอร์
+    # is_relative_to() เทียบเป็น path segment จริงๆ ไม่ใช่ string prefix
+    if target_abs != base_abs and base_abs not in target_abs.parents:
         raise HTTPException(status_code=400, detail="รูปแบบชื่อไฟล์ไม่ปลอดภัย (Path Traversal Detected)")
     return target_abs
+
+
+def safe_filename(filename: str) -> str:
+    """
+    ตัด path component ทั้งหมดออกจากชื่อไฟล์ที่รับจาก client (เช่น header/ชื่อไฟล์อัปโหลด)
+    เหลือแค่ basename ป้องกัน Path Traversal ตั้งแต่ต้นทาง ก่อนเอาไปต่อ path ใดๆ
+    """
+    from fastapi import HTTPException
+    name = Path(filename.replace("\\", "/")).name.strip()
+    if not name or name in (".", ".."):
+        raise HTTPException(status_code=400, detail="ชื่อไฟล์ไม่ถูกต้อง")
+    return name

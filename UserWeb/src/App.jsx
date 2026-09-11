@@ -11,7 +11,10 @@ import { FeedbackModal } from './components/FeedbackModal';
 import { DislikeModal } from './components/DislikeModal';
 import { AnnouncementModal } from './components/AnnouncementModal';
 
-const API_URL = `http://${window.location.hostname}:8000`;
+// เดิม hardcode เป็น http://<hostname>:8000 ตรงๆ ทำให้พังทันทีถ้า deploy หลัง HTTPS/reverse
+// proxy (mixed content ถูก browser บล็อก) — อ่านจาก VITE_API_URL ก่อน ถ้าไม่ตั้งค่าไว้ค่อย
+// fallback เป็นพฤติกรรมเดิมสำหรับ local dev
+const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
 const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI  ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับสวัสดีการสามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ';
 const DEFAULT_GREETING = 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖';
@@ -282,9 +285,10 @@ function App() {
   const [faqsList, setFaqsList] = useState([]);
 
   // สถานะของฟอร์มแสดงความคิดเห็น
-  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
   const [isForcedFeedback, setIsForcedFeedback] = useState(false);
 
   // คำถาม & แสดงความคิดเห็นที่ไม่พอใจ
@@ -298,6 +302,7 @@ function App() {
   const [dislikeMsgId, setDislikeMsgId] = useState('');
   const [dislikeReason, setDislikeReason] = useState('');
   const [dislikeSuccess, setDislikeSuccess] = useState(false);
+  const [dislikeError, setDislikeError] = useState('');
 
   const [activeAnnouncements, setActiveAnnouncements] = useState([]);
   const [showAnnModal, setShowAnnModal] = useState(false);
@@ -352,6 +357,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem('tuh_chats', JSON.stringify(sessions));
   }, [sessions]);
+
+  // ล้างข้อความ error เดิมทุกครั้งที่เปิดฟอร์มข้อเสนอแนะขึ้นมาใหม่ กันไม่ให้ error ค้างจากการส่งครั้งก่อน
+  useEffect(() => {
+    if (showFeedback) {
+      setFeedbackError('');
+    }
+  }, [showFeedback]);
 
   // ตรวจสอบและลบเซสชันที่หมดอายุโดยอัตโนมัติเมื่อตัวนับถอยหลังถึง 00:00 (1 ชั่วโมง)
   useEffect(() => {
@@ -602,7 +614,7 @@ function App() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // เรียก API ค้นหาแบบผสม (FAISS + BM25) ของ Python
+    // เรียก API ค้นหาแบบผสม (ChromaDB + BM25) ของ Python
     fetch(API_URL + '/api/search', {
       method: 'POST',
       headers: {
@@ -782,6 +794,7 @@ function App() {
           setDislikeMsgId(msgId);
           setDislikeReason('');
           setDislikeSuccess(false);
+          setDislikeError('');
           setShowDislikeModal(true);
         }
 
@@ -838,6 +851,12 @@ function App() {
   const handleFeedbackSubmit = (e) => {
     e.preventDefault();
 
+    if (feedbackRating < 1) {
+      return; // ต้องเลือกจำนวนดาวก่อนส่ง ป้องกันข้อมูลคะแนนที่ไม่ได้มาจากผู้ใช้จริง
+    }
+
+    setFeedbackError('');
+
     const feedbackData = {
       rating: feedbackRating >= 4 ? 'like' : 'dislike',
       stars: feedbackRating,
@@ -846,13 +865,22 @@ function App() {
       msgId: `feedback-${Date.now()}`
     };
 
+    // หมายเหตุ: ต้องเช็ค response.ok/data.success ก่อนถือว่าสำเร็จ — เดิม fetch() จะ resolve
+    // ปกติแม้ backend ตอบ error (4xx/5xx) และ .catch() (เช่น เน็ตหลุด/CORS) ก็ยัง set success=true
+    // อยู่ดี ทำให้ผู้ใช้เห็นข้อความ "ส่งเรียบร้อย" ทั้งที่คะแนนดาวไม่ถูกบันทึกลง DB จริง และปิด/รีไดเรกต์
+    // หน้าไปเลยหลัง 2 วิ โดยผู้ใช้ไม่มีทางรู้เลยว่าข้อมูลหาย
     fetch(API_URL + '/api/admin/feedback/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(feedbackData)
     })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error("HTTP error " + r.status);
+        return r.json();
+      })
       .then(data => {
+        if (!data.success) throw new Error("Feedback submit did not report success");
+
         sessionStorage.setItem('tuh_feedback_submitted', 'true');
         const savedFeedback = localStorage.getItem('tuh_feedback_logs') || '[]';
         try {
@@ -867,27 +895,28 @@ function App() {
           console.error(err);
         }
         setFeedbackSuccess(true);
+
+        setTimeout(() => {
+          setShowFeedback(false);
+          setFeedbackSuccess(false);
+          setFeedbackRating(0);
+          setFeedbackText('');
+          if (isForcedFeedback) {
+            window.location.href = "https://intranet.hospital.tu.ac.th/";
+          }
+        }, 2000);
       })
       .catch(err => {
-        sessionStorage.setItem('tuh_feedback_submitted', 'true');
         console.error("Failed to submit feedback comments:", err);
-        setFeedbackSuccess(true);
+        setFeedbackError('ส่งข้อเสนอแนะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (เช็คการเชื่อมต่ออินเทอร์เน็ต)');
       });
-
-    setTimeout(() => {
-      setShowFeedback(false);
-      setFeedbackSuccess(false);
-      setFeedbackRating(5);
-      setFeedbackText('');
-      if (isForcedFeedback) {
-        window.location.href = "https://intranet.hospital.tu.ac.th/";
-      }
-    }, 2000);
   };
 
   const handleDislikeSubmit = (e) => {
     e.preventDefault();
     if (!dislikeReason.trim()) return;
+
+    setDislikeError('');
 
     fetch(API_URL + '/api/admin/feedback/submit', {
       method: 'POST',
@@ -900,34 +929,47 @@ function App() {
         answer: dislikeAnswer
       })
     })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          setDislikeSuccess(true);
-          setTimeout(() => {
-            setShowDislikeModal(false);
-            setDislikeSuccess(false);
-            setDislikeReason('');
-          }, 1500);
-        }
+      .then(r => {
+        if (!r.ok) throw new Error("HTTP error " + r.status);
+        return r.json();
       })
-      .catch(err => {
-        console.error("Failed to submit dislike explanation:", err);
+      .then(data => {
+        if (!data.success) throw new Error("Feedback submit did not report success");
         setDislikeSuccess(true);
         setTimeout(() => {
           setShowDislikeModal(false);
           setDislikeSuccess(false);
           setDislikeReason('');
         }, 1500);
+      })
+      .catch(err => {
+        // เดิม .catch() นี้ set success=true เหมือนกัน ทำให้ผู้ใช้เห็นว่าส่งสำเร็จทั้งที่ backend
+        // ไม่ได้บันทึกความเห็นไว้เลย (เหตุผลเดียวกับ handleFeedbackSubmit ด้านบน)
+        console.error("Failed to submit dislike explanation:", err);
+        setDislikeError('ส่งความคิดเห็นไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (เช็คการเชื่อมต่ออินเทอร์เน็ต)');
       });
   };
 
+  // Escape ก่อนเสมอ ป้องกัน XSS จากคำตอบบอท (LLM output อาจถูกชี้นำผ่านเนื้อหาเอกสารที่แอดมินอัปโหลด
+  // ให้ฝัง <script>/onerror ปนมาได้ — เดิม parseMarkdown() เอา text ไปต่อ HTML ตรงๆ ไม่ escape เลย)
+  const escapeHtml = (str) => str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
   const parseMarkdown = (text) => {
     if (!text) return '';
-    let html = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-tuh-navy dark:text-white">$1</strong>');
+    let html = escapeHtml(text);
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-tuh-navy dark:text-white">$1</strong>');
     html = html.replace(/^[-\*]\s*(.*?)$/gm, '<li class="ml-4 list-disc">$1</li>');
     html = html.replace(/^\d+\.\s(.*?)$/gm, '<li class="ml-4 list-decimal">$1</li>');
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-tuh-rose dark:text-tuh-coral hover:text-tuh-coral dark:hover:text-tuh-pink underline font-semibold hover:opacity-80 transition">$1 <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i></a>');
+    // จำกัด href ให้เป็น http(s) หรือ path ภายในเว็บเท่านั้น กัน javascript: URL scheme
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, url) => {
+      const safeUrl = /^(https?:\/\/|\/)/i.test(url) ? url : '#';
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-tuh-rose dark:text-tuh-coral hover:text-tuh-coral dark:hover:text-tuh-pink underline font-semibold hover:opacity-80 transition">${label} <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i></a>`;
+    });
     html = html.replace(/\n/g, '<br/>');
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
@@ -1199,6 +1241,7 @@ function App() {
           feedbackText={feedbackText}
           setFeedbackText={setFeedbackText}
           feedbackSuccess={feedbackSuccess}
+          feedbackError={feedbackError}
           isForcedFeedback={isForcedFeedback}
           handleFeedbackSubmit={handleFeedbackSubmit}
         />
@@ -1211,6 +1254,7 @@ function App() {
           dislikeReason={dislikeReason}
           setDislikeReason={setDislikeReason}
           dislikeSuccess={dislikeSuccess}
+          dislikeError={dislikeError}
           handleDislikeSubmit={handleDislikeSubmit}
         />
 

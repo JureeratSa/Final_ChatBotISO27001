@@ -31,7 +31,7 @@ graph LR
     subgraph Server_Side["ส่วนของเซิร์ฟเวอร์ (Server Side)"]
         WebServer["💻 Web Server (Python Backend API)<br>(Application Logic & RAG Controller)<br>Port: 8000"]
         
-        Database["💾 Database & Storage<br>- db_*.json (Settings, Feedback, Unanswered)<br>- uploads/ (PDF Filesต้นฉบับ)<br>- index_db/ (ดัชนี FAISS & BM25)"]
+        Database["💾 Database & Storage<br>- db_*.json (Settings, Feedback, Unanswered)<br>- uploads/ (PDF Filesต้นฉบับ)<br>- index_db/ (ดัชนี ChromaDB & BM25)"]
         
         AI_Inference["🧠 AI Inference Service<br>- Google Gemini API (Cloud)<br>- Local Ollama (qwen2.5:3b)"]
         
@@ -68,8 +68,7 @@ graph LR
     *   `db_unanswered.json`: เก็บประวัติคำถามที่ระบบตอบไม่ได้ หรือไม่มีข้อมูลในไฟล์อ้างอิง เพื่อให้เจ้าหน้าที่นำมาตอบหรืออัปโหลดเอกสารเพิ่มในภายหลัง
 *   **PDF Storage (`uploads/`):** โฟลเดอร์เก็บบันทึกไฟล์ PDF ต้นฉบับที่พร้อมนำมาทำดัชนี
 *   **Vector & Lexical Database (`index_db/`):** โฟลเดอร์เก็บฐานข้อมูลดัชนีสำหรับใช้ในการทำ RAG ค้นหาบริบท:
-    *   `faiss.index`: ดัชนีเวกเตอร์หนาแน่น (Dense Vectors) ประมวลผลจากโมเดล `BAAI/bge-m3` และจัดเก็บด้วยโครงสร้างดัชนี FAISS Flat Inner Product
-    *   `faiss_metadata.json`: แฟ้มจัดเก็บเนื้อหาข้อความจริงของ Chunk แต่ละตัวเพื่อให้ดึงข้อความขึ้นมาหลังค้นพบเวกเตอร์
+    *   `chroma_db/`: ดัชนีเวกเตอร์หนาแน่น (Dense Vectors) ประมวลผลจากโมเดล `BAAI/bge-m3` และจัดเก็บด้วย ChromaDB PersistentClient (collection `tuh_collection` เก็บทั้งเวกเตอร์ metadata และเนื้อหาข้อความของแต่ละ Chunk ไว้ในที่เดียว)
     *   `bm25.pkl`: ดัชนีคำค้นหาความถี่ต่ำแบบเบาตัว (Sparse BM25 Index) ที่ผ่านการตัดคำภาษาไทยด้วย PyThaiNLP เซฟด้วยการแปลงออบเจกต์ผ่าน Serialization (Pickle)
 
 ### 2.4 Background Rebuild Process (ทาสก์ประมวลผลสร้างดัชนี)
@@ -85,7 +84,7 @@ graph LR
     *   บันทึกไฟล์ชิ้นส่วนรวมทั้งหมดลงใน `sample_chunks.json`
 3.  **เรียกทำงานฟังก์ชันสร้างดัชนีใน `Admin/emb.py`**:
     *   ดึงเนื้อหาจาก `sample_chunks.json`
-    *   ป้อนข้อความทั่วไปและข้อความ Child ของตารางเข้า SentenceTransformer เพื่อแปลงเป็นเวกเตอร์ 1024 มิติด้วย `bge-m3` และบันทึกลงไฟล์ `faiss.index`
+    *   ป้อนข้อความทั่วไปและข้อความ Child ของตารางเข้า SentenceTransformer เพื่อแปลงเป็นเวกเตอร์ 1024 มิติด้วย `bge-m3` และบันทึกลง ChromaDB (`chroma_db/`)
     *   นำข้อความมาตัดคำภาษาไทยสร้างดัชนีคำค้นหา (Lexical BM25 index) และบันทึกลงไฟล์ `bm25.pkl`
 4.  **สั่งโหลดดัชนีในหน่วยความจำใหม่ (Memory Reload)**:
     *   เมื่อสร้างดัชนีลงไฟล์สำเร็จ ตัวประมวลผลเบื้องหลังจะเรียกฟังก์ชัน `.load()` ของ `HybridRetriever` บนหน่วยความจำของเซิร์ฟเวอร์เพื่อให้ผลการดึงดัชนีตัวใหม่พร้อมตอบคำถามทันทีโดยไม่ต้องรีสตาร์ตระบบ
@@ -104,7 +103,7 @@ graph LR
     ┌────────────────────────────────┘
     ▼
 [ประมวลผลการค้นหาด้วย HybridRetriever]
-    ├──> ส่งคำถามหาเวกเตอร์ที่ใกล้เคียงจาก Dense FAISS Index (Weight = 0.4)
+    ├──> ส่งคำถามหาเวกเตอร์ที่ใกล้เคียงจาก Dense ChromaDB Index (Weight = 0.4)
     └──> ส่งคำถามหาข้อความอ้างอิงที่ใกล้เคียงจาก Sparse BM25 Index (Weight = 0.6)
     ▼
 [รวมและจัดอันดับผลลัพธ์ด้วย Weighted Reciprocal Rank Fusion (Weighted RRF)]
@@ -141,7 +140,7 @@ graph LR
     │
     ▼
 [สร้างดัชนีผ่าน Admin/emb.py]
-    ├──> โหลดไฟล์ chunks และแปลงเป็นเวกเตอร์ด้วยโมเดล BAAI/bge-m3 บันทึกลง faiss.index
+    ├──> โหลดไฟล์ chunks และแปลงเป็นเวกเตอร์ด้วยโมเดล BAAI/bge-m3 บันทึกลง ChromaDB (`chroma_db/`)
     └──> ตัดคำและสร้างโมเดลความถี่คำหลักด้วย BM25 Okapi บันทึกลง bm25.pkl
     │
     ▼

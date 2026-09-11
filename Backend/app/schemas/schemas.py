@@ -4,7 +4,18 @@ Request/Response models สำหรับ API endpoints
 """
 from datetime import datetime
 from typing import Optional, List, Any
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+MIN_PASSWORD_LENGTH = 8
+
+
+def _validate_password_strength(value: str) -> str:
+    """นโยบายรหัสผ่านขั้นต่ำ: ยาวอย่างน้อย 8 ตัว (เดิม 4 ตัวสั้นเกินไป เดาง่าย)"""
+    if value is None:
+        return value
+    if len(value) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"รหัสผ่านต้องมีความยาวอย่างน้อย {MIN_PASSWORD_LENGTH} ตัวอักษร")
+    return value
 
 
 # ─── Auth Schemas ──────────────────────────────────────────────────────────────
@@ -41,6 +52,8 @@ class UserCreate(BaseModel):
     role: str = "admin"
     department: Optional[str] = None
 
+    _validate_password = field_validator("password")(_validate_password_strength)
+
 
 class UserUpdate(BaseModel):
     display_name: Optional[str] = None
@@ -48,6 +61,8 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     department: Optional[str] = None
     is_active: Optional[bool] = None
+
+    _validate_password = field_validator("password")(_validate_password_strength)
 
 
 class UserResponse(BaseModel):
@@ -88,9 +103,11 @@ class SettingsResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     model_name: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_k: Optional[int] = None
+    # เดิมไม่มี bound เลย ตั้ง temperature=999 หรือ top_k=100000 จาก UI ได้ (ค้าง LLM/retriever
+    # หรือทำให้ context ยาวจนเกิน token limit ของโมเดล) — ใส่ขอบเขตที่สมเหตุสมผลไว้กันไว้
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    max_tokens: Optional[int] = Field(None, ge=1, le=8000)
+    top_k: Optional[int] = Field(None, ge=1, le=20)
     system_prompt: Optional[str] = None
     welcome_message: Optional[str] = None
     chat_greeting: Optional[str] = None
@@ -131,7 +148,8 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    query: str
+    # จำกัดความยาวคำถาม กัน payload ใหญ่ผิดปกติไปดันต้นทุน LLM API หรือ context เกิน token limit
+    query: str = Field(..., max_length=2000)
     history: List[ChatMessage] = []
     session_id: Optional[str] = None
 
@@ -163,6 +181,7 @@ class ChatResponse(BaseModel):
 class FeedbackSubmit(BaseModel):
     msgId: str
     rating: str  # like | dislike
+    stars: Optional[int] = None  # 1-5 จากแบบสอบถามความพึงพอใจภาพรวม
     comment: Optional[str] = None
     query: Optional[str] = None
     answer: Optional[str] = None
@@ -172,6 +191,7 @@ class FeedbackSubmit(BaseModel):
 class FeedbackResponse(BaseModel):
     id: str
     rating: str
+    stars: Optional[int] = None
     comment: Optional[str] = None
     query: Optional[str] = None
     answer: Optional[str] = None

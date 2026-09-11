@@ -8,6 +8,7 @@ export const FeedbackModal = ({
   feedbackText,
   setFeedbackText,
   feedbackSuccess,
+  feedbackError,
   isForcedFeedback,
   handleFeedbackSubmit
 }) => {
@@ -61,7 +62,7 @@ export const FeedbackModal = ({
                   </button>
                 ))}
                 <span className="text-xs text-tuh-indigo/40 dark:text-tuh-pink/40 font-bold ml-2">
-                  ({feedbackRating} คะแนน)
+                  {feedbackRating > 0 ? `(${feedbackRating} คะแนน)` : '(กรุณาเลือกจำนวนดาว)'}
                 </span>
               </div>
             </div>
@@ -78,6 +79,13 @@ export const FeedbackModal = ({
               ></textarea>
             </div>
 
+            {/* ข้อความแจ้งเตือนเมื่อส่งไม่สำเร็จ */}
+            {feedbackError && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-500/30 text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                <i className="fa-solid fa-circle-exclamation"></i> {feedbackError}
+              </div>
+            )}
+
             {/* ปุ่มส่งข้อเสนอแนะและยกเลิก */}
             <div className="flex justify-end gap-2 pt-2">
               {!isForcedFeedback && (
@@ -91,7 +99,8 @@ export const FeedbackModal = ({
               )}
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-tuh-gradient-2 hover:opacity-90 text-white font-semibold text-sm transition shadow-md shadow-tuh-rose/15"
+                disabled={feedbackRating < 1}
+                className="px-5 py-2.5 rounded-xl bg-tuh-gradient-2 hover:opacity-90 text-white font-semibold text-sm transition shadow-md shadow-tuh-rose/15 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:opacity-40"
               >
                 {isForcedFeedback ? 'ส่งความเห็นเพื่อปิดแชทบอท' : 'ส่งข้อเสนอแนะ'}
               </button>
