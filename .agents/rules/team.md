@@ -74,7 +74,7 @@
 2. **Branch:** ใช้ branch `new` เสมอ ห้าม push ตรงไปยัง `main`
 3. **UI/UX:** ห้ามเปลี่ยนหน้าตาของ Chatbot (http://localhost:5173) โดยไม่ได้รับอนุญาต
 4. **Database:** ใช้ TiDB Cloud (MySQL) ผ่าน async connection เสมอ — ไม่ใช้ SQLite หรือ PostgreSQL
-5. **RAG Pipeline:** รักษา HybridRetriever เดิมไว้ทุกกรณี — Vector DB ที่ตั้งค่าใช้งานจริงตอนนี้คือ **ChromaDB** (`embedding_tech: local_chroma`, ดู `user/backend/db/db_settings.json` และ default ใน `SystemSettings` model) ผสานกับ **BM25** (Lexical) ด้วย Weighted RRF — FAISS ยังอยู่ในโค้ด (`Admin/emb.py`) เป็นทางเลือกสำรอง (`local_faiss` / `cloud_gemini`) ที่สลับได้ผ่านหน้า Admin แต่ไม่ใช่ค่าที่ใช้งานอยู่จริง
+5. **RAG Pipeline:** รักษา HybridRetriever เดิมไว้ทุกกรณี — Vector DB คือ **ChromaDB** (`embedding_tech: local_chroma`, ดู `user/backend/db/db_settings.json` และ default ใน `SystemSettings` model) embed ด้วย `BAAI/bge-m3` ผสานกับ **BM25** (Lexical) ด้วย Weighted RRF — FAISS ถูกเอาออกจากโค้ดแล้ว (2026-09-11) ไม่มีเป็นทางเลือกสำรองอีกต่อไป (`local_faiss` / `cloud_gemini` ถูกลบออกจาก `Admin/emb.py` และ `Admin/rebuild_db.py`)
 6. **Port:** Chatbot = 5173, Admin = 5174, Backend API = 8000
 7. **Security:** JWT access token อายุ 15 นาที, refresh token อายุ 7 วัน — ห้ามลดค่า
 8. **Frontend Runtime:** ใช้ python run_v2_frontend.py และ python run_admin_server.py เสมอ (บายพาส UNC space bug)

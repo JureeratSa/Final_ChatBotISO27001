@@ -1,0 +1,4 @@
+# Dependencies สำหรับ Load/Stress Testing และ Eval เท่านั้น (แยกจาก Backend/requirements-dev.txt)
+locust>=2.31.0
+requests>=2.31.0
+openpyxl>=3.1.0

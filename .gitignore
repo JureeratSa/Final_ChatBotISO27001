@@ -14,9 +14,13 @@ user/backend/db/*.json
 uploads/
 *.pdf
 
-# Vector database index files (FAISS/BM25 output)
+# Vector database index files (ChromaDB/BM25 output)
 index_db/
 index_db_backup/
+
+# Local SQLite files (เช่น sqlite ที่สร้างเองตอนทดสอบ Alembic migration ด้วยมือ)
+*.db
+*.db-journal
 
 # Environments and credentials
 .env

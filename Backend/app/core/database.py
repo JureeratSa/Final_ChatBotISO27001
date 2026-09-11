@@ -44,24 +44,19 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def create_tables():
-    """สร้างตาราง Database ทั้งหมด (ใช้ตอน startup)"""
+    """
+    สร้างตารางที่ยังไม่มีตอน startup (เผื่อกรณี dev/CI ที่ยังไม่เคยรัน migration เลย)
+
+    หมายเหตุ: การเปลี่ยนแปลง schema จริง (เพิ่ม/แก้/ลบคอลัมน์ใน DB ที่มีข้อมูลอยู่แล้ว)
+    ต้องทำผ่าน Alembic migration เท่านั้น (`alembic revision --autogenerate` แล้ว
+    `alembic upgrade head`) — ดู Backend/README ส่วน Database Migrations
+    เดิมโค้ดตรงนี้ต่อท้ายด้วย ALTER TABLE ... try/except: pass ทีละคอลัมน์ทุกครั้งที่มีคนเพิ่ม
+    field ใหม่ใน models.py ซึ่งกลืน error จริงทิ้งหมด (ต่อ DB ไม่ติด, สิทธิ์ไม่พอ ฯลฯ ก็จะเงียบ
+    เหมือนสำเร็จ) และไม่มีที่มาให้ตรวจสอบว่า schema ปัจจุบันอยู่สถานะไหน — Alembic migration
+    history แก้ปัญหานี้แทนแล้ว metadata.create_all() ที่เหลือไว้ตรงนี้เป็นแค่ safety net
+    สำหรับ dev/CI ที่รัน SQLite ชั่วคราว ไม่ได้มีหน้าที่ปรับ schema ของ DB ที่มีอยู่แล้ว
+    (create_all ไม่แก้ไข/เพิ่มคอลัมน์ในตารางที่มีอยู่แล้วอยู่แล้ว เพิ่มเฉพาะตารางที่ยังไม่มี)
+    """
     from app.models import models  # noqa
-    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        try:
-            await conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by VARCHAR(100) NULL;"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE users ADD COLUMN department VARCHAR(100) NULL;"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE announcements ADD COLUMN category VARCHAR(100) NULL;"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE announcements ADD COLUMN created_by VARCHAR(100) NULL;"))
-        except Exception:
-            pass

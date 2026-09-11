@@ -1,7 +1,7 @@
 """
 TUH Chatbot AI — Chat Router (RAG Core)
 Endpoints: POST /api/chat, GET /api/chat/settings
-คง Pipeline เดิม: FAISS + BM25 + Weighted RRF + OpenRouter (Gemini/Ollama)
+คง Pipeline เดิม: ChromaDB + BM25 + Weighted RRF + OpenRouter (Gemini/Ollama)
 """
 import os
 import re
@@ -9,6 +9,8 @@ import sys
 import time
 import json
 import uuid
+import asyncio
+import logging
 from typing import List, Optional
 from pathlib import Path
 from urllib.parse import quote
@@ -22,10 +24,12 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLink
 from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form, Document
-from app.services.rag_service import get_retriever, query_rag
+from app.services.rag_service import get_retriever, query_rag, contains_profanity, is_chit_chat
 
 from app.core.security import safe_path
+from app.core.rate_limit import rate_limit_dependency
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
@@ -33,7 +37,7 @@ UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 
 # ─── Chat Endpoint ────────────────────────────────────────────────────────────
 
-@router.post("", response_model=ChatResponse)
+@router.post("", response_model=ChatResponse, dependencies=[Depends(rate_limit_dependency)])
 async def chat(
     body: ChatRequest,
     background_tasks: BackgroundTasks,
@@ -41,7 +45,7 @@ async def chat(
 ):
     """
     Main Chat Endpoint — ประมวลผลคำถามผ่าน RAG Pipeline
-    Flow: Custom FAQs → HybridRetriever (FAISS+BM25) → Weighted RRF → OpenRouter/Ollama
+    Flow: Custom FAQs → HybridRetriever (ChromaDB+BM25) → Weighted RRF → OpenRouter/Ollama
     """
     start_time = time.time()
     query = body.query.strip()
@@ -85,14 +89,24 @@ async def chat(
             )
 
     # ─── 3. RAG Pipeline ────────────────────────────────────────────────────
+    # ข้าม retriever ไปเลยถ้าเป็นคำทักทาย/หยาบคาย เพราะ query_rag() ทิ้งผล rag_results
+    # ทันทีอยู่แล้วสำหรับ 2 เคสนี้ (ดู contains_profanity/is_chit_chat ใน rag_service.py)
+    # เดิมคำนวณ retriever.query() ไปก่อนโดยไม่จำเป็น เสียเวลาฟรีทุกครั้งที่มีคนทักทาย/พิมพ์หยาบคาย
+    #
+    # retriever.query() เป็น sync/CPU-bound ล้วน (BM25 + pythainlp tokenize + Chroma search)
+    # ถ้าเรียกตรงๆ ใน async def จะบล็อก event loop ทั้งตัวจนกว่าจะเสร็จ ทำให้ request อื่นรอคิว
+    # หมดไม่ว่าจะมี concurrent connection กี่ตัว (วัดได้จริงจาก load test — throughput ไม่ขยับ
+    # ตาม concurrency เลย) จึงต้องยกไปรันใน thread pool เหมือนที่ query_rag() ทำกับ LLM HTTP call
     rag_results = []
-    try:
-        retriever = get_retriever()
-        if retriever:
-            top_k = config.get("top_k", 3)
-            rag_results = retriever.query(query, top_k=top_k)
-    except Exception as e:
-        print(f"[RAG Error] {e}")
+    if not contains_profanity(query) and not is_chit_chat(query):
+        try:
+            retriever = get_retriever()
+            if retriever:
+                top_k = config.get("top_k", 3)
+                loop = asyncio.get_event_loop()
+                rag_results = await loop.run_in_executor(None, lambda: retriever.query(query, top_k=top_k))
+        except Exception as e:
+            logger.error("[RAG Error] %s", e)
 
     # ─── 4. โหลด Forms สำหรับ embed ลิงก์ ────────────────────────────────
     forms_result = await db.execute(select(Form))
@@ -147,7 +161,14 @@ async def chat(
             form_links_out.append(FormLink(name=form.name, download_link=form.download_link))
 
     # ─── 8. ตรวจว่าเป็น unanswered query หรือไม่ ──────────────────────────
-    is_unanswered = any(k in answer for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้"])
+    # เดิมเดาจาก keyword ในคำตอบ ("ขออภัย", "ไม่สามารถตอบได้") อย่างเดียว ซึ่งชนกับข้อความ
+    # ปฏิเสธคำหยาบคาย ("ขออภัยครับ ไม่สามารถตอบคำถามที่ใช้ภาษาไม่สุภาพได้...") ทำให้ทุกคำถาม
+    # ที่โดนกรองคำหยาบ/เป็นคำทักทาย ถูกบันทึกลง unanswered log ผิดๆ ไปด้วย ทั้งที่ระบบทำงาน
+    # ถูกต้องแล้ว (ไม่ใช่กรณี "หาคำตอบไม่เจอ") — กันด้วยการเช็ค model_used ก่อน
+    is_unanswered = model_used not in ("profanity_filter", "chit_chat") and (
+        model_used == "fallback"
+        or any(k in answer for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้"])
+    )
     if is_unanswered:
         background_tasks.add_task(save_unanswered, db, query)
 
@@ -219,7 +240,7 @@ async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_
             session.add(entry)
             await session.commit()
     except Exception as e:
-        print(f"[History Save Error] {e}")
+        logger.error("[History Save Error] %s", e)
 
 
 async def save_unanswered(db, query):
@@ -245,4 +266,4 @@ async def save_unanswered(db, query):
                 ))
             await session.commit()
     except Exception as e:
-        print(f"[Unanswered Save Error] {e}")
+        logger.error("[Unanswered Save Error] %s", e)

@@ -1,0 +1,7 @@
+# SQLite local test DB (สร้างจาก db_patch.py ตอนรัน mock_server.py / run_full_server.py)
+testdata.db
+testdata.db-wal
+testdata.db-shm
+
+# ผลลัพธ์ load test / eval — งานแต่ละรอบไม่ต้อง commit
+results/

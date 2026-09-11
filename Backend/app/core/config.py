@@ -1,9 +1,14 @@
 """
 TUH Chatbot AI — Core Configuration
 ไฟล์กำหนดค่าหลักของระบบ โหลดจาก Environment Variables
+
+หมายเหตุความปลอดภัย: ค่าที่เป็นความลับ (DB_PASSWORD, JWT_SECRET_KEY ฯลฯ) ไม่มีค่า default
+ในโค้ดโดยเจตนา — ต้องกำหนดผ่าน .env หรือ environment variable เท่านั้น ห้าม hardcode ค่าจริงไว้ในไฟล์นี้
+เพราะไฟล์นี้ถูก track ใน git (เคยมีรหัสผ่าน production หลุดมาก่อนเพราะ hardcode ไว้ตรงนี้)
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -16,11 +21,11 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # TiDB Cloud (MySQL) Database
-    DB_HOST: str = "gateway01.ap-southeast-1.prod.aws.tidbcloud.com"
+    # TiDB Cloud (MySQL) Database — ไม่มีค่า default: ต้องตั้งใน .env เสมอ
+    DB_HOST: str
     DB_PORT: int = 4000
-    DB_USER: str = "2LejCpHSLet7wXP.root"
-    DB_PASSWORD: str = "eg8UcQJpbxenLaeN"
+    DB_USER: str
+    DB_PASSWORD: str
     DB_NAME: str = "chatbot"
 
     @property
@@ -38,11 +43,17 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
-    # JWT Auth
-    JWT_SECRET_KEY: str = "tuh-chatbot-super-secret-key-change-in-production-2026"
+    # JWT Auth — ไม่มีค่า default: ต้องตั้งใน .env เสมอ (สร้างด้วย `python -c "import secrets; print(secrets.token_urlsafe(64))"`)
+    JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Initial Admin Bootstrap — ใช้ตอน DB ว่างเปล่าครั้งแรกเท่านั้น
+    # ถ้าไม่ตั้งค่านี้ ระบบจะสุ่มรหัสผ่านให้และ print ออก console ครั้งเดียวตอน startup
+    # (ไม่ใช้ default แบบ hardcode เช่น admin1234 อีกต่อไป)
+    INITIAL_ADMIN_USERNAME: str = "admin"
+    INITIAL_ADMIN_PASSWORD: Optional[str] = None
 
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
@@ -98,9 +109,16 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS: int = 30
     RATE_LIMIT_WINDOW_SECONDS: int = 60
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    _backend_dir = Path(__file__).parents[2]
+    _root_dir = Path(__file__).parents[3]
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(_backend_dir / ".env"),
+            str(_root_dir / ".env"),
+            ".env"
+        ],
+        extra="ignore"
+    )
 
 
 settings = Settings()

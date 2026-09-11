@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — RAG Service
-คง Logic เดิมทั้งหมด: HybridRetriever (FAISS + BM25 + Weighted RRF)
+คง Logic เดิมทั้งหมด: HybridRetriever (ChromaDB + BM25 + Weighted RRF)
 Wraps existing Admin/emb.py as an async-compatible service
 """
 import os
@@ -9,10 +9,13 @@ import sys
 import json
 import time
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Global Retriever State ───────────────────────────────────────────────────
@@ -40,10 +43,10 @@ def load_retriever():
         retriever.load()
         _retriever = retriever
         _retriever_loaded = True
-        print("[RAG] HybridRetriever loaded successfully")
+        logger.info("[RAG] HybridRetriever loaded successfully")
         return True
     except Exception as e:
-        print(f"[RAG] Warning: Could not load HybridRetriever: {e}")
+        logger.warning("[RAG] Warning: Could not load HybridRetriever: %s", e)
         _retriever = None
         _retriever_loaded = False
         return False
@@ -256,7 +259,7 @@ async def query_rag(
                         ans = content
                         break
             except Exception as e:
-                print(f"[OpenRouter Error attempt {attempt+1}] {e}")
+                logger.error("[OpenRouter Error attempt %d] %s", attempt + 1, e)
                 if attempt == 1:
                     ans = get_fallback_vector_answer(results)
                     model_used = "fallback"

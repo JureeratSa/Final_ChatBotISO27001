@@ -224,9 +224,8 @@ def rebuild():
         except Exception:
             pass
             
-    tech = config.get("embedding_tech", "local_faiss")
-    api_key = config.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
-    
+    tech = config.get("embedding_tech", "local_chroma")
+
     uploads_dir = os.path.join(root_dir, "uploads")
     cache_dir = os.path.join(uploads_dir, "cache")
     os.makedirs(cache_dir, exist_ok=True)
@@ -352,45 +351,17 @@ def rebuild():
                 
             texts = [c["content"] for c in chunks]
             embeddings_list = []
-            
-            if tech == "cloud_gemini":
-                if not api_key:
-                    raise ValueError("ไม่พบ Gemini API Key ในระบบหลังบ้าน กรุณากรอก API Key ในหน้าแอดมินก่อนใช้งาน Cloud Gemini")
-                
-                emb_start = time.perf_counter()
-                batch_size = 100
-                for i in range(0, len(texts), batch_size):
-                    batch_texts = texts[i:i+batch_size]
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key={api_key}"
-                    requests_payload = []
-                    for t in batch_texts:
-                        requests_payload.append({
-                            "model": "models/text-embedding-004",
-                            "content": {"parts": [{"text": t}]}
-                        })
-                    import urllib.request
-                    req = urllib.request.Request(
-                        url,
-                        data=json.dumps({"requests": requests_payload}).encode("utf-8"),
-                        headers={"Content-Type": "application/json"},
-                        method="POST"
-                    )
-                    with urllib.request.urlopen(req, timeout=30) as resp:
-                        res_data = json.loads(resp.read().decode("utf-8"))
-                        batch_embs = [item["values"] for item in res_data["embeddings"]]
-                        embeddings_list.extend(batch_embs)
-                embedding_duration = time.perf_counter() - emb_start
-            else:
-                # local_faiss หรือ local_chroma
-                if model is None:
-                    print("กำลังโหลดโมเดล BAAI/bge-m3 SentenceTransformer เข้าสู่ RAM...")
-                    from sentence_transformers import SentenceTransformer
-                    model = SentenceTransformer("BAAI/bge-m3")
-                emb_start = time.perf_counter()
-                embeddings_np = model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
-                embeddings_list = embeddings_np.tolist()
-                embedding_duration = time.perf_counter() - emb_start
-                
+
+            # ChromaDB: สกัดเวกเตอร์ด้วย BAAI/bge-m3 (SentenceTransformer)
+            if model is None:
+                print("กำลังโหลดโมเดล BAAI/bge-m3 SentenceTransformer เข้าสู่ RAM...")
+                from sentence_transformers import SentenceTransformer
+                model = SentenceTransformer("BAAI/bge-m3")
+            emb_start = time.perf_counter()
+            embeddings_np = model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
+            embeddings_list = embeddings_np.tolist()
+            embedding_duration = time.perf_counter() - emb_start
+
             # บันทึกลง Cache
             cache_data = {
                 "filename": pdf,
@@ -452,55 +423,38 @@ def rebuild():
         import numpy as np
         embeddings_np = np.array(all_embeddings_list, dtype=np.float32)
         
-        if tech == "local_chroma":
-            try:
-                import chromadb
-            except ImportError:
-                print("กำลังติดตั้ง chromadb...")
-                import subprocess
-                subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
-                import chromadb
-                
-            if sys.platform.startswith('win') or os.name == 'nt':
-                chroma_dir = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-            else:
-                chroma_dir = os.path.join(index_dir, "chroma_db")
-            os.makedirs(chroma_dir, exist_ok=True)
-            chroma_client = chromadb.PersistentClient(path=chroma_dir)
-            try:
-                chroma_client.delete_collection("tuh_collection")
-            except Exception:
-                pass
-            collection = chroma_client.create_collection("tuh_collection")
-            
-            ids = [str(c["chunk_id"]) for c in all_chunks]
-            texts = [c["content"] for c in all_chunks]
-            metadatas = [c["metadata"] for c in all_chunks]
-            
-            collection.add(
-                ids=ids,
-                embeddings=embeddings_np.tolist(),
-                metadatas=metadatas,
-                documents=texts
-            )
-            print(f"บันทึก Chroma DB สำเร็จ (รวม {len(ids)} รายการ)")
-            
+        try:
+            import chromadb
+        except ImportError:
+            print("กำลังติดตั้ง chromadb...")
+            import subprocess
+            subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
+            import chromadb
+
+        if sys.platform.startswith('win') or os.name == 'nt':
+            chroma_dir = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
         else:
-            # FAISS (local_faiss หรือ cloud_gemini)
-            import faiss
-            faiss.normalize_L2(embeddings_np)
-            dimension = embeddings_np.shape[1]
-            faiss_index = faiss.IndexFlatIP(dimension)
-            faiss_index.add(embeddings_np)
-            
-            faiss_index_path = os.path.join(index_dir, "faiss.index")
-            faiss_meta_path = os.path.join(index_dir, "faiss_metadata.json")
-            
-            faiss.write_index(faiss_index, faiss_index_path)
-            with open(faiss_meta_path, "w", encoding="utf-8") as f:
-                json.dump(all_chunks, f, ensure_ascii=False, indent=2)
-            print(f"บันทึก FAISS Index สำเร็จ (รวม {len(all_chunks)} รายการ)")
-            
+            chroma_dir = os.path.join(index_dir, "chroma_db")
+        os.makedirs(chroma_dir, exist_ok=True)
+        chroma_client = chromadb.PersistentClient(path=chroma_dir)
+        try:
+            chroma_client.delete_collection("tuh_collection")
+        except Exception:
+            pass
+        collection = chroma_client.create_collection("tuh_collection")
+
+        ids = [str(c["chunk_id"]) for c in all_chunks]
+        texts = [c["content"] for c in all_chunks]
+        metadatas = [c["metadata"] for c in all_chunks]
+
+        collection.add(
+            ids=ids,
+            embeddings=embeddings_np.tolist(),
+            metadatas=metadatas,
+            documents=texts
+        )
+        print(f"บันทึก Chroma DB สำเร็จ (รวม {len(ids)} รายการ)")
+
         # 3. บันทึก sample_chunks.json
         chunks_output_path = os.path.join(root_dir, "sample_chunks.json")
         with open(chunks_output_path, "w", encoding="utf-8") as f:

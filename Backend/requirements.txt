@@ -14,12 +14,13 @@ alembic>=1.13.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.9
+nh3>=0.2.18  # HTML sanitizer กัน Stored XSS จากเนื้อหา CKEditor (ประกาศ)
 
 # HTTP
 httpx>=0.27.0
 
 # RAG / ML (ใช้ร่วมกับ Admin/emb.py เดิม)
-faiss-cpu>=1.8.0
+chromadb>=0.5.0
 sentence-transformers>=3.0.0
 rank-bm25>=0.2.2
 pythainlp>=5.0.0

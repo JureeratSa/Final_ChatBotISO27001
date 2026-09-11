@@ -71,6 +71,11 @@ class SystemSettings(Base):
     predefined_faqs: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
     last_build_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     gemini_api_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # OpenRouter/Gemini API key
+    # สถานะ rebuild vector index — เก็บใน DB แทน module-level dict ในตัว process (ของเดิม
+    # เก็บใน memory ของ process เดียว พอรัน uvicorn หลาย worker แต่ละ worker จะเห็นสถานะคนละ
+    # ค่ากัน ทำให้หน้า Admin เห็นสถานะสุ่มไม่ตรงกันได้ — ดู routers/admin.py ส่วน REBUILD)
+    rebuild_status: Mapped[str] = mapped_column(String(50), nullable=False, default="idle")
+    rebuild_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -101,6 +106,7 @@ class Feedback(Base):
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
     rating: Mapped[str] = mapped_column(String(50), nullable=False)  # like | dislike
+    stars: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1-5 จากแบบสอบถามความพึงพอใจภาพรวม
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     query: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

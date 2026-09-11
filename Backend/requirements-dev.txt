@@ -1,0 +1,5 @@
+# Test-only dependencies (ไม่ต้องติดตั้งใน production)
+-r requirements.txt
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+aiosqlite>=0.20.0
