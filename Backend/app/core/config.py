@@ -69,41 +69,43 @@ class Settings(BaseSettings):
         return self.GEMINI_API_KEY or self.OPENROUTER_API_KEY or ""
 
     # File Storage (ปรับใช้ path ให้สามารถรันได้ทั้ง local และ docker)
+    #
+    # หมายเหตุ: เดิม 3 property นี้เช็ค `.exists()` ก่อนตัดสินใจว่าจะใช้ path แบบ
+    # relative กับ repo หรือ fallback ไปที่ /app/... แบบ hardcode — ปัญหาคือโฟลเดอร์
+    # uploads/ และ index_db/ ถูก .gitignore ไว้ ในเครื่อง/CI ที่ checkout สดๆ ยังไม่มี
+    # โฟลเดอร์นี้อยู่จริง เลยตกไป fallback เป็น "/app/uploads" ซึ่งเป็น path เฉพาะ
+    # ตอนรันใน Docker container เท่านั้น พอโค้ดที่เรียกใช้ (เช่น
+    # app/routers/admin.py ตอน import module) สั่ง mkdir(parents=True) จะพัง
+    # ด้วย PermissionError เพราะ process ทั่วไปไม่มีสิทธิ์สร้างโฟลเดอร์ที่ root ('/app')
+    # แก้โดยคำนวณ path จากตำแหน่งไฟล์จริงเสมอ ไม่พึ่ง .exists() — ให้ mkdir()
+    # ฝั่งเรียกใช้เป็นคนสร้างโฟลเดอร์เองตามปกติ ส่วน "/app/..." เหลือไว้เป็น
+    # fallback สุดท้ายกรณีคำนวณ path จากไฟล์นี้ไม่ได้จริงๆ เท่านั้น
     @property
     def UPLOADS_DIR(self) -> str:
         from pathlib import Path
         try:
             base_dir = Path(__file__).parents[3]
-            uploads_path = base_dir / "uploads"
-            if uploads_path.exists():
-                return str(uploads_path.resolve())
+            return str((base_dir / "uploads").resolve())
         except Exception:
-            pass
-        return "/app/uploads"
+            return "/app/uploads"
 
     @property
     def INDEX_DB_DIR(self) -> str:
         from pathlib import Path
         try:
             base_dir = Path(__file__).parents[3]
-            index_path = base_dir / "index_db"
-            if index_path.exists():
-                return str(index_path.resolve())
+            return str((base_dir / "index_db").resolve())
         except Exception:
-            pass
-        return "/app/index_db"
+            return "/app/index_db"
 
     @property
     def ADMIN_DIR(self) -> str:
         from pathlib import Path
         try:
             base_dir = Path(__file__).parents[3]
-            admin_path = base_dir / "Admin"
-            if admin_path.exists():
-                return str(admin_path.resolve())
+            return str((base_dir / "Admin").resolve())
         except Exception:
-            pass
-        return "/app/Admin"
+            return "/app/Admin"
 
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 30
