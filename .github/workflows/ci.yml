@@ -12,21 +12,10 @@ jobs:
     name: 🐍 Backend Tests (FastAPI)
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: tuhchatbot
-          POSTGRES_PASSWORD: tuhchatbot2026
-          POSTGRES_DB: tuhchatbot
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
+    # หมายเหตุ: ไม่มี service DB จริง (ไม่ใช่ postgres ไม่ใช่ TiDB) เพราะเทสทั้งหมดใช้
+    # SQLite in-memory ผ่าน Backend/tests/conftest.py (ตามกฎข้อ 1 — SQLite ใช้ได้เฉพาะ pytest)
+    # ตัวแปร DB_HOST/DB_USER/DB_PASSWORD/JWT_SECRET_KEY ด้านล่างเป็นแค่ค่า placeholder
+    # เพื่อให้ Settings() (pydantic) ผ่าน validation เท่านั้น ไม่มีการเชื่อมต่อ DB จริงตามค่านี้
     steps:
       - uses: actions/checkout@v4
 
@@ -43,11 +32,10 @@ jobs:
 
       - name: Run tests
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_USER: tuhchatbot
-          POSTGRES_PASSWORD: tuhchatbot2026
-          POSTGRES_DB: tuhchatbot
+          DB_HOST: ci-placeholder-not-used
+          DB_USER: ci-placeholder-not-used
+          DB_PASSWORD: ci-placeholder-not-used
+          JWT_SECRET_KEY: ci-placeholder-secret-not-for-production-use
         run: |
           cd Backend
           pytest tests/ -v --tb=short
