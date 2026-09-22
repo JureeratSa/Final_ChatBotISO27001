@@ -81,6 +81,14 @@ class UserResponse(BaseModel):
 # ─── Settings Schemas ──────────────────────────────────────────────────────────
 
 class FAQ(BaseModel):
+    # id/icon ต้องมีไว้เสมอ — เดิมมีแค่ question/answer ทำให้ทุกครั้งที่ AdminWeb save settings
+    # (ผ่าน /api/admin/settings ซึ่ง parse body ผ่าน FAQ model นี้) id/icon ที่ frontend ส่งมา
+    # ถูกตัดทิ้งเงียบๆ (Pydantic ไม่เก็บ field ที่ไม่ได้ประกาศไว้) พอโหลดกลับมาใหม่ทุกรายการเลย
+    # ไม่มี id (เป็น None หมด) ทำให้ AdminWeb (App.jsx handleSavePredefinedFaq ที่ match ด้วย
+    # `faq.id === selectedPredefinedFaq.id`) จับคู่ None === None ว่าตรงกับทุกแถว เวลาแก้ไข FAQ
+    # ข้อเดียวเลยไปทับคำถาม/คำตอบของทุกข้อในรายการพร้อมกันหมด (ข้อมูลเดิมของข้ออื่นหายไม่สามารถกู้คืนได้)
+    id: Optional[str] = None
+    icon: Optional[str] = None
     question: str
     answer: str
 

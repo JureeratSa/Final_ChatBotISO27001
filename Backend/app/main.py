@@ -22,7 +22,11 @@ from app.core.config import settings
 from app.core.database import create_tables
 from app.core.security import hash_password
 from app.core.logging_config import setup_logging
-from app.routers import auth, chat, admin, public
+from app.routers import (
+    auth, chat, public, admin_feedback, admin_unanswered, admin_stats,
+    admin_forms, admin_announcements, admin_history, admin_auth,
+    admin_documents, admin_settings, admin_rebuild
+)
 
 setup_logging()
 import logging  # noqa: E402
@@ -130,6 +134,10 @@ allowed_origins = [
     "http://localhost:5174",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
+    # UserWeb/AdminWeb build ที่ deploy ผ่าน XAMPP (Apache, htdocs/tuh_chatbot_ai/)
+    # แยกจาก dev server 5173/5174 — Apache ฟัง port 8080 บนเครื่องนี้ (ดู httpd.conf)
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
 ]
 
 # เครื่องในโรงพยาบาลเข้าถึง AdminWeb/UserWeb ผ่าน IP หลายเครื่องในวง LAN
@@ -138,10 +146,10 @@ allowed_origins = [
 # POST /auth/login เพราะ Origin header ไม่ตรง allowlist แบบ exact-match)
 # ใช้ allow_origin_regex แทน โดย anchor ทั้งสองด้าน (^...$) จำกัดเฉพาะ
 # scheme http, host เป็น IPv4 รูปแบบ 172.30.x.x (x = 0-255 เท่านั้น, กัน
-# bypass เช่น "http://172.30.1.1.evil.com") และพอร์ตเฉพาะ 5173/5174
-# (UserWeb/AdminWeb dev server) เท่านั้น ไม่เปิดกว้างทุกพอร์ตหรือทุก subnet
+# bypass เช่น "http://172.30.1.1.evil.com") และพอร์ตเฉพาะ 5173/5174/8080
+# (UserWeb/AdminWeb dev server + XAMPP build) เท่านั้น ไม่เปิดกว้างทุกพอร์ตหรือทุก subnet
 _octet = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
-allowed_origin_regex = rf"^http://172\.30\.{_octet}\.{_octet}:(?:5173|5174)$"
+allowed_origin_regex = rf"^http://172\.30\.{_octet}\.{_octet}:(?:5173|5174|8080)$"
 
 app.add_middleware(
     CORSMiddleware,
@@ -160,7 +168,16 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(chat.router)
-app.include_router(admin.router)
+app.include_router(admin_documents.router)
+app.include_router(admin_settings.router)
+app.include_router(admin_rebuild.router)
+app.include_router(admin_feedback.router)
+app.include_router(admin_unanswered.router)
+app.include_router(admin_stats.router)
+app.include_router(admin_forms.router)
+app.include_router(admin_announcements.router)
+app.include_router(admin_history.router)
+app.include_router(admin_auth.router)
 app.include_router(public.router)
 
 

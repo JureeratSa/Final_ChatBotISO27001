@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from tests.conftest import auth_header
-import app.routers.admin as admin_module
+import app.routers.admin_rebuild as admin_module
 from app.models.models import SystemSettings
 
 pytestmark = pytest.mark.asyncio

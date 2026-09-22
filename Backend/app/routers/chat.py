@@ -13,8 +13,6 @@ import asyncio
 import logging
 from typing import List, Optional
 from pathlib import Path
-from urllib.parse import quote
-
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,8 +21,11 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
 from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLink
-from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form, Document
-from app.services.rag_service import get_retriever, query_rag, contains_profanity, is_chit_chat
+from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form
+from app.services.rag_service import (
+    get_retriever, query_rag, contains_profanity, is_chit_chat,
+    build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
+)
 
 from app.core.security import safe_path
 from app.core.rate_limit import rate_limit_dependency
@@ -45,7 +46,8 @@ async def chat(
 ):
     """
     Main Chat Endpoint — ประมวลผลคำถามผ่าน RAG Pipeline
-    Flow: Custom FAQs → HybridRetriever (ChromaDB+BM25) → Weighted RRF → OpenRouter/Ollama
+    Flow: Custom FAQs / Predefined FAQs (เฉพาะข้อที่ตั้งคำตอบตายตัวไว้) → HybridRetriever
+    (ChromaDB+BM25) → Weighted RRF → OpenRouter/Ollama
     """
     start_time = time.time()
     query = body.query.strip()
@@ -70,23 +72,28 @@ async def chat(
             "gemini_api_key": settings.LLM_API_KEY,
         }
 
-    # ─── 2. ตรวจสอบ Custom FAQs ก่อน ──────────────────────────────────────
+    # ─── 2. ตรวจสอบ Custom FAQs / Predefined FAQs ก่อน ────────────────────
+    # predefined_faqs (ปุ่มคำถามด่วนหน้าแรก/ห้องแชท) เดิมโหลดมาเก็บใน config เฉยๆ ไม่เคยถูกเช็ค
+    # ตรงนี้เลย ทำให้ "คำตอบตายตัว" ที่แอดมินตั้งไว้ในหน้าคู่มือตอบกลับ (FAQs) ไม่มีผลกับคำตอบจริง —
+    # find_matching_faq() เช็คทั้งสองลิสต์ (custom_faqs ก่อนตามลำดับเดิม) และคืน source label
+    # ที่ตรงกับลิสต์ที่จับคู่เจอจริง แทนการ hardcode "custom_faq" เสมอ
     custom_faqs = config.get("custom_faqs", [])
-    for faq in custom_faqs:
-        faq_q = faq.get("question", "").strip().lower()
-        if faq_q and faq_q in query.lower():
-            elapsed = time.time() - start_time
-            history_id = f"history-{int(time.time() * 1000)}"
-            background_tasks.add_task(
-                save_history, db, history_id, query, faq["answer"], [], elapsed, "custom_faq", []
-            )
-            return ChatResponse(
-                answer=faq["answer"],
-                used_rag=False,
-                response_time=round(elapsed, 3),
-                model="custom_faq",
-                history_id=history_id
-            )
+    predefined_faqs = config.get("predefined_faqs", [])
+    faq_match = find_matching_faq(query, custom_faqs, predefined_faqs)
+    if faq_match:
+        faq_a, faq_source = faq_match
+        elapsed = time.time() - start_time
+        history_id = f"history-{int(time.time() * 1000)}"
+        background_tasks.add_task(
+            save_history, db, history_id, query, faq_a, [], elapsed, faq_source, []
+        )
+        return ChatResponse(
+            answer=faq_a,
+            used_rag=False,
+            response_time=round(elapsed, 3),
+            model=faq_source,
+            history_id=history_id
+        )
 
     # ─── 3. RAG Pipeline ────────────────────────────────────────────────────
     # ข้าม retriever ไปเลยถ้าเป็นคำทักทาย/หยาบคาย เพราะ query_rag() ทิ้งผล rag_results
@@ -123,52 +130,29 @@ async def chat(
 
     elapsed = time.time() - start_time
 
-    # ─── 6. สร้าง Citations ────────────────────────────────────────────────
-    citations: List[CitationInfo] = []
-    form_links_out: List[FormLink] = []
-
-    if used_rag and rag_results:
-        # โหลด display_name mapping จาก DB
-        docs_result = await db.execute(select(Document))
-        docs = docs_result.scalars().all()
-        filename_to_display = {d.filename: d.display_name for d in docs if d.display_name}
-
-        grouped: dict = {}
-        for res in rag_results:
-            source = res["metadata"].get("source", "เอกสาร")
-            page = res["metadata"].get("page")
-            if source not in grouped:
-                grouped[source] = set()
-            if page:
-                try:
-                    grouped[source].add(int(page))
-                except ValueError:
-                    pass
-
-        for source, pages in grouped.items():
-            display = filename_to_display.get(source, source.replace(".pdf", "").replace("_", " "))
-            pdf_url = f"/api/documents/serve/{quote(source)}#page={min(pages)}" if pages else f"/api/documents/serve/{quote(source)}"
-            citations.append(CitationInfo(
-                source=source,
-                pages=sorted(pages),
-                display_name=display,
-                url=pdf_url
-            ))
-
-    # ─── 7. Form Links ─────────────────────────────────────────────────────
-    for form in forms_list:
-        if form.name and form.name in answer:
-            form_links_out.append(FormLink(name=form.name, download_link=form.download_link))
-
-    # ─── 8. ตรวจว่าเป็น unanswered query หรือไม่ ──────────────────────────
+    # ─── 6. ตรวจว่าเป็น unanswered query หรือไม่ ──────────────────────────
     # เดิมเดาจาก keyword ในคำตอบ ("ขออภัย", "ไม่สามารถตอบได้") อย่างเดียว ซึ่งชนกับข้อความ
     # ปฏิเสธคำหยาบคาย ("ขออภัยครับ ไม่สามารถตอบคำถามที่ใช้ภาษาไม่สุภาพได้...") ทำให้ทุกคำถาม
     # ที่โดนกรองคำหยาบ/เป็นคำทักทาย ถูกบันทึกลง unanswered log ผิดๆ ไปด้วย ทั้งที่ระบบทำงาน
     # ถูกต้องแล้ว (ไม่ใช่กรณี "หาคำตอบไม่เจอ") — กันด้วยการเช็ค model_used ก่อน
-    is_unanswered = model_used not in ("profanity_filter", "chit_chat") and (
-        model_used == "fallback"
-        or any(k in answer for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้"])
-    )
+    is_unanswered = is_unanswered_response(answer, model_used)
+
+    # ─── 7. สร้าง Citations ────────────────────────────────────────────────
+    # ใช้ has_reliable_context() แทนเช็คแค่ "rag_results ไม่ว่าง" เพราะ retriever คืน top_k
+    # เสมอไม่ว่าคำถามจะเกี่ยวกับเอกสารจริงหรือไม่ — เชื่อ used_rag ก่อน ถ้า LLM ลืมใส่ tag ค่อย
+    # fallback ไปเช็ค dense similarity score (ดูเหตุผลเต็มใน rag_service.has_reliable_context)
+    citations: List[CitationInfo] = []
+    form_links_out: List[FormLink] = []
+
+    if has_reliable_context(rag_results, used_rag) and not is_unanswered:
+        citation_dicts = await build_citations(db, rag_results)
+        citations = [CitationInfo(**c) for c in citation_dicts]
+
+    # ─── 8. Form Links ─────────────────────────────────────────────────────
+    for form in forms_list:
+        if form.name and form.name in answer:
+            form_links_out.append(FormLink(name=form.name, download_link=form.download_link))
+
     if is_unanswered:
         background_tasks.add_task(save_unanswered, db, query)
 

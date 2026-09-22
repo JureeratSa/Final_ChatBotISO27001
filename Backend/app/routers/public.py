@@ -12,6 +12,7 @@ import logging
 import socket
 import time
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -25,6 +26,29 @@ from app.schemas.schemas import ChatRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["public"])
+
+
+def is_announcement_active(start_date: Optional[str], end_date: Optional[str], now: datetime.datetime) -> bool:
+    """คำนวณว่าประกาศ (เก็บ start_date/end_date เป็น string) กำลัง active ณ เวลา now หรือไม่
+    รองรับ 2 รูปแบบ: วันที่ล้วน "YYYY-MM-DD" (เติม T00:00/T23:59 อัตโนมัติ) หรือวันที่+เวลา
+    "YYYY-MM-DDTHH:MM" — เทียบแบบ string ตรงๆ ได้เพราะ format ISO เรียงตามตัวอักษรตรงกับลำดับเวลา
+    แยกออกมาจาก compatibility_active_announcements() เพื่อ unit test ได้โดยไม่ต้องมี DB จริง
+    (ดู UT-14 ใน web_testing/unit/test_ut_announcement.py) — พฤติกรรมเดิมทุกกรณี ไม่ได้แก้ logic
+    """
+    start = start_date or ""
+    end = end_date or ""
+
+    if len(start) == 10:
+        start += "T00:00"
+    if len(end) == 10:
+        end += "T23:59"
+
+    now_str = now.strftime("%Y-%m-%dT%H:%M")
+    now_date_str = now.strftime("%Y-%m-%d")
+
+    if len(now_str) == 16 and len(start) == 16 and len(end) == 16:
+        return start <= now_str <= end
+    return start <= now_date_str <= end
 
 # ค่าคงที่ระดับ module (ไม่ใช่ property เรียกสดทุกครั้ง) เพื่อให้เทส monkeypatch แทนที่ตอนรัน
 # ทดสอบได้ตรงๆ เหมือน UPLOADS_DIR ใน routers/chat.py และ routers/admin.py
@@ -103,7 +127,10 @@ async def compatibility_search(
     # ไม่ได้ใช้ Depends(get_db) — ต้อง import ทีหลังเพื่อให้ค่าที่ถูก monkeypatch ใน pytest
     # fixture (session_maker) มีผลจริงตอนเทส ไม่งั้นเทสจะหลุดไปต่อ DB จริงตาม .env
     from app.core.database import AsyncSessionLocal
-    from app.services.rag_service import get_retriever, query_rag, contains_profanity, is_chit_chat
+    from app.services.rag_service import (
+        get_retriever, query_rag, contains_profanity, is_chit_chat,
+        build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
+    )
     from app.routers.chat import save_history, save_unanswered
 
     start_time = time.time()
@@ -117,6 +144,7 @@ async def compatibility_search(
         config_row = result.scalar_one_or_none()
         config = {}
         custom_faqs = []
+        predefined_faqs = []
         if config_row:
             config = {
                 "model_name": config_row.model_name,
@@ -129,13 +157,17 @@ async def compatibility_search(
                 custom_faqs = json.loads(config_row.custom_faqs or "[]")
             except Exception:
                 pass
+            try:
+                predefined_faqs = json.loads(config_row.predefined_faqs or "[]")
+            except Exception:
+                pass
 
-        # Check FAQs
-        for faq in custom_faqs:
-            faq_q = faq.get("question", "").strip().lower()
-            if faq_q and faq_q in query.lower():
-                answer = faq["answer"]
-                return {"answer": answer, "results": []}
+        # Check FAQs — find_matching_faq() เช็ค custom_faqs ก่อนแล้วค่อย predefined_faqs
+        # (ปุ่มคำถามด่วนหน้าแรก/ห้องแชท) เหมือน chat.py ใช้ฟังก์ชันร่วมกันแทนเขียน loop ซ้ำ
+        faq_match = find_matching_faq(query, custom_faqs, predefined_faqs)
+        if faq_match:
+            faq_a, _faq_source = faq_match
+            return {"answer": faq_a, "results": []}
 
         # Query retriever — ข้ามถ้าเป็นคำทักทาย/หยาบคาย เพราะ query_rag() ทิ้งผลนี้อยู่แล้ว
         # ยกไปรันใน thread pool เพราะ retriever.query() เป็น sync/CPU-bound ไม่งั้นบล็อก event loop
@@ -166,12 +198,16 @@ async def compatibility_search(
         elapsed = time.time() - start_time
 
         # Unanswered check — เช็ค model_used ก่อนเสมือน chat.py (ดูคอมเมนต์ที่นั่นสำหรับเหตุผล)
-        is_unanswered = model_used not in ("profanity_filter", "chit_chat") and (
-            model_used == "fallback"
-            or any(k in answer for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้"])
-        )
+        is_unanswered = is_unanswered_response(answer, model_used)
         if is_unanswered:
             background_tasks.add_task(save_unanswered, db, query)
+
+        # Citations — ใช้ has_reliable_context() เหมือน chat.py แทนเช็คแค่ rag_results ไม่ว่าง
+        # (ดูเหตุผลเต็มใน rag_service.has_reliable_context — retriever คืน top_k เสมอไม่ว่า
+        # คำถามจะเกี่ยวกับเอกสารจริงหรือไม่ เช็คแค่ไม่ว่างเดิมจึงเกือบไม่มีความหมาย)
+        citations = []
+        if has_reliable_context(rag_results, used_rag) and not is_unanswered:
+            citations = await build_citations(db, rag_results)
 
         # Log history in background
         history_id = f"history-{int(time.time() * 1000)}"
@@ -184,7 +220,8 @@ async def compatibility_search(
 
         return {
             "answer": answer,
-            "results": rag_results
+            "results": rag_results,
+            "citations": citations,
         }
 
 
@@ -199,28 +236,10 @@ async def compatibility_active_announcements():
         announcements = result.scalars().all()
 
         now = datetime.datetime.now()
-        now_str = now.strftime("%Y-%m-%dT%H:%M")
-        now_date_str = now.strftime("%Y-%m-%d")
         active_list = []
 
         for a in announcements:
-            start = a.start_date or ""
-            end = a.end_date or ""
-
-            if len(start) == 10:
-                start += "T00:00"
-            if len(end) == 10:
-                end += "T23:59"
-
-            is_active = False
-            if len(now_str) == 16 and len(start) == 16 and len(end) == 16:
-                if start <= now_str <= end:
-                    is_active = True
-            else:
-                if start <= now_date_str <= end:
-                    is_active = True
-
-            if is_active:
+            if is_announcement_active(a.start_date, a.end_date, now):
                 active_list.append({
                     "id": a.id,
                     "title": a.title,
