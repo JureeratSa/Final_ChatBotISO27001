@@ -61,6 +61,66 @@ Local dev ไม่ต้องตั้งค่าอะไรเพิ่ม 
 
 ---
 
+## วิธี Deploy ผ่าน XAMPP (production-like บนเครื่อง Windows)
+
+ใช้เมื่อไม่อยากรัน `npm run dev` ค้างไว้ตลอด (ไม่มี hot reload, ต้อง build ใหม่ทุกครั้งที่แก้โค้ด)
+เหมาะกับการจำลองสภาพแวดล้อมที่ใกล้ production มากกว่า dev server — **XAMPP ทำหน้าที่แค่เสิร์ฟไฟล์
+static ของ React ที่ build เสร็จแล้วเท่านั้น ไม่ได้รัน Backend (Python) ให้** ต้องรัน Backend แยก
+ด้วย `python run_backend.py` เหมือนเดิมเสมอ ไม่ว่าจะใช้วิธี dev server หรือ XAMPP ก็ตาม
+
+### 1. เปิด Apache ของ XAMPP
+
+Apache ของ XAMPP บนเครื่องนี้ตั้งค่าให้ฟัง **port 8080** (ไม่ใช่ 80 ค่า default — ดู
+`C:\xampp\apache\conf\httpd.conf` บรรทัด `Listen 8080`) เปิดได้ด้วย:
+
+```bash
+C:\xampp\apache_start.bat
+```
+
+หรือเปิดผ่าน XAMPP Control Panel ตามปกติก็ได้ — **Apache ไม่ได้ตั้งเป็น Windows Service ที่ auto-start
+ตอนเปิดเครื่อง** ต้องเปิดเองทุกครั้งที่รีสตาร์ทเครื่อง (เช็คว่ารันอยู่จริงด้วย `tasklist | findstr httpd`
+เพราะเครื่องนี้มี `httpd.exe` อีกตัวจากโปรแกรมอื่นที่ไม่ใช่ XAMPP วิ่งอยู่คนละ process/port ด้วย)
+
+### 2. Build UserWeb + AdminWeb ด้วย `--base` flag
+
+`vite.config.js` ของทั้งสองฝั่ง**ไม่ได้ hardcode `base` ไว้** เพราะ dev server ต้องใช้ `/` เป็น base
+ปกติ — ตอน build สำหรับ XAMPP ต้องส่ง `--base` เข้าไปเองทุกครั้งให้ตรงกับ subpath ที่จะวางไฟล์:
+
+```bash
+cd UserWeb
+npm run build -- --base=/tuh_chatbot_ai/
+
+cd ../AdminWeb
+npm run build -- --base=/tuh_chatbot_ai/admin/
+```
+
+ผลลัพธ์จะได้ในโฟลเดอร์ `dist/` ของแต่ละโปรเจกต์
+
+### 3. คัดลอกไฟล์ที่ build แล้วเข้า htdocs
+
+```
+C:\xampp\htdocs\tuh_chatbot_ai\           ← เนื้อหาจาก UserWeb/dist/
+C:\xampp\htdocs\tuh_chatbot_ai\admin\     ← เนื้อหาจาก AdminWeb/dist/
+```
+
+**URLs หลัง deploy:**
+- Chatbot (User): [http://localhost:8080/tuh_chatbot_ai/](http://localhost:8080/tuh_chatbot_ai/)
+- Admin Panel: [http://localhost:8080/tuh_chatbot_ai/admin/](http://localhost:8080/tuh_chatbot_ai/admin/)
+- Backend API: [http://localhost:8000](http://localhost:8000) (รันแยกด้วย `python run_backend.py` เหมือนเดิม)
+
+### 4. CORS ต้องอนุญาต origin ของ Apache ด้วย
+
+`Backend/app/main.py` เปิด origin `http://localhost:8080` / `http://127.0.0.1:8080` ไว้ให้แล้ว
+(รวมถึง IP วง LAN 172.30.x.x พอร์ต 8080 ผ่าน regex) ถ้าย้าย Apache ไปฟังพอร์ตอื่นในอนาคต ต้องไปแก้
+`allowed_origins`/`allowed_origin_regex` ใน `main.py` ให้ตรงกันด้วย ไม่งั้น login/เรียก API จากหน้าเว็บ
+บน XAMPP จะโดน CORS บล็อกทันที
+
+**หมายเหตุ**: ถ้าอยู่บน network drive ที่ path มีช่องว่าง (เช่น mapped drive ที่ UNC path มีช่องว่างใน
+ชื่อ share) `npm run build` อาจ error เพราะบั๊กของ Node ESM loader กับ path แบบนั้น — ถ้าเจอปัญหานี้
+ให้ copy โปรเจกต์ไปไว้ที่ local disk (เช่น `C:\`) ก่อน build แล้วค่อยคัดลอกผลลัพธ์กลับมา
+
+---
+
 ## Database Migrations (Alembic)
 
 Schema ของ DB จัดการผ่าน Alembic แล้ว (ก่อนหน้านี้ startup โค้ดใน `core/database.py` ต่อท้ายด้วย
