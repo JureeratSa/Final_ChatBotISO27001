@@ -1,4 +1,5 @@
 import { useAdminContext } from '../context/AdminContext';
+import ChunkEditorGrid from '../components/documents/ChunkEditorGrid';
 
 /**
  * DocumentsPage — แท็บ "จัดการแฟ้มเอกสาร PDF" ครอบคลุมทั้ง pipeline อัปโหลด/คลีน/แบ่ง chunk
@@ -696,125 +697,19 @@ export default function DocumentsPage() {
               ) : (
                 <div className="space-y-4">
                   {previewModalType === 'chunks' ? (
-                    <div>
-                      {/* Selective Saving Toolbar */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 tuh-glass-2 p-3 rounded-2xl mb-3 text-xs font-bold">
-                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-300">
-                          <i className="fa-solid fa-list-check text-tuh-rose"></i>
-                          <span>เลือกแล้ว: <strong className="text-tuh-rose">{selectedChunkIds.size}</strong> จาก <strong>{previewChunks.length}</strong> Chunks</span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedChunkIds(new Set(previewChunks.map(c => c.chunk_id)))}
-                            className="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-xl transition active:scale-95 text-slate-700 dark:text-slate-200"
-                          >
-                            เลือกทั้งหมด
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedChunkIds(new Set())}
-                            className="px-3 py-1.5 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-xl transition active:scale-95 text-slate-700 dark:text-slate-200"
-                          >
-                            ล้างการเลือก
-                          </button>
-                          <button
-                            type="button"
-                            disabled={selectedChunkIds.size === 0 || savingContent}
-                            onClick={() => handleSaveSelectedChunks(previewFilename)}
-                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
-                          >
-                            <i className="fa-solid fa-save"></i> บันทึกรายการที่เลือก
-                          </button>
-                          <button
-                            type="button"
-                            disabled={savingContent}
-                            onClick={() => handleSaveAllChunks(previewFilename)}
-                            className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50"
-                          >
-                            <i className="fa-solid fa-square-check"></i> บันทึกทั้งหมด
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto max-h-[50vh] pr-1">
-                        {previewChunks.map((c, i) => (
-                          <div key={i} className={`p-4 bg-slate-50 dark:bg-[#100220]/60 border rounded-2xl flex flex-col space-y-2 hover:border-tuh-rose/30 transition ${selectedChunkIds.has(c.chunk_id) ? 'border-tuh-rose/50 dark:border-tuh-rose/40 shadow-sm' : 'border-slate-200/50 dark:border-tuh-purple/10'}`}>
-                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedChunkIds.has(c.chunk_id)}
-                                  onChange={(e) => {
-                                    const newSet = new Set(selectedChunkIds);
-                                    if (e.target.checked) {
-                                      newSet.add(c.chunk_id);
-                                    } else {
-                                      newSet.delete(c.chunk_id);
-                                    }
-                                    setSelectedChunkIds(newSet);
-                                  }}
-                                  className="w-4 h-4 text-tuh-rose border-slate-300 rounded focus:ring-tuh-rose cursor-pointer"
-                                />
-                                <span className="text-tuh-navy dark:text-white">Chunk #{c.chunk_id || (i + 1)}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="bg-tuh-rose/10 text-tuh-rose px-2 py-0.5 rounded-full text-[10px]">
-                                  หน้า {c.metadata?.page || 1}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedChunk(c)}
-                                  className="p-1 text-slate-500 dark:text-slate-400 hover:text-tuh-rose hover:bg-slate-100/50 dark:hover:bg-white/10 rounded-lg transition"
-                                  title="ขยายขนาดกล่องข้อความ"
-                                >
-                                  <i className="fa-solid fa-expand text-xs"></i>
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col space-y-1.5 h-full">
-                              <textarea
-                                value={c.content}
-                                onChange={(e) => {
-                                  const newText = e.target.value;
-                                  const updated = [...previewChunks];
-                                  updated[i] = { ...c, content: newText };
-                                  setPreviewChunks(updated);
-
-                                  // Auto check on edit
-                                  if (!selectedChunkIds.has(c.chunk_id)) {
-                                    const newSet = new Set(selectedChunkIds);
-                                    newSet.add(c.chunk_id);
-                                    setSelectedChunkIds(newSet);
-                                  }
-                                }}
-                                className="w-full h-28 p-3 text-xs text-tuh-navy/90 dark:text-slate-200 leading-relaxed font-semibold tuh-glass-2 rounded-xl focus:outline-none focus:border-tuh-rose transition resize-none"
-                                placeholder="เนื้อหาข้อมูลส่วนย่อย..."
-                              />
-                              <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-white/5">
-                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                                  📏 {c.content?.length || 0} ตัวอักษร
-                                </span>
-                                <button
-                                  disabled={savingContent}
-                                  onClick={() => handleSaveIndividualChunk(previewFilename, c.chunk_id, c.content)}
-                                  className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-[10px] transition active:scale-95 disabled:opacity-50"
-                                  title="บันทึกเฉพาะ Chunk นี้"
-                                >
-                                  {savingContent ? (
-                                    <i className="fa-solid fa-spinner animate-spin"></i>
-                                  ) : (
-                                    <i className="fa-solid fa-save text-[9px]"></i>
-                                  )}
-                                  บันทึก Chunk
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <ChunkEditorGrid
+                      size="lg"
+                      chunks={previewChunks}
+                      setChunks={setPreviewChunks}
+                      selectedIds={selectedChunkIds}
+                      setSelectedIds={setSelectedChunkIds}
+                      filename={previewFilename}
+                      savingContent={savingContent}
+                      onSaveSelected={() => handleSaveSelectedChunks(previewFilename)}
+                      onSaveAll={() => handleSaveAllChunks(previewFilename)}
+                      onSaveIndividual={handleSaveIndividualChunk}
+                      onExpand={setExpandedChunk}
+                    />
                   ) : (
                     <div>
                       <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
@@ -928,123 +823,19 @@ export default function DocumentsPage() {
                   </div>
                 ) : previewChunks.length > 0 ? (
                   <div className="space-y-4">
-                    {/* Selective Saving Toolbar */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 tuh-glass-2 p-3 rounded-2xl text-xs font-bold">
-                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-300">
-                        <i className="fa-solid fa-list-check text-tuh-rose"></i>
-                        <span>เลือกแล้ว: <strong className="text-tuh-rose">{selectedChunkIds.size}</strong> จาก <strong>{previewChunks.length}</strong> Chunks</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedChunkIds(new Set(previewChunks.map(c => c.chunk_id)))}
-                          className="px-2.5 py-1 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-lg transition active:scale-95 text-slate-700 dark:text-slate-200"
-                        >
-                          เลือกทั้งหมด
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedChunkIds(new Set())}
-                          className="px-2.5 py-1 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-lg transition active:scale-95 text-slate-700 dark:text-slate-200"
-                        >
-                          ล้างการเลือก
-                        </button>
-                        <button
-                          type="button"
-                          disabled={selectedChunkIds.size === 0 || savingContent}
-                          onClick={() => handleSaveSelectedChunks(selectedDoc.filename)}
-                          className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
-                        >
-                          <i className="fa-solid fa-save"></i> บันทึกรายการที่เลือก
-                        </button>
-                        <button
-                          type="button"
-                          disabled={savingContent}
-                          onClick={() => handleSaveAllChunks(selectedDoc.filename)}
-                          className="px-3 py-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg hover:shadow transition active:scale-95 flex items-center gap-1 disabled:opacity-50"
-                        >
-                          <i className="fa-solid fa-square-check"></i> บันทึกทั้งหมด
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[35vh] overflow-y-auto pr-1 custom-scrollbar">
-                      {previewChunks.map((c, i) => (
-                        <div key={i} className={`p-4 bg-slate-50/50 dark:bg-[#100220]/60 border rounded-2xl flex flex-col space-y-2 hover:border-tuh-rose/30 transition ${selectedChunkIds.has(c.chunk_id) ? 'border-tuh-rose/50 dark:border-tuh-rose/40 shadow-sm' : 'border-slate-200/50 dark:border-tuh-purple/10'}`}>
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-550 dark:text-slate-400">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={selectedChunkIds.has(c.chunk_id)}
-                                onChange={(e) => {
-                                  const newSet = new Set(selectedChunkIds);
-                                  if (e.target.checked) {
-                                    newSet.add(c.chunk_id);
-                                  } else {
-                                    newSet.delete(c.chunk_id);
-                                  }
-                                  setSelectedChunkIds(newSet);
-                                }}
-                                className="w-4 h-4 text-tuh-rose border-slate-300 rounded focus:ring-tuh-rose cursor-pointer"
-                              />
-                              <span className="text-tuh-navy dark:text-white">Chunk #{c.chunk_id || (i + 1)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="bg-tuh-rose/10 text-tuh-rose px-2 py-0.5 rounded-full text-[10px]">
-                                หน้า {c.metadata?.page || 1}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setExpandedChunk(c)}
-                                className="p-1 text-slate-500 dark:text-slate-400 hover:text-tuh-rose hover:bg-slate-100/50 dark:hover:bg-white/10 rounded-lg transition"
-                                title="ขยายขนาดกล่องข้อความ"
-                              >
-                                <i className="fa-solid fa-expand text-xs"></i>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col space-y-1.5 h-full">
-                            <textarea
-                              value={c.content}
-                              onChange={(e) => {
-                                const newText = e.target.value;
-                                const updated = [...previewChunks];
-                                updated[i] = { ...c, content: newText };
-                                setPreviewChunks(updated);
-
-                                // Auto check on edit
-                                if (!selectedChunkIds.has(c.chunk_id)) {
-                                  const newSet = new Set(selectedChunkIds);
-                                  newSet.add(c.chunk_id);
-                                  setSelectedChunkIds(newSet);
-                                }
-                              }}
-                              className="w-full h-24 p-2.5 text-xs text-tuh-navy/90 dark:text-slate-200 leading-relaxed font-semibold tuh-glass-2 rounded-xl focus:outline-none focus:border-tuh-rose transition resize-none"
-                              placeholder="เนื้อหาข้อมูลส่วนย่อย..."
-                            />
-                            <div className="flex justify-between items-center pt-1 border-t border-slate-100 dark:border-white/5">
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                                📏 {c.content?.length || 0} ตัวอักษร
-                              </span>
-                              <button
-                                disabled={savingContent}
-                                onClick={() => handleSaveIndividualChunk(selectedDoc.filename, c.chunk_id, c.content)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-[9px] transition active:scale-95 disabled:opacity-50"
-                                title="บันทึกเฉพาะ Chunk นี้"
-                              >
-                                {savingContent ? (
-                                  <i className="fa-solid fa-spinner animate-spin text-[8px]"></i>
-                                ) : (
-                                  <i className="fa-solid fa-save text-[8px]"></i>
-                                )}
-                                บันทึก Chunk
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <ChunkEditorGrid
+                      size="sm"
+                      chunks={previewChunks}
+                      setChunks={setPreviewChunks}
+                      selectedIds={selectedChunkIds}
+                      setSelectedIds={setSelectedChunkIds}
+                      filename={selectedDoc.filename}
+                      savingContent={savingContent}
+                      onSaveSelected={() => handleSaveSelectedChunks(selectedDoc.filename)}
+                      onSaveAll={() => handleSaveAllChunks(selectedDoc.filename)}
+                      onSaveIndividual={handleSaveIndividualChunk}
+                      onExpand={setExpandedChunk}
+                    />
                   </div>
                 ) : (
                   <div className="p-6 bg-slate-100/50 dark:bg-[#100220]/20 rounded-2xl text-center border border-dashed border-slate-200 dark:border-tuh-purple/20 text-xs font-bold text-slate-550 dark:text-slate-400">
