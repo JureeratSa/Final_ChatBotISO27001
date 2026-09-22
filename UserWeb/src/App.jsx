@@ -1,8 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import logo from './logo.png';
-import dog from './dog.png';
-import dog_light from './dog_light.png';
-import botAvatar from './bot_avatar.jpg';
 import { Sidebar } from './components/Sidebar';
 import { MessageBubble } from './components/MessageBubble';
 import { InputBar } from './components/InputBar';
@@ -10,764 +7,79 @@ import { GuideModal } from './components/GuideModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { DislikeModal } from './components/DislikeModal';
 import { AnnouncementModal } from './components/AnnouncementModal';
+import { stripHtml, formatAnnDate } from './utils/formatters';
+import { API_URL, parseMarkdown } from './utils/chatUtils';
+import { useClock } from './hooks/useClock';
+import { useTheme } from './hooks/useTheme';
+import { useSidebarResize } from './hooks/useSidebarResize';
+import { useFontSize } from './hooks/useFontSize';
+import { useSidebarToggle } from './hooks/useSidebarToggle';
+import { useChatSessions } from './hooks/useChatSessions';
+import { useWelcomeSettings } from './hooks/useWelcomeSettings';
+import { useFaqVisibility } from './hooks/useFaqVisibility';
+import { useChatInput } from './hooks/useChatInput';
+import { useFeedbackModal } from './hooks/useFeedbackModal';
+import { useDislikeModal } from './hooks/useDislikeModal';
+import { useAnnouncements } from './hooks/useAnnouncements';
+import { useUserIp } from './hooks/useUserIp';
 
-// เดิม hardcode เป็น http://<hostname>:8000 ตรงๆ ทำให้พังทันทีถ้า deploy หลัง HTTPS/reverse
-// proxy (mixed content ถูก browser บล็อก) — อ่านจาก VITE_API_URL ก่อน ถ้าไม่ตั้งค่าไว้ค่อย
-// fallback เป็นพฤติกรรมเดิมสำหรับ local dev
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
-
-const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI  ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับสวัสดีการสามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ';
-const DEFAULT_GREETING = 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖';
-
-const stripHtml = (html) => {
-  if (!html) return '';
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  return doc.body.textContent || "";
-};
-
-const formatAnnDate = (dateStr) => {
-  if (!dateStr) return "";
-  try {
-    const cleanStr = dateStr.replace('T', ' ');
-    const parts = cleanStr.split(' ');
-    const dateParts = parts[0].split('-');
-    if (dateParts.length !== 3) return dateStr;
-    const year = parseInt(dateParts[0]);
-    const month = parseInt(dateParts[1]);
-    const day = parseInt(dateParts[2]);
-    const time = parts[1] ? parts[1].substring(0, 5) : "";
-
-    const monthNames = [
-      "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
-    ];
-
-    const thaiYear = year + 543;
-    const formattedDate = `${day} ${monthNames[month - 1]} ${thaiYear}`;
-    return time ? `${formattedDate} เวลา ${time} น.` : formattedDate;
-  } catch (e) {
-    return dateStr;
-  }
-};
-
-
-
-// สถานะเวลาปัจจุบันสำหรับการอัปเดตการนับถอยหลังแบบเรียลไทม์
 function App() {
-  const [currentTime, setCurrentTime] = useState(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const currentTime = useClock();
+  const { isDarkMode, setIsDarkMode, currentMascot, currentBotAvatar } = useTheme();
+  const { sidebarWidth, startResizing, startTouchResizing } = useSidebarResize();
+  const { fontSize, setFontSize } = useFontSize();
+  const { isSidebarOpen, setIsSidebarOpen, copiedId, handleCopyMessage } = useSidebarToggle();
 
-  // สถานะธีม
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('tuh_theme');
-    if (saved !== null) {
-      return saved === 'dark';
-    }
-    // ตั้งค่าเริ่มต้นเป็นโหมดสว่าง
-    return false;
-  });
-
-  const currentMascot = isDarkMode ? dog : dog_light;
-  const currentBotAvatar = isDarkMode ? botAvatar : dog_light;
-
-  // สถานะความกว้างของแถบด้านข้าง
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem('tuh_sidebar_width');
-    return saved ? parseInt(saved, 10) : 320;
-  });
-
-  // สถานะขนาดฟอนต์
-  const [fontSize, setFontSize] = useState(() => {
-    const saved = localStorage.getItem('tuh_font_size');
-    return saved || 'normal';
-  });
-
-  const isResizing = useRef(false);
-
-  const startResizing = (e) => {
-    e.preventDefault();
-    isResizing.current = true;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  };
-
-  const startTouchResizing = (e) => {
-    isResizing.current = true;
-    document.body.style.userSelect = 'none';
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isResizing.current) return;
-      let newWidth = e.clientX;
-      const minWidth = 240;
-      const maxWidth = Math.min(480, window.innerWidth * 0.85);
-      if (newWidth < minWidth) newWidth = minWidth;
-      if (newWidth > maxWidth) newWidth = maxWidth;
-      setSidebarWidth(newWidth);
-    };
-
-    const handleTouchMove = (e) => {
-      if (!isResizing.current) return;
-      if (e.touches && e.touches[0]) {
-        let newWidth = e.touches[0].clientX;
-        const minWidth = 240;
-        const maxWidth = Math.min(480, window.innerWidth * 0.85);
-        if (newWidth < minWidth) newWidth = minWidth;
-        if (newWidth > maxWidth) newWidth = maxWidth;
-        setSidebarWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (isResizing.current) {
-        isResizing.current = false;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        localStorage.setItem('tuh_sidebar_width', sidebarWidth);
-      }
-    };
-
-    const handleTouchEnd = () => {
-      if (isResizing.current) {
-        isResizing.current = false;
-        document.body.style.userSelect = '';
-        localStorage.setItem('tuh_sidebar_width', sidebarWidth);
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchmove', handleTouchMove, { passive: true });
-    document.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [sidebarWidth]);
-
-  // ข้อความต้อนรับ
-  const [welcomeMessage, setWelcomeMessage] = useState(() => {
-    return localStorage.getItem('tuh_welcome_message') || DEFAULT_WELCOME_MESSAGE;
-  });
-
-  // IP ของผู้ใช้
-  const [userIp, setUserIp] = useState('127.0.0.1');
-
-  // คำทักทายในฝั่งแชท
-  const [chatGreeting, setChatGreeting] = useState(() => {
-    return localStorage.getItem('tuh_chat_greeting') || DEFAULT_GREETING;
-  });
-
-  // สถานะการสนทนา
-  const [sessions, setSessions] = useState(() => {
-    const saved = localStorage.getItem('tuh_chats');
-    let loadedSessions = null;
-    if (saved) {
-      try {
-        loadedSessions = JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const savedWelcome = localStorage.getItem('tuh_welcome_message') || DEFAULT_WELCOME_MESSAGE;
-
-    const defaultSession = {
-      id: 'session-1',
-      title: 'สอบถามข้อมูลเบื้องต้น',
-      createdAt: Date.now(),
-      messages: [
-        {
-          id: 'm1',
-          sender: 'bot',
-          text: savedWelcome,
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]
-    };
-
-    // ตรวจสอบการไม่ใช้งาน 1 ชั่วโมง
-    const lastChatTime = localStorage.getItem('tuh_last_chat_time');
-    const now = Date.now();
-    const oneHourInMs = 60 * 60 * 1000;
-    // ตั้งค่าเวลาสำหรับทดสอบการล็อกเอาต์อัตโนมัติภายใน 1 นาที
-    if (lastChatTime) {
-      const elapsed = now - parseInt(lastChatTime, 10);
-      if (elapsed > oneHourInMs) {
-        localStorage.removeItem('tuh_chats');
-        localStorage.removeItem('tuh_last_chat_time');
-        return [defaultSession];
-      }
-    }
-
-    if (!loadedSessions || loadedSessions.length === 0) {
-      return [defaultSession];
-    }
-
-    // กรองข้อมูลแชทที่เก่าเกิน 1 ชั่วโมง (1 * 60 * 60 * 1000 = 3,600,000 ms)
-    const validSessions = loadedSessions.map(session => {
-      // ถ้า session ไม่มี createdAt ให้ลอง parse จาก ID, หรือใช้ค่าปัจจุบัน
-      if (!session.createdAt) {
-        if (session.id && session.id.startsWith('session-')) {
-          const timestampStr = session.id.substring(8);
-          const parsedTimestamp = parseInt(timestampStr, 10);
-          if (!isNaN(parsedTimestamp) && parsedTimestamp > 1000000000000) {
-            session.createdAt = parsedTimestamp;
-          } else {
-            session.createdAt = now;
-          }
-        } else {
-          session.createdAt = now;
-        }
-      }
-      return session;
-    }).filter((session, idx) => {
-      if (idx === 0) return true;
-      return (now - session.createdAt) <= oneHourInMs;
-    });
-
-    if (validSessions.length === 0) {
-      return [defaultSession];
-    }
-
-    // ตรวจสอบว่า session ล่าสุดมีข้อความหรือไม่
-    const mostRecent = validSessions[0];
-    if (mostRecent && mostRecent.messages.length > 1) {
-      const newId = `session-${now}`;
-      const newSession = {
-        id: newId,
-        title: `บทสนทนาใหม่ #${validSessions.length + 1}`,
-        createdAt: now,
-        messages: [
-          {
-            id: `m-${now}`,
-            sender: 'bot',
-            text: localStorage.getItem('tuh_chat_greeting') || DEFAULT_GREETING,
-            timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-          }
-        ]
-      };
-
-      // เก็บ ID ของเซสชันที่ใช้งานไว้ใน window เพื่อให้ useState สามารถรับค่าได้
-      window.__initialActiveSessionId = newId;
-      return [newSession, ...validSessions];
-    }
-
-    window.__initialActiveSessionId = mostRecent ? mostRecent.id : 'session-1';
-    return validSessions;
-  });
-
-  const [activeSessionId, setActiveSessionId] = useState(() => {
-    if (window.__initialActiveSessionId) {
-      const id = window.__initialActiveSessionId;
-      delete window.__initialActiveSessionId;
-      return id;
-    }
-    return 'session-1';
-  });
-
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  // showGuide เป็นสถานะเล็กๆ ที่ไม่มี effect ผูกอยู่ จึงเก็บไว้ตรงนี้แทนที่จะแยกเป็น hook
   const [showGuide, setShowGuide] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
-  const [showFaqs, setShowFaqs] = useState(true);
-  const [copiedId, setCopiedId] = useState(null);
-  const [faqsList, setFaqsList] = useState([]);
 
-  // สถานะของฟอร์มแสดงความคิดเห็น
-  const [feedbackRating, setFeedbackRating] = useState(0);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
-  const [feedbackError, setFeedbackError] = useState('');
-  const [isForcedFeedback, setIsForcedFeedback] = useState(false);
+  const {
+    sessions, setSessions, activeSessionId, setActiveSessionId,
+    activeSession, isActiveSessionLatest,
+    handleNewChat: handleNewChatWithGreeting, handleDeleteSession
+  } = useChatSessions({ currentTime, setIsSidebarOpen });
 
-  // คำถาม & แสดงความคิดเห็นที่ไม่พอใจ
-  const [questionCount, setQuestionCount] = useState(() => {
-    const saved = sessionStorage.getItem('tuh_question_count');
-    return saved ? parseInt(saved, 10) : 0;
+  // useWelcomeSettings ต้องถูกเรียกหลัง useChatSessions เพราะต้องพึ่ง setSessions จากที่นั่น (มัน patch
+  // ข้อความต้อนรับ/คำทักทายลงใน session ที่ยังเป็นข้อความเริ่มต้นอยู่ ผ่าน fetch ตอน mount)
+  const { welcomeMessage, chatGreeting, faqsList } = useWelcomeSettings({ setSessions });
+
+  // handleNewChat ของ useChatSessions รับ chatGreeting ปัจจุบันเป็นพารามิเตอร์ (แทนการปิด closure ค่า
+  // จาก useWelcomeSettings ตรงๆ ซึ่งเรียกทีหลังในลำดับ hook ของ App.jsx)
+  const handleNewChat = () => handleNewChatWithGreeting(chatGreeting);
+
+  const { showFaqs, setShowFaqs } = useFaqVisibility({ sessions, activeSessionId });
+
+  const {
+    showFeedback, setShowFeedback,
+    feedbackRating, setFeedbackRating,
+    feedbackText, setFeedbackText,
+    feedbackSuccess, feedbackError,
+    isForcedFeedback, setIsForcedFeedback,
+    handleFeedbackSubmit
+  } = useFeedbackModal();
+
+  const {
+    showDislikeModal, setShowDislikeModal,
+    dislikeQuestion, dislikeAnswer,
+    dislikeReason, setDislikeReason,
+    dislikeSuccess, dislikeError,
+    handleDislikeSubmit, openDislikeModal
+  } = useDislikeModal();
+
+  const { activeAnnouncements, showAnnModal, handleCloseAnnModal } = useAnnouncements();
+  const userIp = useUserIp();
+
+  const {
+    inputValue, setInputValue, isTyping,
+    inputRef, chatEndRef, chatContainerRef,
+    handleSendMessage, handleStopGeneration
+  } = useChatInput({
+    sessions, activeSessionId, setSessions, activeSession, faqsList,
+    setShowFaqs, setIsForcedFeedback, setShowFeedback
   });
-  const [showDislikeModal, setShowDislikeModal] = useState(false);
-  const [dislikeQuestion, setDislikeQuestion] = useState('');
-  const [dislikeAnswer, setDislikeAnswer] = useState('');
-  const [dislikeMsgId, setDislikeMsgId] = useState('');
-  const [dislikeReason, setDislikeReason] = useState('');
-  const [dislikeSuccess, setDislikeSuccess] = useState(false);
-  const [dislikeError, setDislikeError] = useState('');
 
-  const [activeAnnouncements, setActiveAnnouncements] = useState([]);
-  const [showAnnModal, setShowAnnModal] = useState(false);
-
-  const handleCloseAnnModal = () => {
-    setShowAnnModal(false);
-    sessionStorage.setItem('tuh_announcements_seen', 'true');
-  };
-
-  const chatEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
-  const inputRef = useRef(null);
-  const abortControllerRef = useRef(null);
-
-  // Auto-focus input textarea when bot finishes typing
-  useEffect(() => {
-    if (!isTyping && inputRef.current) {
-      const timer = setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isTyping]);
-
-  // ารประสานสถานะธีมเข้ากับคลาสในแท็ก HTML
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('tuh_theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('tuh_theme', 'light');
-    }
-  }, [isDarkMode]);
-
-  // ปรับปรุงขนาดฟอนต์บนระดับ HTML
-  useEffect(() => {
-    localStorage.setItem('tuh_font_size', fontSize);
-    if (fontSize === 'large') {
-      document.documentElement.style.fontSize = '19px';
-    } else if (fontSize === 'xl') {
-      document.documentElement.style.fontSize = '22px';
-    } else {
-      // 'normal'
-      document.documentElement.style.fontSize = '16px';
-    }
-  }, [fontSize]);
-
-  // บันทึกแชทลง localStorage
-  useEffect(() => {
-    localStorage.setItem('tuh_chats', JSON.stringify(sessions));
-  }, [sessions]);
-
-  // ล้างข้อความ error เดิมทุกครั้งที่เปิดฟอร์มข้อเสนอแนะขึ้นมาใหม่ กันไม่ให้ error ค้างจากการส่งครั้งก่อน
-  useEffect(() => {
-    if (showFeedback) {
-      setFeedbackError('');
-    }
-  }, [showFeedback]);
-
-  // ตรวจสอบและลบเซสชันที่หมดอายุโดยอัตโนมัติเมื่อตัวนับถอยหลังถึง 00:00 (1 ชั่วโมง)
-  useEffect(() => {
-    if (sessions.length <= 1) return;
-    const now = Date.now();
-    const oneHourInMs = 60 * 60 * 1000;
-
-    const expiredSessionsExist = sessions.some((s, idx) => {
-      if (idx === 0) return false;
-      const elapsed = now - (s.createdAt || now);
-      return elapsed > oneHourInMs;
-    });
-
-    if (expiredSessionsExist) {
-      const filtered = sessions.filter((s, idx) => {
-        if (idx === 0) return true;
-        const elapsed = now - (s.createdAt || now);
-        return elapsed <= oneHourInMs;
-      });
-
-      setSessions(filtered);
-
-      if (!filtered.some(s => s.id === activeSessionId)) {
-        setActiveSessionId(filtered[0].id);
-      }
-    }
-  }, [currentTime, sessions, activeSessionId]);
-
-
-
-  // โหลดข้อความต้อนรับแบบกำหนดเองและการตั้งค่าเมื่อเริ่มต้นระบบ
-  useEffect(() => {
-    fetch(API_URL + '/api/admin/settings')
-      .then(r => r.json())
-      .then(data => {
-        if (data) {
-          if (data.welcome_message) {
-            setWelcomeMessage(data.welcome_message);
-            localStorage.setItem('tuh_welcome_message', data.welcome_message);
-            setSessions(prev => prev.map(s => {
-              if (s.id === 'session-1' && s.messages.length === 1 && s.messages[0].id === 'm1') {
-                return {
-                  ...s,
-                  messages: [{
-                    ...s.messages[0],
-                    text: data.welcome_message
-                  }]
-                };
-              }
-              return s;
-            }));
-          }
-          if (data.chat_greeting) {
-            setChatGreeting(data.chat_greeting);
-            localStorage.setItem('tuh_chat_greeting', data.chat_greeting);
-            setSessions(prev => prev.map(s => {
-              if (s.id !== 'session-1' && s.messages.length === 1 && s.messages[0].sender === 'bot' && (s.messages[0].text === DEFAULT_GREETING || s.messages[0].id === 'm1')) {
-                return {
-                  ...s,
-                  messages: [{
-                    ...s.messages[0],
-                    text: data.chat_greeting
-                  }]
-                };
-              }
-              return s;
-            }));
-          }
-          if (data.predefined_faqs && data.predefined_faqs.length > 0) {
-            const mappedFaqs = data.predefined_faqs.map(item => ({
-              ...item,
-              response: item.answer || item.response
-            }));
-            setFaqsList(mappedFaqs);
-          }
-        }
-      })
-      .catch(err => console.warn("Failed to fetch settings from API:", err));
-
-    // โหลดประกาศที่กำลังเปิดใช้งานอยู่
-    fetch(API_URL + '/api/announcements/active')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          setActiveAnnouncements(data);
-          const hasSeen = sessionStorage.getItem('tuh_announcements_seen');
-          if (hasSeen !== 'true') {
-            setShowAnnModal(true);
-          }
-        }
-      })
-      .catch(err => console.error("Error fetching active announcements:", err));
-
-    // โหลด IP เครื่องของผู้ใช้งาน
-    fetch(API_URL + '/api/ip')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.ip) {
-          setUserIp(data.ip);
-        }
-      })
-      .catch(err => console.error("Error fetching client IP:", err));
-  }, []);
-
-  // แสดงหรือซ่อนคำถามที่พบบ่อย (FAQs) โดยอัตโนมัติตามข้อความในแชทปัจจุบัน เมื่อ activeSessionId มีการเปลี่ยนแปลง
-  useEffect(() => {
-    const session = sessions.find(s => s.id === activeSessionId);
-    if (session) {
-      setShowFaqs(session.messages.length <= 1);
-    }
-  }, [activeSessionId]);
-
-  // เลื่อนลงไปด้านล่างสุดโดยอัตโนมัติ
-  useEffect(() => {
-    const scrollToBottom = () => {
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTo({
-          top: chatContainerRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-      } else {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
-    };
-
-    // เลื่อนลงไปด้านล่างทันที
-    scrollToBottom();
-
-    // เลื่อนลงอีกครั้งหลังจากผ่านไปช่วงสั้น ๆ เพื่อให้แน่ใจว่า DOM ถูกเรนเดอร์,
-    // การอัปเดตเค้าโครง และแอนิเมชันการเปลี่ยนสถานะของข้อความฟองสบู่ทำงานเสร็จสิ้น
-    const timer1 = setTimeout(scrollToBottom, 100);
-    const timer2 = setTimeout(scrollToBottom, 300);
-
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-    };
-  }, [sessions, activeSessionId, isTyping]);
-
-  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || { messages: [] };
-  const isActiveSessionLatest = activeSessionId === sessions[0]?.id;
-
-  // สร้างบทสนทนาใหม่
-  const handleNewChat = () => {
-    const newId = `session-${Date.now()}`;
-    const newSession = {
-      id: newId,
-      title: `บทสนทนาใหม่ #${sessions.length + 1}`,
-      createdAt: Date.now(),
-      messages: [
-        {
-          id: `m-${Date.now()}`,
-          sender: 'bot',
-          text: chatGreeting || DEFAULT_GREETING,
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]
-    };
-    localStorage.setItem('tuh_last_chat_time', Date.now().toString());
-    setSessions([newSession, ...sessions]);
-    setActiveSessionId(newId);
-    setIsSidebarOpen(false);
-  };
-
-  // ลบบทสนทนา
-  const handleDeleteSession = (id, e) => {
-    e.stopPropagation();
-    if (id === sessions[0]?.id) {
-      alert("ไม่สามารถลบการสนทนาปัจจุบันที่กำลังใช้งานอยู่ได้ครับ");
-      return;
-    }
-    if (sessions.length === 1) {
-      alert("ขาหมูขอชีแจงว่าคุณผู้ใช้ไม่สามารถลบการสนทนาทั้งหมดได้ ต้องมีอย่างน้อย 1 รายการครับ");
-      return;
-    }
-    const filtered = sessions.filter(s => s.id !== id);
-    setSessions(filtered);
-    if (activeSessionId === id) {
-      setActiveSessionId(filtered[0].id);
-    }
-  };
-
-  // ยกเลิกการหาคำตอบ
-  const handleStopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    setIsTyping(false);
-  };
-
-  // ประมวลผลและส่งข้อความจากผู้ใช้
-  const handleSendMessage = (text) => {
-    if (!text.trim() || isTyping) return;
-
-    // หากไม่ใช่แชทล่าสุด จะส่งข้อความไม่ได้
-    const isActiveSessionLatest = activeSessionId === sessions[0]?.id;
-    if (!isActiveSessionLatest) return;
-
-    localStorage.setItem('tuh_last_chat_time', Date.now().toString());
-
-    const nextCount = questionCount + 1;
-    setQuestionCount(nextCount);
-    sessionStorage.setItem('tuh_question_count', nextCount.toString());
-
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text: text,
-      timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-    };
-
-    // คัดแยกประวัติการสนทนาล่าสุด (ไม่เกิน 2 รอบ / 4 ข้อความ)
-    const sessionMessages = activeSession.messages || [];
-    const startIndex = (sessionMessages.length > 0 && sessionMessages[0].sender === 'bot') ? 1 : 0;
-    const candidates = sessionMessages.slice(startIndex);
-    const recentHistory = candidates.slice(-4).map(m => ({
-      sender: m.sender,
-      text: m.text
-    }));
-
-    // อัปเดตข้อความในเซสชันที่ใช้งาน
-    let updatedSessions = sessions.map(s => {
-      if (s.id === activeSessionId) {
-        // อัปเดตชื่อเซสชันตามข้อความแรกของผู้ใช้ หากชื่อเดิมเป็นชื่อเริ่มต้น
-        let newTitle = s.title;
-        if (s.title.startsWith('บทสนทนาใหม่ #')) {
-          newTitle = text.length > 25 ? text.substring(0, 25) + '...' : text;
-        }
-        return {
-          ...s,
-          title: newTitle,
-          messages: [...s.messages, userMessage]
-        };
-      }
-      return s;
-    });
-
-    setSessions(updatedSessions);
-    setInputValue('');
-    setShowFaqs(false);
-    setIsTyping(true);
-
-    // สร้าง AbortController ใหม่สำหรับการค้นหานี้
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    // เรียก API ค้นหาแบบผสม (ChromaDB + BM25) ของ Python
-    fetch(API_URL + '/api/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      },
-      body: JSON.stringify({
-        query: text,
-        top_k: 2,
-        history: recentHistory
-      }),
-      signal: controller.signal
-    })
-      .then(response => {
-        if (!response.ok) throw new Error("HTTP error " + response.status);
-        return response.json();
-      })
-      .then(data => {
-        abortControllerRef.current = null;
-        //ใช้คำตอบ AI ที่สร้างจากส่วนหลังบ้านหากมี
-        let botResponseText = data.answer || getBotResponse(text);
-        botResponseText = botResponseText.replaceAll("__API_URL__", API_URL);
-
-        const botMessage = {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          text: botResponseText,
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        };
-
-        setSessions(prevSessions => prevSessions.map(s => {
-          if (s.id === activeSessionId) {
-            return {
-              ...s,
-              messages: [...s.messages, botMessage]
-            };
-          }
-          return s;
-        }));
-        localStorage.setItem('tuh_last_chat_time', Date.now().toString());
-        setIsTyping(false);
-
-        // กำหนดให้แสดงฟอร์มข้อเสนอแนะหลังจากข้อความจากบอทข้อที่ 3 หากยังไม่มีการส่งข้อเสนอแนะ
-        if (nextCount === 3 && sessionStorage.getItem('tuh_feedback_submitted') !== 'true') {
-          setTimeout(() => {
-            setIsForcedFeedback(false);
-            setShowFeedback(true);
-          }, 1000);
-        }
-      })
-      .catch(error => {
-        if (error.name === 'AbortError') {
-          console.log("API Search request aborted.");
-          const botMessage = {
-            id: `bot-${Date.now()}`,
-            sender: 'bot',
-            text: `ขาหมูได้ทำการยกเลิกการหาคำตอบแล้วครับ`,
-            timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-          };
-
-          setSessions(prevSessions => prevSessions.map(s => {
-            if (s.id === activeSessionId) {
-              return {
-                ...s,
-                messages: [...s.messages, botMessage]
-              };
-            }
-            return s;
-          }));
-          localStorage.setItem('tuh_last_chat_time', Date.now().toString());
-          setIsTyping(false);
-          return;
-        }
-
-        abortControllerRef.current = null;
-        console.warn("API Search failed, using static fallback:", error);
-        // ใช้ค่าเริ่มต้นแทนหากเกิดข้อผิดพลาด
-        const botResponseText = getBotResponse(text);
-        const botMessage = {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          text: botResponseText,
-          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-        };
-
-        setSessions(prevSessions => prevSessions.map(s => {
-          if (s.id === activeSessionId) {
-            return {
-              ...s,
-              messages: [...s.messages, botMessage]
-            };
-          }
-          return s;
-        }));
-        localStorage.setItem('tuh_last_chat_time', Date.now().toString());
-        setIsTyping(false);
-
-        // กำหนดให้แสดงฟอร์มข้อเสนอแนะหลังจากข้อความจากบอทข้อที่ 3 หากยังไม่มีการส่งข้อเสนอแนะ
-        if (nextCount === 3 && sessionStorage.getItem('tuh_feedback_submitted') !== 'true') {
-          setTimeout(() => {
-            setIsForcedFeedback(false);
-            setShowFeedback(true);
-          }, 1000);
-        }
-      });
-  };
-
-  // ระบบกำหนดเส้นทางการตอบกลับของบอทแบบปรับแต่งเอง
-  const getBotResponse = (text) => {
-    const t = text.toLowerCase().trim();
-
-    // ตรวจสอบว่าตรงกับคำถามที่พบบ่อย (FAQs) หรือไม่
-    for (const faq of faqsList) {
-      if (t === faq.question.toLowerCase().trim() || t.includes(faq.question.substring(0, 20).toLowerCase())) {
-        if (faq.response && faq.response.trim() !== '') {
-          return faq.response;
-        }
-      }
-    }
-
-
-    // ตรวจสอบคำสำคัญ
-    if (t.includes('ดวงตา') || t.includes('จ้องจอ') || t.includes('ถนอมสายตา') || t.includes('ปวดตา') || t.includes('เมื่อยตา')) {
-      return faqsList[0]?.response || "การดูแลรักษาดวงตาเมื่อต้องจ้องหน้าจอคอมพิวเตอร์เป็นเวลานาน สามารถทำได้โดยปฏิบัติตาม **กฎ 20-20-20** ดังนี้ครับ:\n\n1. **ทุกๆ 20 นาที:** ให้ละสายตาออกจากหน้าจอคอมพิวเตอร์\n2. **มองไปที่ระยะไกล 20 ฟุต:** เพื่อช่วยให้กล้ามเนื้อตาได้ผ่อนคลาย\n3. **กะพริบตาหรือมองค้างไว้ 20 วินาที:** ช่วยเพิ่มความชุ่มชื้นให้ดวงตา ลดอาการตาแห้งและอ่อนล้า\n\n🏥 **ข้อแนะนำเพิ่มเติม:**\n- ปรับความสว่างของหน้าจอและห้องทำงานให้เหมาะสม ไม่มืดหรือสว่างเกินไป\n- เปิดใช้งาน **โหมดมืด (Dark Mode)** ในระบบแชทบอท (แถบเมนูด้านซ้ายล่าง) เพื่อลดแสงสะท้อนและลดความเหนื่อยล้าของดวงตาครับ 😊";
-    }
-    if (t.includes('ผู้ป่วยใหม่') || t.includes('ทำบัตร') || t.includes('บัตรผู้ป่วย') || t.includes('เวชระเบียน')) {
-      return faqsList[1]?.response || "สำหรับการลงทะเบียนทำบัตรประจำตัวผู้ป่วยใหม่ของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ สามารถดำเนินงานได้ดังนี้ครับ:\n\n📝 **เอกสารที่ต้องใช้:**\n- บัตรประจำตัวประชาชนตัวจริง (หรือสูติบัตรกรณีเป็นเด็ก)\n- บัตรรับรองสิทธิ์การรักษาพยาบาล (ถ้ามี เช่น สิทธิ์ส่งตัว, สิทธิ์ประกันสังคม)\n\n📍 **สถานที่ติดต่อ:**\n- สามารถยื่นเอกสารติดต่อได้ที่ **แผนกเวชระเบียน ชั้น 1 อาคารผู้ป่วยนอก (OPD)** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ\n- หรือสามารถลงทะเบียนล่วงหน้าผ่านทางแอปพลิเคชัน **TUH Easy App** เพื่อความสะดวกรวดเร็วและลดเวลาในการรอคอยคิวครับ";
-    }
-    if (t.includes('ติดต่อไอที') || t.includes('สารสนเทศ') || t.includes('แผนกไอที') || t.includes('เบอร์ไอที') || t.includes('แจ้งปัญหา')) {
-      return faqsList[2]?.response || "หากพี่ๆ เจ้าหน้าที่พบบัญหาขัดข้องเกี่ยวกับระบบสารสนเทศ คอมพิวเตอร์ หรือเครือข่ายอินเทอร์เน็ต สามารถติดต่อฝ่ายไอทีได้ที่ช่องทางต่อไปนี้ครับ:\n\n📞 **ช่องทางติดต่อภายใน (แผนกไอที):**\n- โทร. **8471** หรือ **8343** (ติดต่อแจ้งปัญหาการใช้งานทั่วไป)\n- ติดต่อห้องทำงานระบบเครือข่ายและระบบบริการสารสนเทศ: โทร. **7120**\n\n📧 **อีเมลหน่วยงาน:**\n- it@hospital.tu.ac.th\n\n*ช่วงเวลาทำการปกติ: วันจันทร์ - วันศุกร์ เวลา 08:00 น. - 16:00 น. (สำหรับปัญหาระบบล่มวิกฤตสามารถแจ้งเจ้าหน้าที่เวรนอกเวลาได้ครับ)*";
-    }
-    if (t.includes('นอกเวลา') || t.includes('คลินิกนอกเวลา') || t.includes('เวลาทำการ') || t.includes('เปิดกี่โมง')) {
-      return faqsList[3]?.response || "**คลินิกพิเศษนอกเวลาราชการ** โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ เปิดให้บริการแก่ผู้รับบริการที่ต้องการความสะดวกนอกเวลาทำงานปกติ โดยมีรายละเอียดดังนี้ครับ:\n\n⏰ **เวลาเปิดทำการ:**\n- **วันจันทร์ - วันศุกร์:** เวลา 16:00 น. - 20:00 น.\n- **วันเสาร์ - วันอาทิตย์ และวันหยุดนักขัตฤกษ์:** เวลา 08:00 น. - 12:00 น.\n\n🏥 **สถานที่ให้บริการ:**\n- อาคารผู้ป่วยนอก (OPD) ตามสาขาตรวจโรคเฉพาะทางต่างๆ (แนะนำให้โทรนัดหมายล่วงหน้าก่อนเข้ารับบริการที่สายตรงเบอร์ประชาสัมพันธ์ 02-926-9999)";
-    }
-    if (t.includes('เช็คสิทธิ์') || t.includes('สิทธิการรักษา') || t.includes('บัตรทอง') || t.includes('ประกันสังคม') || t.includes('ข้าราชการ')) {
-      return faqsList[4]?.response || "พี่เจ้าหน้าที่หรือผู้ใช้บริการสามารถตรวจสอบสิทธิ์การรักษาพยาบาลเบื้องต้นได้ง่ายๆ ผ่านช่องทางต่อไปนี้ครับ:\n\n🔍 **ช่องทางการตรวจสอบสิทธิ์:**\n1. **ระบบหลักประกันสุขภาพแห่งชาติ (สปสช.):** โทรสายด่วน **1330** หรือตรวจสอบทางเว็บไซต์ nhso.go.th\n2. **แอปพลิเคชัน \"เป๋าตัง\":** เมนู \"กระเป๋าสุขภาพ\"\n3. **จุดบริการตรวจสอบสิทธิ์:** ยื่นบัตรประชาชนตัวจริงที่แผนกตรวจสอบสิทธิ์และเวชระเบียน ชั้น 1 ก่อนเข้ารับการตรวจรักษา\n\n*หากต้องการเปลี่ยนแปลงสิทธิ์ประกันสังคมมายังโรงพยาบาลธรรมศาสตร์ฯ สามารถยื่นเรื่องได้ในช่วงเวลาที่สำนักงานประกันสังคมเปิดให้แจ้งเปลี่ยนสถานพยาบาลประจำปีครับ*";
-    }
-    if (t.includes('tuh easy app') || t.includes('easy app') || t.includes('แอปโรงพยาบาล') || t.includes('จองคิวตรวจ') || t.includes('ดาวน์โหลดแอป')) {
-      return faqsList[5]?.response || "**TUH Easy App** เป็นแอปพลิเคชันอย่างเป็นทางการของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ที่ช่วยอำนวยความสะดวกในการจองคิวตรวจ เลื่อนนัด ชำระเงิน และเช็คประวัติการรักษาพยาบาลครับ\n\n📲 **ช่องทางการดาวน์โหลด:**\n- **iOS (App Store):** ค้นหาคำว่า **\"TUH Easy App\"** หรือสแกน QR Code ณ จุดบริการประชาสัมพันธ์\n- **Android (Google Play Store):** ค้นหาคำว่า **\"TUH Easy App\"** เพื่อดาวน์โหลดและติดตั้ง\n\n🔑 **ขั้นตอนการใช้งานเบื้องต้น:**\n1. ดาวน์โหลดแอปพลิเคชันและเปิดใช้งาน\n2. ลงทะเบียนเข้าสู่ระบบด้วยหมายเลขบัตรประชาชนและเบอร์โทรศัพท์มือถือที่เคยลงทะเบียนไว้กับโรงพยาบาล\n3. สามารถใช้งานบริการจองคิวตรวจ ชำระเงินออนไลน์ และเช็คประวัติสิทธิ์การรักษาได้ทันทีครับ";
-    }
-    if (t.includes('สวัสดี') || t.includes('ดีครับ') || t.includes('hello') || t.includes('hi')) {
-      return "สวัสดีครับ! ยินดีต้อนรับสู่ **TUH Chatbot AI** ยินดีที่ได้พูดคุยกับท่านครับ 😊 มีข้อมูลบริการใดหรือเรื่องระบบไอทีที่คุณต้องการสอบถามงานสารสนเทศเพิ่มเติมไหมครับ?";
-    }
-    if (t.includes('ขอบคุณ') || t.includes('thank')) {
-      return "ด้วยความยินดีอย่างยิ่งครับ! หากมีข้อสงสัยหรือข้อขัดข้องเรื่องใดเพิ่มเติม สามารถพิมพ์ถามผมได้ตลอดเวลาเลยนะครับ ขอให้มีสุขภาพดวงตาและสุขภาพกายที่แข็งแรงครับ 🏥💚";
-    }
-
-    // ค่าเริ่มต้นแทน
-    return `ขอบคุณสำหรับคำถามครับคุณผู้ใช้ ผมเป็นระบบปัญญาประดิษฐ์ให้ข้อมูลเบื้องต้นของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ สำหรับคำถามเกี่ยวกับการรักษาเฉพาะทางลึกหรือข้อมูลอื่นๆ นอกเหนือจากนี้ ท่านสามารถติดต่อเพิ่มเติมได้ที่:\n\n` +
-      `📞 **สายด่วนโรงพยาบาล (ประชาสัมพันธ์):** โทร. 02-926-9999\n` +
-      `🏢 **งานสารสนเทศ (ไอที):** โทร. 02-926-9999 ต่อ 7120\n\n` +
-      `ท่านสามารถส่งความคิดเห็นและข้อแนะนำการบริการผ่านเมนู **"ข้อเสนอแนะ"** ที่มุมซ้ายล่างได้เลยครับ เพื่อให้ทีมงานสารสนเทศนำไปปรับปรุงระบบแชทบอทให้ตอบคำถามได้หลากหลายและดียิ่งขึ้นครับ`;
-  };
-
+  // ให้คะแนนถูกใจ/ไม่ถูกใจข้อความของบอท — ประกอบข้อมูลจากทั้ง useChatSessions (sessions/setSessions)
+  // และ useDislikeModal (openDislikeModal) จึงคงไว้ตรงนี้ใน App.jsx แทนที่จะยัดใส่ hook ใดหนึ่งเดียว
   const handleLikeMessage = (msgId, likedState) => {
     let msgText = '';
     let userQuery = '';
@@ -789,13 +101,7 @@ function App() {
         // ตรวจสอบว่าผู้ใช้กำลังไม่พอใจกับข้อความหรือไม่
         const isDisliking = likedState === 'dislike' && !msg.disliked;
         if (isDisliking) {
-          setDislikeQuestion(userQuery || 'ไม่พบคำถาม');
-          setDislikeAnswer(msgText);
-          setDislikeMsgId(msgId);
-          setDislikeReason('');
-          setDislikeSuccess(false);
-          setDislikeError('');
-          setShowDislikeModal(true);
+          openDislikeModal({ question: userQuery, answer: msgText, msgId });
         }
 
         // ส่งบันทึกการให้คะแนนไปยังส่วนหลังบ้าน (เรียกด้านนอกป้องกัน React Strict Mode ดับเบิ้ลรัน)
@@ -831,147 +137,6 @@ function App() {
       }
       return s;
     }));
-  };
-
-  const handleCopyMessage = (text, msgId) => {
-    let cleanedText = text;
-    cleanedText = cleanedText.replace(/\*\*(.*?)\*\*/g, '$1');
-    cleanedText = cleanedText.replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)');
-
-    navigator.clipboard.writeText(cleanedText).then(() => {
-      setCopiedId(msgId);
-      setTimeout(() => {
-        setCopiedId(null);
-      }, 2000);
-    }).catch(err => {
-      console.error('Failed to copy text: ', err);
-    });
-  };
-
-  const handleFeedbackSubmit = (e) => {
-    e.preventDefault();
-
-    if (feedbackRating < 1) {
-      return; // ต้องเลือกจำนวนดาวก่อนส่ง ป้องกันข้อมูลคะแนนที่ไม่ได้มาจากผู้ใช้จริง
-    }
-
-    setFeedbackError('');
-
-    const feedbackData = {
-      rating: feedbackRating >= 4 ? 'like' : 'dislike',
-      stars: feedbackRating,
-      comment: feedbackText,
-      query: isForcedFeedback ? 'บังคับกรอกก่อนปิดหน้าต่าง' : 'ความคิดเห็นทั่วไปจากแบบฟอร์ม',
-      msgId: `feedback-${Date.now()}`
-    };
-
-    // หมายเหตุ: ต้องเช็ค response.ok/data.success ก่อนถือว่าสำเร็จ — เดิม fetch() จะ resolve
-    // ปกติแม้ backend ตอบ error (4xx/5xx) และ .catch() (เช่น เน็ตหลุด/CORS) ก็ยัง set success=true
-    // อยู่ดี ทำให้ผู้ใช้เห็นข้อความ "ส่งเรียบร้อย" ทั้งที่คะแนนดาวไม่ถูกบันทึกลง DB จริง และปิด/รีไดเรกต์
-    // หน้าไปเลยหลัง 2 วิ โดยผู้ใช้ไม่มีทางรู้เลยว่าข้อมูลหาย
-    fetch(API_URL + '/api/admin/feedback/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(feedbackData)
-    })
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP error " + r.status);
-        return r.json();
-      })
-      .then(data => {
-        if (!data.success) throw new Error("Feedback submit did not report success");
-
-        sessionStorage.setItem('tuh_feedback_submitted', 'true');
-        const savedFeedback = localStorage.getItem('tuh_feedback_logs') || '[]';
-        try {
-          const logs = JSON.parse(savedFeedback);
-          logs.push({
-            rating: feedbackRating,
-            comment: feedbackText,
-            timestamp: new Date().toLocaleString('th-TH')
-          });
-          localStorage.setItem('tuh_feedback_logs', JSON.stringify(logs));
-        } catch (err) {
-          console.error(err);
-        }
-        setFeedbackSuccess(true);
-
-        setTimeout(() => {
-          setShowFeedback(false);
-          setFeedbackSuccess(false);
-          setFeedbackRating(0);
-          setFeedbackText('');
-          if (isForcedFeedback) {
-            window.location.href = "https://intranet.hospital.tu.ac.th/";
-          }
-        }, 2000);
-      })
-      .catch(err => {
-        console.error("Failed to submit feedback comments:", err);
-        setFeedbackError('ส่งข้อเสนอแนะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (เช็คการเชื่อมต่ออินเทอร์เน็ต)');
-      });
-  };
-
-  const handleDislikeSubmit = (e) => {
-    e.preventDefault();
-    if (!dislikeReason.trim()) return;
-
-    setDislikeError('');
-
-    fetch(API_URL + '/api/admin/feedback/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        msgId: dislikeMsgId,
-        rating: 'dislike',
-        comment: dislikeReason,
-        query: dislikeQuestion,
-        answer: dislikeAnswer
-      })
-    })
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP error " + r.status);
-        return r.json();
-      })
-      .then(data => {
-        if (!data.success) throw new Error("Feedback submit did not report success");
-        setDislikeSuccess(true);
-        setTimeout(() => {
-          setShowDislikeModal(false);
-          setDislikeSuccess(false);
-          setDislikeReason('');
-        }, 1500);
-      })
-      .catch(err => {
-        // เดิม .catch() นี้ set success=true เหมือนกัน ทำให้ผู้ใช้เห็นว่าส่งสำเร็จทั้งที่ backend
-        // ไม่ได้บันทึกความเห็นไว้เลย (เหตุผลเดียวกับ handleFeedbackSubmit ด้านบน)
-        console.error("Failed to submit dislike explanation:", err);
-        setDislikeError('ส่งความคิดเห็นไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (เช็คการเชื่อมต่ออินเทอร์เน็ต)');
-      });
-  };
-
-  // Escape ก่อนเสมอ ป้องกัน XSS จากคำตอบบอท (LLM output อาจถูกชี้นำผ่านเนื้อหาเอกสารที่แอดมินอัปโหลด
-  // ให้ฝัง <script>/onerror ปนมาได้ — เดิม parseMarkdown() เอา text ไปต่อ HTML ตรงๆ ไม่ escape เลย)
-  const escapeHtml = (str) => str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
-  const parseMarkdown = (text) => {
-    if (!text) return '';
-    let html = escapeHtml(text);
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-tuh-navy dark:text-white">$1</strong>');
-    html = html.replace(/^[-\*]\s*(.*?)$/gm, '<li class="ml-4 list-disc">$1</li>');
-    html = html.replace(/^\d+\.\s(.*?)$/gm, '<li class="ml-4 list-decimal">$1</li>');
-    // จำกัด href ให้เป็น http(s) หรือ path ภายในเว็บเท่านั้น กัน javascript: URL scheme
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, url) => {
-      const safeUrl = /^(https?:\/\/|\/)/i.test(url) ? url : '#';
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-tuh-rose dark:text-tuh-coral hover:text-tuh-coral dark:hover:text-tuh-pink underline font-semibold hover:opacity-80 transition">${label} <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i></a>`;
-    });
-    html = html.replace(/\n/g, '<br/>');
-    return <span dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
   return (
@@ -1190,6 +355,7 @@ function App() {
                       handleCopyMessage={handleCopyMessage}
                       setInputValue={setInputValue}
                       parseMarkdown={parseMarkdown}
+                      apiUrl={API_URL}
                     />
                   ))
                 )}

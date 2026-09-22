@@ -9,9 +9,11 @@ export const MessageBubble = ({
   handleLikeMessage,
   handleCopyMessage,
   setInputValue,
-  parseMarkdown
+  parseMarkdown,
+  apiUrl
 }) => {
   const isBot = msg.sender === 'bot';
+  const citations = isBot && Array.isArray(msg.citations) ? msg.citations : [];
 
   return (
     <div
@@ -38,6 +40,28 @@ export const MessageBubble = ({
           }`}>
           {parseMarkdown(msg.text)}
         </div>
+
+        {/* เอกสารอ้างอิง (citations) — แสดงเฉพาะบอทตอบและมีเอกสารแนบมาจริง */}
+        {isBot && citations.length > 0 && (
+          <div className="flex flex-wrap gap-1 px-0.5">
+            {citations.map((c, i) => (
+              <a
+                key={`${c.source}-${i}`}
+                href={`${apiUrl}${c.url}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`เปิดดู ${c.display_name || c.source}${c.pages && c.pages.length ? ` หน้า ${c.pages[0]}` : ''}`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-tuh-rose/10 text-tuh-rose hover:bg-tuh-rose/20 dark:bg-tuh-pink/10 dark:text-tuh-pink dark:hover:bg-tuh-pink/20 transition-colors"
+              >
+                <i className="fa-solid fa-file-pdf"></i>
+                <span className="truncate max-w-[160px]">{c.display_name || c.source}</span>
+                {c.pages && c.pages.length > 0 && (
+                  <span className="opacity-70">หน้า {c.pages[0]}</span>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
 
         {isBot ? (
           <div className="flex items-center gap-1.5 mt-1 px-0.5">
