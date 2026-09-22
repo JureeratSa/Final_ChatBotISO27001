@@ -1,15 +1,16 @@
 """
-Integration tests: document ownership guard (_check_doc_ownership) ใน admin.py
+Integration tests: document ownership guard (_check_doc_ownership) ใน
+app/services/document_service.py (ใช้งานจริงผ่าน app/routers/admin_documents.py)
 
 รวมถึง regression test สำหรับบั๊กที่เจอตอน code review (2026-08-28):
 เอกสาร legacy/migrated ที่ uploaded_by = NULL ถูกบล็อกไม่ให้ non-admin แก้ไขได้เลย
 ทั้งที่ AdminWeb/src/App.jsx แสดงเอกสารเหล่านี้เป็นแถวปกติที่กดใช้งานได้
-(ดู Backend/app/routers/admin.py:_check_doc_ownership)
+(ดู Backend/app/services/document_service.py:_check_doc_ownership)
 """
 import pytest
 
 from tests.conftest import auth_header
-import app.routers.admin as admin_module
+import app.routers.admin_documents as admin_module
 from app.models.models import Document
 
 pytestmark = pytest.mark.asyncio

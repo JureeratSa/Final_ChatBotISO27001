@@ -8,8 +8,12 @@ import os
 import asyncio
 from pathlib import Path
 
-# 1. บังคับใช้ SelectorEventLoop บน Windows เพื่อป้องกันบั๊ก WinError 87 SSL กับ TiDB Cloud
 if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
     try:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         print("🔧 Windows SelectorEventLoop policy configured successfully.")

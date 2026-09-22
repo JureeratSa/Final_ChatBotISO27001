@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # AI / LLM
     GEMINI_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
-    DEFAULT_LLM_MODEL: str = "xiaomi/mimo-v2.5-pro"
+    DEFAULT_LLM_MODEL: str = "google/gemma-4-26b-a4b-it"
 
     @property
     def LLM_API_KEY(self) -> str:

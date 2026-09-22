@@ -117,6 +117,83 @@ def build_indices():
     print("\n🎉 จัดทำดัชนี RAG เสร็จสิ้นเรียบร้อยพร้อมใช้งาน!")
 
 
+def delete_document_from_index(filename: str, index_dir=None, chroma_dir=None, retriever=None) -> int:
+    """
+    ลบ chunk ทั้งหมดของเอกสาร filename ออกจากดัชนี BM25 (ไฟล์ bm25.pkl บนดิสก์ + instance ที่
+    โหลดอยู่ในหน่วยความจำของเซิร์ฟเวอร์ถ้ามี ผ่านพารามิเตอร์ retriever) และ ChromaDB (ลบตรงด้วย
+    metadata.source ผ่าน collection.delete()) ทันที ไม่ต้องรอ rebuild ทั้งคลังใหม่และไม่ต้องโหลด
+    โมเดล embedding เลย (การลบไม่ต้องเข้ารหัสข้อความใหม่)
+
+    เดิมการลบเอกสารเชื่อมกับ ChromaDB ผ่านการสั่ง rebuild ทั้งคลังใหม่เท่านั้น (ดู
+    Admin/rebuild_db.py) ซึ่งอ่านสถานะเอกสาร "Active" จากไฟล์ JSON เดิมที่แยกจากฐานข้อมูลจริง —
+    ผลคือลบเอกสารแล้ว vector ยังค้างอยู่ในดัชนีจนกว่าจะมีคนสั่ง rebuild เองอีกที ฟังก์ชันนี้ปิด
+    ช่องว่างนั้นโดยลบตรงจุดทันทีที่ลบเอกสาร เรียกจาก Backend/app/routers/admin.py
+    (delete_document / delete_document_post)
+
+    คืนค่าจำนวน chunk ที่ลบออกจาก BM25 (ใช้ยืนยันผลได้ตรงๆ)
+
+    chroma_dir: ให้ระบุตรงๆ ได้ (ใช้ในเทส ชี้ไปที่ไดเรกทอรีชั่วคราวแทน path จริงของเซิร์ฟเวอร์)
+    ถ้าไม่ระบุ จะ resolve แบบเดียวกับ HybridRetriever.load() ทุกประการ (รวม path hardcode บน
+    Windows) เพื่อให้ลบตรง Chroma directory เดียวกับที่ retriever ตัวจริงใช้งานอยู่จริง
+    """
+    admin_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(admin_dir)
+    if index_dir is None:
+        index_dir = os.path.join(base_dir, "index_db")
+    bm25_path = os.path.join(index_dir, "bm25.pkl")
+
+    removed = 0
+
+    # ─ BM25: อ่าน-กรอง-เขียนทับไฟล์ pickle เสมอ ให้ instance ที่โหลดใหม่ในอนาคตตรงด้วย ─
+    if HAS_LEXICAL and os.path.exists(bm25_path):
+        with open(bm25_path, "rb") as f:
+            bm25_data = pickle.load(f)
+        chunks = bm25_data.get("chunks") or []
+        remaining = [c for c in chunks if (c.get("metadata") or {}).get("source") != filename]
+        removed = len(chunks) - len(remaining)
+        if removed:
+            new_bm25 = None
+            if remaining:
+                tokenized_corpus = [word_tokenize(c["content"], keep_whitespace=False) for c in remaining]
+                new_bm25 = BM25Okapi(tokenized_corpus)
+            with open(bm25_path, "wb") as f:
+                pickle.dump({"bm25_index": new_bm25, "chunks": remaining}, f)
+            # sync เข้า instance ที่โหลดอยู่ในหน่วยความจำของเซิร์ฟเวอร์ (ถ้ามี) ไม่งั้นแชทที่
+            # กำลังทำงานอยู่จะยังเห็นข้อมูลเก่าจนกว่าจะรีสตาร์ตเซิร์ฟเวอร์
+            if retriever is not None and getattr(retriever, "is_loaded", False):
+                retriever.bm25 = new_bm25
+                retriever.bm25_chunks = remaining
+
+    # ─ ChromaDB: persistent client ชี้ path เดียวกับที่ HybridRetriever.load() ใช้ ─
+    if chroma_dir is not None:
+        chroma_path = chroma_dir
+    elif sys.platform.startswith('win') or os.name == 'nt':
+        chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
+    else:
+        chroma_path = os.path.join(index_dir, "chroma_db")
+    if os.path.exists(chroma_path):
+        try:
+            import chromadb
+            client = chromadb.PersistentClient(path=chroma_path)
+            collection = client.get_collection("tuh_collection")
+            collection.delete(where={"source": filename})
+        except Exception as e:
+            print(f"คำเตือน: ลบ vector ออกจาก ChromaDB ไม่สำเร็จ ({e})")
+
+    return removed
+
+
+def weighted_rrf_score(rank: int, weight: float, rrf_k: int = 60) -> float:
+    """คำนวณคะแนน Weighted Reciprocal Rank Fusion (RRF) ของผลลัพธ์หนึ่งรายการ ตามสูตร
+    weight * (1 / (rrf_k + rank)) — ใช้กับทั้งฝั่ง dense (ChromaDB, weight=0.4) และ
+    lexical (BM25, weight=0.6) ก่อนรวมคะแนนของแต่ละ chunk_id เข้าด้วยกันใน
+    HybridRetriever.query() แยกออกมาจาก merge_results() closure เดิมเพื่อให้ unit test
+    สูตรได้ตรงๆ โดยไม่ต้องโหลดโมเดล/ดัชนีจริง (ดู UT-09 ใน web_testing/unit/test_ut_rag_logic.py)
+    สูตรและพฤติกรรมเดิมทุกกรณี ไม่ได้แก้ logic
+    """
+    return weight * (1.0 / (rrf_k + rank))
+
+
 class HybridRetriever:
     """
     คลาส Retriever สำหรับการค้นหาแบบ Hybrid (Dense Vector + Lexical Search)
@@ -321,7 +398,7 @@ class HybridRetriever:
                         "lexical_score": None
                     }
                 
-                rrf_scores[cid] += weight * (1.0 / (rrf_k + rank))
+                rrf_scores[cid] += weighted_rrf_score(rank, weight, rrf_k)
                 chunk_map[cid][f"{key_prefix}_rank"] = rank
                 chunk_map[cid][f"{key_prefix}_score"] = item["score"]
 

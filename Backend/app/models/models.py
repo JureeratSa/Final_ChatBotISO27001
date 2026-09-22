@@ -51,6 +51,14 @@ class Document(Base):
     embedding_duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     upload_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     uploaded_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # เก็บชื่อ (display_name/username) ไว้เป็น cache สำหรับแสดงผลตรงๆ โดยไม่ต้อง JOIN — ยังคงไว้
+    # คู่กับ uploaded_by_id ด้านล่าง เผื่อกรณีบัญชีผู้อัปโหลดถูกลบไปแล้ว (FK จะเป็น NULL แต่ชื่อ
+    # เดิมยังอ่านได้จากคอลัมน์นี้) ดู uploaded_by_id สำหรับความสัมพันธ์ที่มี constraint บังคับจริง
+    uploaded_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    uploader: Mapped[Optional["User"]] = relationship("User", foreign_keys=[uploaded_by_id])
 
 
 # ─── Settings ──────────────────────────────────────────────────────────────────
@@ -162,5 +170,12 @@ class Announcement(Base):
     end_date: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # เหตุผลเดียวกับ Document.uploaded_by_id — เก็บ created_by (string) ไว้เป็น cache แสดงผล
+    # คู่กับ created_by_id ที่มี FK บังคับจริง
+    created_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    creator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by_id])

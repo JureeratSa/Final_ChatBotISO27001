@@ -293,6 +293,108 @@ async def query_rag(
     return ans, used_rag, model_used
 
 
+# ─── Custom/Predefined FAQ Matcher (ใช้ร่วมกันทั้ง /api/chat และ /api/search — DRY) ─
+# เดิม loop จับคู่ FAQ นี้เขียนซ้ำเกือบทุกตัวอักษรใน routers/chat.py กับ routers/public.py
+# และหลังรวม custom_faqs + predefined_faqs เป็น loop เดียว โค้ดเดิม hardcode source label
+# เป็น "custom_faq" เสมอ ทำให้คำถามที่จริงๆ ตรงกับ predefined_faqs (ปุ่มคำถามด่วน) ถูกบันทึก
+# ผิดประเภทใน ChatHistory.api_model ไปด้วย — ฟังก์ชันนี้คืน source label ที่ถูกต้องตามลิสต์
+# ที่จับคู่เจอจริง
+def find_matching_faq(
+    query: str, custom_faqs: List[Dict], predefined_faqs: List[Dict]
+) -> Optional[Tuple[str, str]]:
+    """หาคำถามที่ตรงกับ Custom FAQ หรือ Predefined FAQ (เฉพาะข้อที่ตั้งคำตอบตายตัวไว้ —
+    answer ไม่ว่างเปล่า เพราะ FaqsPage ของ AdminWeb ให้เว้นคำตอบว่างไว้ได้ตั้งใจ หมายถึง
+    "ให้ AI ค้นจาก PDF เอง" สำหรับ FAQ ข้อนั้น) เช็ค custom_faqs ก่อนตามลำดับเดิม
+    คืน (answer, source_label) โดย source_label เป็น "custom_faq" หรือ "predefined_faq"
+    ตามลิสต์ที่จับคู่เจอจริง — คืน None ถ้าไม่ตรงข้อไหนเลย
+    """
+    q_lower = query.lower()
+    for source_label, faq_list in (("custom_faq", custom_faqs), ("predefined_faq", predefined_faqs)):
+        for faq in faq_list:
+            faq_q = faq.get("question", "").strip().lower()
+            faq_a = faq.get("answer", "").strip()
+            if faq_q and faq_a and faq_q in q_lower:
+                return faq_a, source_label
+    return None
+
+
+# ─── Citation Relevance Gate (ใช้ร่วมกันทั้ง /api/chat และ /api/search — DRY) ──
+# เดิมทั้งสอง endpoint เช็คแค่ "rag_results ไม่ว่าง" ก่อนแนบ citation ซึ่งเกือบไม่มีความหมาย
+# เพราะ HybridRetriever.query() ไม่มี relevance threshold คืน top_k เสมอไม่ว่าคำถามจะเกี่ยวกับ
+# เอกสารที่มีจริงหรือไม่ (ดู Admin/emb.py) ทำให้คำถามที่ LLM ตอบจากความรู้ทั่วไปล้วนๆ ก็ยังโดน
+# แนบลิงก์ PDF ที่ไม่เกี่ยวข้องไปด้วยทุกครั้ง — ใช้ used_rag (LLM ประกาศเองว่าใช้ context) เป็น
+# สัญญาณหลักก่อนเหมือนเดิม ถ้าไม่มี (LLM ลืมใส่ tag) ค่อย fallback ไปเช็ค dense similarity
+# score ของผลลัพธ์อันดับต้นแทนการเชื่อ top_k เฉยๆ
+def has_reliable_context(rag_results: List[Dict], used_rag: bool, min_dense_score: float = 0.42) -> bool:
+    """True ถ้า rag_results น่าเชื่อถือพอจะแนบเป็น citation ให้ผู้ใช้จริง
+    หมายเหตุ: min_dense_score=0.42 เป็นค่าเริ่มต้นแบบ conservative ยังไม่ได้ทดสอบกับชุดคำถามจริง
+    ควรปรับจูนตอนขั้นตอนทดสอบ (เทียบกับ testchatbotSPO/) ถ้าพบว่า citation หายบ่อยไปหรือโผล่ผิดบ่อยไป
+    """
+    if not rag_results:
+        return False
+    if used_rag:
+        return True
+    top_dense = max((r.get("dense_score") or 0.0 for r in rag_results), default=0.0)
+    return top_dense >= min_dense_score
+
+
+# ─── Citation Builder (ใช้ร่วมกันทั้ง /api/chat และ /api/search — DRY) ──────────
+
+async def build_citations(db, rag_results: List[Dict]) -> List[Dict[str, Any]]:
+    """สร้างรายการเอกสารอ้างอิง (citations) จาก rag_results โดย group ตาม source
+    (รวมเลขหน้าทั้งหมดของ source เดียวกัน) และ map display_name จากตาราง Document
+    เดิม logic นี้อยู่ซ้ำกันคนละที่ใน routers/chat.py กับ routers/public.py — ย้ายมารวม
+    ไว้ที่เดียวกันไม่ให้ผลลัพธ์เพี้ยนกันระหว่าง endpoint /api/chat กับ /api/search
+    """
+    from urllib.parse import quote
+    from sqlalchemy import select
+    from app.models.models import Document
+
+    if not rag_results:
+        return []
+
+    docs_result = await db.execute(select(Document))
+    docs = docs_result.scalars().all()
+    filename_to_display = {d.filename: d.display_name for d in docs if d.display_name}
+
+    grouped: Dict[str, set] = {}
+    for res in rag_results:
+        source = res["metadata"].get("source", "เอกสาร")
+        page = res["metadata"].get("page")
+        if source not in grouped:
+            grouped[source] = set()
+        if page:
+            try:
+                grouped[source].add(int(page))
+            except (ValueError, TypeError):
+                pass
+
+    citations: List[Dict[str, Any]] = []
+    for source, pages in grouped.items():
+        display = filename_to_display.get(source, source.replace(".pdf", "").replace("_", " "))
+        pdf_url = (
+            f"/api/documents/serve/{quote(source)}#page={min(pages)}"
+            if pages else f"/api/documents/serve/{quote(source)}"
+        )
+        citations.append({
+            "source": source,
+            "pages": sorted(pages),
+            "display_name": display,
+            "url": pdf_url,
+        })
+    return citations
+
+
+def is_unanswered_response(answer: str, model_used: str) -> bool:
+    """heuristic เดียวกันที่ใช้ทั้งใน chat.py/public.py เพื่อตัดสินว่าคำตอบนี้ถือเป็น
+    'ตอบไม่ได้/ปฏิเสธ' หรือไม่ (ไว้ใช้ทั้งตอนบันทึก unanswered log และตอนตัดสินใจว่า
+    ควรแนบ citations ให้คำตอบนี้หรือไม่ — ถ้าตอบไม่ได้จริง ไม่ควรมี citation แนบมาด้วย)"""
+    return model_used not in ("profanity_filter", "chit_chat") and (
+        model_used == "fallback"
+        or any(k in answer for k in ["ไม่พบข้อมูล", "ไม่มีข้อมูล", "ขออภัย", "ไม่สามารถตอบได้"])
+    )
+
+
 def _default_system_prompt() -> str:
     return """คุณคือ "ขาหมู" ผู้ช่วยแชทบอทอัจฉริยะ (ผู้ชาย) ของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (TUH)
 ตอบคำถามบุคลากรเกี่ยวกับสวัสดิการและ ISO อย่างสุภาพและตรงประเด็น
