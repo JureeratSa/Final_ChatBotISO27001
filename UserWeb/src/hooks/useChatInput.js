@@ -1,9 +1,22 @@
+/**
+ * TUH Chatbot AI — useChatInput Custom Hook
+ * จัดการกล่องข้อความขาเข้า, การส่งข้อความไปยัง RAG Backend และการควบคุมการพิมพ์ของบอท:
+ * 1. ควบคุม State ของช่องพิมพ์ (inputValue, isTyping) และ Auto-scroll แชท
+ * 2. handleSendMessage: ตรวจสอบห้องแชทล่าสุด, สร้าง user message, ดึง Recent History 2 รอบ (4 ข้อความ)
+ * 3. ส่งคำขอแบบ Abortable (ผ่าน AbortController) ไปยัง '/api/search'
+ * 4. Fallback: กรณีต่อเน็ตไม่ได้/API Error ใช้ getBotResponse() ตอบตามคำสำคัญ/FAQ
+ * 5. Forced Feedback: นับจำนวนคำถาม (questionCount) และกระตุ้นเปิด Feedback เมื่อถามครบ 3 คำถาม
+ * 6. handleStopGeneration: ฟังก์ชันหยุดค้นหาคำตอบระหว่างการประมวลผล
+ */
 import { useState, useRef, useEffect } from 'react';
 import { API_URL, getBotResponse } from '../utils/chatUtils';
 
-// ตรวจ 2-of-3 forced-feedback trigger: เรียกจากทั้ง success branch และ generic-error branch ของ
-// handleSendMessage เท่านั้น (2 จุดเท่านั้น) — ตั้งใจไม่เรียกใน AbortError branch เพราะการยกเลิกคำขอ
-// ไม่ควรถูกนับเป็นเงื่อนไขเข้าเกณฑ์บังคับกรอกข้อเสนอแนะ
+/**
+ * ตรวจสอบและเปิดกล่องประเมินความพึงพอใจแบบบังคับเมื่อผู้ใช้ถามคำถามครบ 3 ข้อ
+ * @param {number} nextCount - จำนวนคำถามสะสม
+ * @param {Function} setIsForcedFeedback - ฟังก์ชันเซ็ตโหมดบังคับ
+ * @param {Function} setShowFeedback - ฟังก์ชันเปิด Modal
+ */
 function maybeTriggerForcedFeedback(nextCount, setIsForcedFeedback, setShowFeedback) {
   if (nextCount === 3 && sessionStorage.getItem('tuh_feedback_submitted') !== 'true') {
     setTimeout(() => {
@@ -13,8 +26,6 @@ function maybeTriggerForcedFeedback(nextCount, setIsForcedFeedback, setShowFeedb
   }
 }
 
-// สถานะช่องพิมพ์ข้อความ, การพิมพ์ของบอท, ตัวนับคำถาม, refs ที่เกี่ยวข้อง (auto-focus/auto-scroll/abort)
-// และ handleSendMessage / handleStopGeneration
 export function useChatInput({
   sessions,
   activeSessionId,
@@ -28,7 +39,7 @@ export function useChatInput({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  // คำถาม & แสดงความคิดเห็นที่ไม่พอใจ
+  // ตัวนับจำนวนคำถามที่ผู้ใช้ถามในเซสชันนี้
   const [questionCount, setQuestionCount] = useState(() => {
     const saved = sessionStorage.getItem('tuh_question_count');
     return saved ? parseInt(saved, 10) : 0;
@@ -39,7 +50,7 @@ export function useChatInput({
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Auto-focus input textarea when bot finishes typing
+  // Auto-focus ช่องพิมพ์ข้อความเมื่อบอทพิมพ์ตอบเสร็จสิ้น
   useEffect(() => {
     if (!isTyping && inputRef.current) {
       const timer = setTimeout(() => {
@@ -51,7 +62,7 @@ export function useChatInput({
     }
   }, [isTyping]);
 
-  // เลื่อนลงไปด้านล่างสุดโดยอัตโนมัติ
+  // เลื่อนหน้าจอแชทลงไปด้านล่างสุดโดยอัตโนมัติ (Auto-scroll to bottom)
   useEffect(() => {
     const scrollToBottom = () => {
       if (chatContainerRef.current) {
@@ -67,8 +78,7 @@ export function useChatInput({
     // เลื่อนลงไปด้านล่างทันที
     scrollToBottom();
 
-    // เลื่อนลงอีกครั้งหลังจากผ่านไปช่วงสั้น ๆ เพื่อให้แน่ใจว่า DOM ถูกเรนเดอร์,
-    // การอัปเดตเค้าโครง และแอนิเมชันการเปลี่ยนสถานะของข้อความฟองสบู่ทำงานเสร็จสิ้น
+    // เลื่อนซ้ำอีกครั้งหลังจากผ่านไป 100ms และ 300ms เพื่อรองรับช่วงที่ Animation/DOM render เสร็จ
     const timer1 = setTimeout(scrollToBottom, 100);
     const timer2 = setTimeout(scrollToBottom, 300);
 
@@ -78,7 +88,9 @@ export function useChatInput({
     };
   }, [sessions, activeSessionId, isTyping]);
 
-  // ยกเลิกการหาคำตอบ
+  /**
+   * ยกเลิกการค้นหา/สร้างคำตอบของบอทกลางคัน
+   */
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -87,18 +99,20 @@ export function useChatInput({
     setIsTyping(false);
   };
 
-  // ประมวลผลและส่งข้อความจากผู้ใช้
+  /**
+   * ส่งข้อความของผู้ใช้ไปยัง API ค้นหา RAG ของ Backend
+   * @param {string} text - ข้อความที่ผู้ใช้พิมพ์
+   */
   const handleSendMessage = (text) => {
     if (!text.trim() || isTyping) return;
 
-    // หากไม่ใช่แชทล่าสุด จะส่งข้อความไม่ได้
-    // (จงใจคำนวณ isActiveSessionLatest ซ้ำในนี้แม้จะมีค่าที่ derived จาก useChatSessions อยู่แล้วก็ตาม
-    // — เป็นการซ้ำซ้อนเล็กน้อยที่มีอยู่แล้วในโค้ดต้นฉบับ ให้คงไว้ตามเดิม ไม่ทำการ dedupe)
+    // อนุญาตให้ส่งข้อความได้เฉพาะใน Session บนสุด (ล่าสุด) เท่านั้น
     const isActiveSessionLatest = activeSessionId === sessions[0]?.id;
     if (!isActiveSessionLatest) return;
 
     localStorage.setItem('tuh_last_chat_time', Date.now().toString());
 
+    // อัปเดตตัวนับจำนวนคำถาม
     const nextCount = questionCount + 1;
     setQuestionCount(nextCount);
     sessionStorage.setItem('tuh_question_count', nextCount.toString());
@@ -110,7 +124,7 @@ export function useChatInput({
       timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // คัดแยกประวัติการสนทนาล่าสุด (ไม่เกิน 2 รอบ / 4 ข้อความ)
+    // คัดแยกประวัติการสนทนาล่าสุด (ไม่เกิน 2 รอบ / 4 ข้อความ) เพื่อส่งเป็น Multi-turn context
     const sessionMessages = activeSession.messages || [];
     const startIndex = (sessionMessages.length > 0 && sessionMessages[0].sender === 'bot') ? 1 : 0;
     const candidates = sessionMessages.slice(startIndex);
@@ -119,10 +133,10 @@ export function useChatInput({
       text: m.text
     }));
 
-    // อัปเดตข้อความในเซสชันที่ใช้งาน
+    // อัปเดตข้อความของผู้ใช้ลงใน State sessions
     let updatedSessions = sessions.map(s => {
       if (s.id === activeSessionId) {
-        // อัปเดตชื่อเซสชันตามข้อความแรกของผู้ใช้ หากชื่อเดิมเป็นชื่อเริ่มต้น
+        // อัปเดตชื่อห้องแชทตามข้อความแรก หากชื่อยังเป็นชื่อเริ่มต้น
         let newTitle = s.title;
         if (s.title.startsWith('บทสนทนาใหม่ #')) {
           newTitle = text.length > 25 ? text.substring(0, 25) + '...' : text;
@@ -136,23 +150,19 @@ export function useChatInput({
       return s;
     });
 
-    // หมายเหตุ (จงใจ, ห้าม "แก้ให้สม่ำเสมอ"): การอัปเดตนี้ใช้ closure ของ `sessions` ตรงๆ ได้อย่างปลอดภัย
-    // เพราะรันแบบ synchronous ก่อนจะมี await ใดๆ เกิดขึ้น ในขณะที่ setSessions ทั้ง 3 จุดด้านล่างใน
-    // .then()/.catch() ต้องใช้ functional form (prevSessions => ...) เพราะรันหลัง async gap ที่ sessions
-    // อาจถูกเปลี่ยนแปลงไปแล้วจากตอนที่ปิด closure ไว้
     setSessions(updatedSessions);
     setInputValue('');
     setShowFaqs(false);
     setIsTyping(true);
 
-    // สร้าง AbortController ใหม่สำหรับการค้นหานี้
+    // สร้าง AbortController ใหม่สำหรับการยกเลิกคำขอ
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // เรียก API ค้นหาแบบผสม (ChromaDB + BM25) ของ Python
+    // ส่งคำขอค้นหาแบบ Hybrid (ChromaDB + BM25) ไปยัง Backend API
     fetch(API_URL + '/api/search', {
       method: 'POST',
       headers: {
@@ -171,7 +181,7 @@ export function useChatInput({
       })
       .then(data => {
         abortControllerRef.current = null;
-        //ใช้คำตอบ AI ที่สร้างจากส่วนหลังบ้านหากมี
+        // ใช้คำตอบที่ Backend ตอบกลับ หรือ Fallback กรณีไม่มี
         let botResponseText = data.answer || getBotResponse(text, faqsList);
         botResponseText = botResponseText.replaceAll("__API_URL__", API_URL);
 
@@ -195,10 +205,11 @@ export function useChatInput({
         localStorage.setItem('tuh_last_chat_time', Date.now().toString());
         setIsTyping(false);
 
-        // กำหนดให้แสดงฟอร์มข้อเสนอแนะหลังจากข้อความจากบอทข้อที่ 3 หากยังไม่มีการส่งข้อเสนอแนะ
+        // ตรวจสอบเงื่อนไขกระตุ้นฟอร์มความพึงพอใจหลังตอบคำถามข้อที่ 3
         maybeTriggerForcedFeedback(nextCount, setIsForcedFeedback, setShowFeedback);
       })
       .catch(error => {
+        // กรณีผู้ใช้กดยกเลิกการค้นหา (Abort)
         if (error.name === 'AbortError') {
           console.log("API Search request aborted.");
           const botMessage = {
@@ -219,14 +230,12 @@ export function useChatInput({
           }));
           localStorage.setItem('tuh_last_chat_time', Date.now().toString());
           setIsTyping(false);
-          // จงใจไม่เรียก maybeTriggerForcedFeedback ที่นี่ — ยกเลิกคำขอไม่ควรถูกนับเข้าเกณฑ์บังคับ
-          // กรอกข้อเสนอแนะ (asymmetry เดิมของโค้ดต้นฉบับ)
           return;
         }
 
         abortControllerRef.current = null;
         console.warn("API Search failed, using static fallback:", error);
-        // ใช้ค่าเริ่มต้นแทนหากเกิดข้อผิดพลาด
+        // กรณีเชื่อมต่อ API ล้มเหลว ใช้ Static Fallback ตอบตามคำสำคัญ
         const botResponseText = getBotResponse(text, faqsList);
         const botMessage = {
           id: `bot-${Date.now()}`,
@@ -247,7 +256,7 @@ export function useChatInput({
         localStorage.setItem('tuh_last_chat_time', Date.now().toString());
         setIsTyping(false);
 
-        // กำหนดให้แสดงฟอร์มข้อเสนอแนะหลังจากข้อความจากบอทข้อที่ 3 หากยังไม่มีการส่งข้อเสนอแนะ
+        // ตรวจสอบเงื่อนไขกระตุ้นฟอร์มความพึงพอใจ
         maybeTriggerForcedFeedback(nextCount, setIsForcedFeedback, setShowFeedback);
       });
   };
@@ -259,3 +268,4 @@ export function useChatInput({
     handleSendMessage, handleStopGeneration
   };
 }
+

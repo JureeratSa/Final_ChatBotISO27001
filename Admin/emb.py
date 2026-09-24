@@ -1,3 +1,10 @@
+"""
+TUH Chatbot AI — Hybrid Retrieval Engine (ChromaDB Vector + BM25 Lexical + Weighted RRF)
+หัวใจหลักของระบบ RAG:
+1. Dense Retrieval: ใช้โมเดล BAAI/bge-m3 (1024 มิติ) บันทึกลง ChromaDB เพื่อค้นหาเชิงความหมาย (Semantic Search)
+2. Lexical Retrieval: ใช้ PyThaiNLP (newmm) ตัดคำภาษาไทยเพื่อสร้าง BM25 Index ค้นหาคำศัพท์เฉพาะทาง
+3. Fusion Engine: ผสานผลลัพธ์ด้วย Weighted Reciprocal Rank Fusion (Dense 0.4 / Lexical 0.6)
+"""
 import os
 import sys
 import json
@@ -18,7 +25,9 @@ except ImportError:
 
 def build_indices():
     """
-    ฟังก์ชันสำหรับอ่านไฟล์ chunks แล้วนำมาสร้างดัชนีค้นหาตามเทคโนโลยีที่ตั้งค่าไว้
+    ฟังก์ชันสำหรับอ่านไฟล์ sample_chunks.json แล้วนำมาสร้างดัชนีค้นหา:
+    1. สร้าง ChromaDB Collection ('tuh_collection') ด้วย Dense Embedding (BAAI/bge-m3)
+    2. สร้าง BM25 Okapi Index บันทึกเป็นไฟล์ bm25.pkl
     """
     # ตรวจสอบการติดตั้งไลบรารีที่จำเป็น
     missing = []
@@ -35,6 +44,7 @@ def build_indices():
     chunks_path = os.path.join(base_dir, "sample_chunks.json")
     index_dir = os.path.join(base_dir, "index_db")
     db_settings_path = os.path.join(base_dir, "user", "backend", "db", "db_settings.json")
+
 
     print(f"กำลังโหลดข้อมูล chunks จาก: {chunks_path}")
     if not os.path.exists(chunks_path):

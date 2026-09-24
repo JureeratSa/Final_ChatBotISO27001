@@ -1,3 +1,12 @@
+"""
+TUH Chatbot AI — Database Rebuilding & Reindexing Engine
+หน้าที่หลัก:
+1. ดึงเอกสารทั้งหมดที่มีสถานะ 'Active' จากฐานข้อมูล
+2. ทำการสกัดข้อความดิบ คลีนภาษาไทย และแบ่งเป็น Chunks
+3. รันโมเดล BAAI/bge-m3 สร้าง Dense Vectors บันทึกลง ChromaDB
+4. ตัดคำภาษาไทยด้วย PyThaiNLP เพื่อสร้างดัชนี BM25 Okapi (bm25.pkl)
+5. บันทึกผลลัพธ์ทั้งหมดลงโฟลเดอร์ index_db พร้อมให้ระบบ RAG เรียกใช้งาน
+"""
 import os
 import re
 import sys
@@ -6,14 +15,20 @@ import fitz
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pythainlp.tokenize import sent_tokenize
 
-admin_dir = os.path.dirname(os.path.abspath(__file__)) # ปัจจุบันใช้ไฟล์พวกนี้เลย ไม่ได้ยุ่ง
+admin_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(admin_dir) 
 sys.path.append(root_dir)
 
-# ฟังก์ชันย่อยสำหรับจัดการและแยกตารางออกจากข้อความธรรมดา
+# ─── ฟังก์ชันย่อยสำหรับจัดการโครงสร้างข้อความและตาราง ─────────────────────────
 
 def parse_blocks(full_text):
-    """แยก text , table ออกจากกัน (in block)"""
+    """
+    แยกข้อความธรรมดา (Text) และตาราง (Table) ออกจากกันเป็นบล็อกๆ
+    Args:
+        full_text (str): ข้อความทั้งหมดของเอกสารที่สกัดได้
+    Returns:
+        list: รายการบล็อกที่ระบุ type ('text' หรือ 'table') พร้อมหัวเรื่อง (heading)
+    """
     lines = full_text.split('\n')
     blocks = []
     current_block_lines = []
@@ -21,6 +36,7 @@ def parse_blocks(full_text):
     current_block_start_line = 0
     
     current_heading = ""
+
 
     for line_idx, line in enumerate(lines):
         stripped_line = line.strip()

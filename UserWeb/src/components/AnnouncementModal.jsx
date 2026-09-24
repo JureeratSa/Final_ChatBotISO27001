@@ -1,3 +1,11 @@
+/**
+ * TUH Chatbot AI — AnnouncementModal Component
+ * หน้าต่างแจ้งเตือนข่าวสารและประกาศสำคัญ (Announcements Modal):
+ * 1. แสดงเมื่อมีประกาศที่ Active และผู้ใช้ยังไม่เคยเปิดดูในรอบ Session นั้น
+ * 2. รองรับการแสดงป้าย 'ปักหมุด' (Pinned), หมวดหมู่ประกาศ (Category) และวันที่เริ่มประกาศ
+ * 3. คลีน HTML tag ออกจากเนื้อหาเพื่อความปลอดภัย (stripHtml)
+ * 4. ปุ่ม 'รับทราบ' เพื่อปิดหน้าต่างและบันทึกสถานะการเปิดดูลง sessionStorage
+ */
 import React from 'react';
 
 export const AnnouncementModal = ({
@@ -12,7 +20,7 @@ export const AnnouncementModal = ({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-xl w-full border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden animate-scale-up">
-        {/* Header */}
+        {/* 1. ส่วนหัวของประกาศ (Header) */}
         <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex flex-col justify-start items-start gap-1 bg-slate-50 dark:bg-tuh-navy/35">
           <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
             <i className="fa-solid fa-bullhorn text-tuh-rose animate-bounce"></i>
@@ -23,17 +31,18 @@ export const AnnouncementModal = ({
           </span>
         </div>
 
-        {/* Announcements List Container */}
+        {/* 2. รายการกล่องประกาศข่าวสาร (Announcements List Container) */}
         <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4 custom-scrollbar">
           {activeAnnouncements.map((ann) => (
             <div
               key={ann.id}
               className={`p-5 rounded-2xl border space-y-2.5 shadow-sm relative overflow-hidden text-left transition ${ann.pinned ? 'border-emerald-500/20 bg-emerald-500/[0.02] dark:bg-emerald-500/[0.04]' : 'border-slate-100 dark:border-tuh-purple/20 bg-slate-50/70 dark:bg-[#100220]/40'}`}
             >
-              {/* Decorative color strip on left side */}
+              {/* แถบสีตกแต่งด้านซ้าย (สีเขียวสำหรับปักหมุด / สีชมพูสำหรับทั่วไป) */}
               <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${ann.pinned ? 'bg-gradient-to-b from-emerald-500 to-teal-500' : 'bg-gradient-to-b from-tuh-rose to-tuh-pink'}`}></div>
 
               <div className="pl-2">
+                {/* หัวข้อประกาศ + ป้ายปักหมุด + หมวดหมู่ */}
                 <h4 className="font-extrabold text-base text-tuh-navy dark:text-white flex items-center gap-2 flex-wrap">
                   {ann.pinned && <i className="fa-solid fa-thumbtack text-emerald-500 text-xs rotate-45" title="ประกาศปักหมุด"></i>}
                   <span>{ann.title}</span>
@@ -43,11 +52,12 @@ export const AnnouncementModal = ({
                     </span>
                   )}
                 </h4>
+                {/* เนื้อหาประกาศ (ลบ HTML Tag เพื่อความปลอดภัย) */}
                 <p className="text-sm font-semibold text-slate-750 dark:text-slate-250 leading-relaxed mt-1 whitespace-pre-line mb-3">
                   {stripHtml(ann.content)}
                 </p>
 
-                {/* Footer metadata for dates and admin creator */}
+                {/* Metadata ด้านล่าง: วันที่เริ่มประกาศ และผู้สร้างประกาศ */}
                 <div className="flex justify-between items-center text-[11px] font-medium text-slate-400 dark:text-tuh-pink/40 mt-2 pt-2 border-t border-slate-100 dark:border-tuh-purple/10">
                   {ann.start_date ? (
                     <div className="flex items-center gap-1.5">
@@ -69,7 +79,7 @@ export const AnnouncementModal = ({
           ))}
         </div>
 
-        {/* Footer */}
+        {/* 3. ปุ่มกดรับทราบด้านล่าง */}
         <div className="p-4 bg-slate-50 dark:bg-tuh-navy/35 border-t border-slate-100 dark:border-tuh-purple/25 flex justify-end">
           <button
             onClick={handleCloseAnnModal}
@@ -84,3 +94,4 @@ export const AnnouncementModal = ({
 };
 
 export default AnnouncementModal;
+
