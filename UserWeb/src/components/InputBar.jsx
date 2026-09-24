@@ -1,3 +1,11 @@
+/**
+ * TUH Chatbot AI — InputBar Component
+ * แถบกรอกข้อความด้านล่างหน้าจอแชท:
+ * 1. ตรวจสอบสถานะการล็อกห้องแชท (Active/Locked): หากเป็นเซสชันเก่าจะขึ้นแม่กุญแจแจ้งเตือน (Read-only)
+ * 2. เมนูกล่องคำถามที่พบบ่อย (FAQs Accordion): เปิด/ปิดและเลือกคลิกส่งคำถามสำเร็จรูปได้ทันที
+ * 3. Textarea รับข้อความ: รองรับการกดปุ่ม Enter เพื่อส่ง (Shift+Enter เพื่อขึ้นบรรทัดใหม่)
+ * 4. ปุ่มสลับระหว่าง "ส่งข้อความ" (Paper Plane) และ "หยุดประมวลผล" (Stop) เมื่อบอทกำลังพิมพ์
+ */
 import React from 'react';
 
 export const InputBar = ({
@@ -16,7 +24,7 @@ export const InputBar = ({
     <div className="p-3 border-t border-slate-200/60 dark:border-tuh-purple/15 bg-white/50 dark:bg-[#1B2062]/50 shrink-0">
       {isActiveSessionLatest ? (
         <div className="flex flex-col w-full">
-          {/* ปุ่มเปิดปิดคำถามที่พบบ่อย (FAQs) */}
+          {/* 1. ปุ่มเปิด/ปิด แถบคำถามที่พบบ่อย (FAQs Toggle) */}
           <div className="flex items-center mb-2">
             <button
               onClick={() => setShowFaqs(!showFaqs)}
@@ -28,7 +36,7 @@ export const InputBar = ({
             </button>
           </div>
 
-          {/* รายการคำถามที่พบบ่อย (FAQs List) */}
+          {/* 2. รายการการ์ดคำถามที่พบบ่อย (FAQs Grid) */}
           {showFaqs && faqsList.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 max-h-40 overflow-y-auto custom-scrollbar p-1.5 bg-slate-50/50 dark:bg-[#07010f]/30 rounded-xl border border-slate-200/40 dark:border-white/5 animate-slide-in">
               {faqsList.map(faq => (
@@ -44,6 +52,7 @@ export const InputBar = ({
             </div>
           )}
 
+          {/* 3. ช่องพิมพ์ข้อความและปุ่มกดส่ง */}
           <div className="flex items-end gap-2.5 w-full">
             <textarea
               ref={inputRef}
@@ -51,6 +60,7 @@ export const InputBar = ({
               disabled={isTyping}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => {
+                // กด Enter เพื่อส่งข้อความ ยกเว้นกดร่วมกับ Shift เพื่อขึ้นบรรทัดใหม่
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   handleSendMessage(inputValue);
@@ -61,6 +71,7 @@ export const InputBar = ({
               className="floating-textarea flex-1 py-3 px-4 rounded-xl bg-slate-50 dark:bg-[#07010f] border border-slate-250 dark:border-tuh-purple/25 text-tuh-navy dark:text-white placeholder-slate-400 dark:placeholder-white/40 focus:outline-none text-xs md:text-sm resize-none overflow-y-auto leading-normal focus:ring-2 focus:ring-tuh-rose/30 dark:focus:ring-tuh-rose/50 transition-all duration-300"
             />
 
+            {/* ปุ่มหยุดการสร้างคำตอบ (เมื่อกำลังพิมพ์) หรือปุ่มส่งข้อความ */}
             {isTyping ? (
               <button
                 onClick={handleStopGeneration}
@@ -82,6 +93,7 @@ export const InputBar = ({
           </div>
         </div>
       ) : (
+        /* สถานะล็อกห้องแชทเก่า (Read-only banner) */
         <div className="w-full flex items-center justify-center p-3 rounded-xl bg-slate-100/80 dark:bg-tuh-navy/40 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400 font-bold text-center text-xs md:text-sm select-none gap-2">
           <i className="fa-solid fa-lock text-tuh-rose text-sm"></i>
           <span>บทสนทนานี้หมดเวลาส่งข้อความแล้ว สามารถดูประวัติการสนทนาได้อย่างเดียว</span>
@@ -92,3 +104,4 @@ export const InputBar = ({
 };
 
 export default InputBar;
+

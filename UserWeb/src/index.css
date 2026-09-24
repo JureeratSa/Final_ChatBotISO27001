@@ -1,8 +1,15 @@
+/**
+ * TUH Chatbot AI — UserWeb Styling & Design System
+ * 1. Tailwind Directives (@tailwind base, components, utilities)
+ * 2. Base Typography: กำหนด Sarabun เป็น Default Thai Font และ Roboto สำหรับตัวเลข/ภาษาอังกฤษ
+ * 3. Theme Palettes: สีพื้นหลังแบบ Light / Dark Mode
+ * 4. Micro-animations: Ambient Glow, Mascot Floating, Bubble Slide-in
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ปรับค่า Base ตรงนี้ให้ใหญ่ขึ้น */
+/* ปรับค่า Base Font Size สำหรับการคำนวณ rem ในระบบ */
 html {
   font-size: 16px;
 }
@@ -11,14 +18,16 @@ html {
   body {
     @apply antialiased transition-colors duration-300;
     font-weight: 500;
-    /* เปลี่ยนฟอนต์หลักที่นี่ */
+    /* ฟอนต์ Sarabun สำหรับภาษาไทย */
     font-family: 'Sarabun', sans-serif !important;
   }
 
+  /* สีพื้นหลังสำหรับโหมดสว่าง (Light Mode) */
   html:not(.dark) body {
     @apply bg-slate-50 text-slate-800;
   }
 
+  /* สีพื้นหลังสำหรับโหมดมืด (Dark Mode) */
   html.dark body {
     @apply bg-[#050818] text-slate-100;
   }

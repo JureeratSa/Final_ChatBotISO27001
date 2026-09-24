@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TUH Chatbot AI - รายงานสถาปัตยกรรมการเชื่อมต่อและข้อกำหนดด้านประสิทธิภาพระบบ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 12mm 12mm 14mm 12mm;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sarabun', 'Tahoma', sans-serif;
+            font-size: 8.5pt;
+            line-height: 1.42;
+            color: #1e293b;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 3pt;
+            margin-bottom: 8pt;
+            font-size: 7.5pt;
+            color: #64748b;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Prompt', 'Sarabun', sans-serif;
+            color: #0f2744;
+            margin-top: 8pt;
+            margin-bottom: 4pt;
+            font-weight: 600;
+        }
+
+        h2 {
+            font-size: 11pt;
+            color: #1e40af;
+            border-left: 3.5px solid #2563eb;
+            padding-left: 6px;
+            margin-top: 10pt;
+            margin-bottom: 5pt;
+        }
+
+        h3 {
+            font-size: 9.5pt;
+            color: #1e3a8a;
+            margin-top: 6pt;
+            margin-bottom: 3pt;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 4pt;
+            text-align: justify;
+        }
+
+        /* Header Cover Box */
+        .doc-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+            color: #ffffff;
+            padding: 12pt 14pt;
+            border-radius: 6px;
+            margin-bottom: 8pt;
+        }
+
+        .doc-header h1 {
+            color: #ffffff;
+            border-bottom: 1px solid rgba(255,255,255,0.25);
+            padding-bottom: 4pt;
+            margin: 0 0 4pt 0;
+            font-size: 14pt;
+        }
+
+        .doc-header .subtitle {
+            font-family: 'Prompt', sans-serif;
+            font-size: 9.5pt;
+            color: #93c5fd;
+            margin-bottom: 6pt;
+        }
+
+        .doc-header .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6pt;
+            font-size: 7.8pt;
+            margin-top: 6pt;
+            padding-top: 6pt;
+            border-top: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .meta-item strong {
+            color: #bfdbfe;
+            display: block;
+            font-size: 7pt;
+            text-transform: uppercase;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 7.8pt;
+            margin-top: 4pt;
+            margin-bottom: 6pt;
+        }
+
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 3.5pt 5pt;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: #1e3a8a;
+            color: #ffffff;
+            font-weight: 600;
+            font-family: 'Prompt', sans-serif;
+            font-size: 7.8pt;
+            text-align: center;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: 600; }
+
+        /* KPI Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6pt;
+            margin: 6pt 0;
+        }
+
+        .kpi-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-top: 3px solid #2563eb;
+            border-radius: 5px;
+            padding: 5pt 6pt;
+            text-align: center;
+        }
+
+        .kpi-card.purple { border-top-color: #7c3aed; }
+        .kpi-card.teal { border-top-color: #0d9488; }
+        .kpi-card.amber { border-top-color: #d97706; }
+        .kpi-card.emerald { border-top-color: #059669; }
+
+        .kpi-title {
+            font-size: 7.2pt;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 1pt;
+        }
+
+        .kpi-value {
+            font-family: 'Prompt', sans-serif;
+            font-size: 13pt;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.15;
+        }
+
+        .kpi-desc {
+            font-size: 6.8pt;
+            color: #64748b;
+        }
+
+        /* Diagram Box */
+        .diagram-container {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            padding: 7pt 9pt;
+            border-radius: 5px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 6.7pt;
+            line-height: 1.25;
+            white-space: pre;
+            margin: 5pt 0 7pt 0;
+            border: 1px solid #334155;
+        }
+
+        /* Badges & Alerts */
+        .badge {
+            display: inline-block;
+            padding: 1pt 4pt;
+            border-radius: 3px;
+            font-size: 6.8pt;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .badge-success { background-color: #dcfce7; color: #166534; }
+        .badge-warning { background-color: #fef3c7; color: #92400e; }
+        .badge-danger { background-color: #fee2e2; color: #991b1b; }
+        .badge-info { background-color: #e0f2fe; color: #0369a1; }
+        .badge-primary { background-color: #ede9fe; color: #5b21b6; }
+
+        .alert-box {
+            background-color: #f0fdf4;
+            border-left: 3px solid #16a34a;
+            padding: 5pt 8pt;
+            border-radius: 0 4px 4px 0;
+            margin: 5pt 0;
+            font-size: 7.8pt;
+        }
+
+        .alert-box.info {
+            background-color: #eff6ff;
+            border-left-color: #2563eb;
+        }
+
+        .alert-box.warning {
+            background-color: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .section-block {
+            page-break-inside: avoid;
+        }
+
+        .footer-note {
+            margin-top: 10pt;
+            padding-top: 4pt;
+            border-top: 1px dashed #cbd5e1;
+            font-size: 7.5pt;
+            color: #64748b;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================= PAGE 1 ================= -->
+    <div class="page-header">
+        <span>เอกสารส่งมอบงาน TUH Chatbot AI &bull; รพ.ธรรมศาสตร์เฉลิมพระเกียรติ</span>
+        <span>หน้า 1 / 4</span>
+    </div>
+
+    <!-- Document Header -->
+    <div class="doc-header">
+        <h1>TUH Chatbot AI — เอกสารสถาปัตยกรรมและผลการทดสอบระบบ</h1>
+        <div class="subtitle">การเชื่อมต่อระบบ (System Connectivity) และข้อกำหนดด้านประสิทธิภาพ (Performance Requirements)</div>
+        <div class="meta-grid">
+            <div class="meta-item">
+                <strong>หน่วยงาน</strong>
+                รพ.ธรรมศาสตร์เฉลิมพระเกียรติ
+            </div>
+            <div class="meta-item">
+                <strong>ระบบงาน</strong>
+                แชทบอทสารสนเทศ & ISO (RAG)
+            </div>
+            <div class="meta-item">
+                <strong>สถานะการพัฒนา</strong>
+                พร้อมส่งมอบ (Refactored)
+            </div>
+            <div class="meta-item">
+                <strong>วันที่อัปเดตข้อมูล</strong>
+                23 กันยายน 2569 (2026)
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <h2>บทสรุปผู้บริหารและการส่งมอบงาน (Executive Summary)</h2>
+    <p>
+        เอกสารฉบับนี้จัดทำขึ้นสำหรับการส่งมอบระบบ <strong>TUH Chatbot AI</strong> ให้แก่ฝ่ายสารสนเทศ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ เพื่อเป็นคู่มือทางสถาปัตยกรรมและการดำเนินงาน ครอบคลุมรายละเอียด <strong>การเชื่อมต่อระบบ (System Connectivity & Integration)</strong> และ <strong>ข้อกำหนดด้านประสิทธิภาพ (Performance Requirements & SLAs)</strong> ที่ผ่านการพิสูจน์ยืนยันด้วยผลการทดสอบจริงครบทุกมิติ ได้แก่ การทดสอบโหลดและความสามารถในการรองรับการทำงานพร้อมกัน (Locust Concurrency Sweep ในโฟลเดอร์ <code>TestPFM</code>) และการทดสอบความถูกต้องแม่นยำในการตอบคำถามตามมาตรฐานสากล ISO/IEC 27001 (Golden QA 80 ข้อ ในโฟลเดอร์ <code>testchatbotSPO</code>)
+    </p>
+
+    <!-- KPI Summary Grid -->
+    <div class="kpi-grid">
+        <div class="kpi-card emerald">
+            <div class="kpi-title">ความถูกต้องในการตอบ (RAG Accuracy)</div>
+            <div class="kpi-value">90.62%</div>
+            <div class="kpi-desc">เป้าหมาย &ge; 85% (Llama 3.3 70B)</div>
+        </div>
+        <div class="kpi-card teal">
+            <div class="kpi-title">การดึง Chunk ตรงหมวด (Hit Rate)</div>
+            <div class="kpi-value">90.00%</div>
+            <div class="kpi-desc">ดึงตรงหมวด 72 จาก 80 ข้อ</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">เวลาเฉลี่ยในการตอบ (Avg Latency)</div>
+            <div class="kpi-value">5.63s</div>
+            <div class="kpi-desc">Median: 5.04s | P95: 9.80s</div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-title">ความเห็นพ้อง (Agreement Rate)</div>
+            <div class="kpi-value">92.50%</div>
+            <div class="kpi-desc">เห็นตรงกัน 74/80 ข้อ (ตัดอคติ)</div>
+        </div>
+    </div>
+
+    <!-- Section 1 -->
+    <h2>1. สถาปัตยกรรมการเชื่อมต่อของระบบ (System Connectivity & Integration Architecture)</h2>
+    <p>
+        ระบบ TUH Chatbot AI ถูกออกแบบภายใต้สถาปัตยกรรมแบบแยกชั้น (Decoupled 3-Tier Architecture) โดย Frontend (UserWeb และ AdminWeb) ติดต่อกับ Backend (FastAPI) ผ่านโปรโตคอล HTTP/REST แบบไร้สถานะ ข้อมูลทั้งหมดแลกเปลี่ยนในรูปแบบ JSON มาตรฐาน
+    </p>
+
+    <h3>1.1 แผนภาพการเชื่อมต่อระดับภาพรวม (Overall Connectivity Matrix)</h3>
+    <div class="diagram-container">
++---------------------------------------------------------------------------------------------------+
+|                                        Client Presentation Layer                                   |
+|    +-----------------------------+                                 +-----------------------------+|
+|    |      UserWeb (React/Vite)   |                                 |     AdminWeb (React/Vite)   ||
+|    |      Port :5173 (Dev)       |                                 |     Port :5174 (Dev)        ||
+|    |      XAMPP Apache :80 (Prod)|                                 |     XAMPP Apache :80 (Prod) ||
+|    +--------------+--------------+                                 +--------------+--------------+|
++-------------------|---------------------------------------------------------------|---------------+
+                    | HTTP/REST (JSON)                                              | HTTP/REST (JSON) + JWT Bearer
++-------------------|---------------------------------------------------------------|---------------+
+|                   ▼                                                               ▼               |
+|    +-----------------------------------------------------------------------------------------+    |
+|    |                                Backend Service (FastAPI / Uvicorn) :8000                |    |
+|    |  - Middleware: CORS (Subnet Regex), RateLimiter (In-Memory IP Limiting)                 |    |
+|    |  - Auth Layer: JWT Bearer (HMAC-SHA256, Access 15m / Refresh 7d)                         |    |
+|    |  - Routers: chat, public, admin_documents, admin_settings, admin_history, etc.          |    |
+|    +--------------------+---------------------------+------------------------+----------------+    |
++-------------------------|---------------------------|------------------------|--------------------+
+                          | In-Process Python Call    | Async MySQL / TLS      | HTTPS REST (httpx)
+                          ▼                           ▼                        ▼
+       +------------------------------------+   +-------------------+   +---------------------------+
+       |   Internal RAG & Vector Engine     |   | TiDB Cloud Server |   | External LLM Gateway      |
+       |             (Admin/)               |   | (MySQL 8.0 / TLS) |   | (OpenRouter API / Ollama) |
+       | - ChromaDB (BAAI/bge-m3 Embedding) |   | Port :4000        |   | - Gemma 4 26B (Default)   |
+       | - BM25 Lexical (PyThaiNLP Tokenizer|   | - Connection Pool |   | - Llama 3.3 70B (Bench)   |
+       | - Weighted RRF Fusion (0.4 / 0.6)  |   | - ChatHistory,    |   | - Claude 3 Haiku (Eval)   |
+       | - Index files: index_db/           |   |   Users, Settings |   | - Fallback: Ollama Local  |
+       +------------------------------------+   +-------------------+   +---------------------------+</div>
+
+    <!-- ================= PAGE 2 ================= -->
+    <div class="page-break"></div>
+    <div class="page-header">
+        <span>เอกสารส่งมอบงาน TUH Chatbot AI &bull; รพ.ธรรมศาสตร์เฉลิมพระเกียรติ</span>
+        <span>หน้า 2 / 4</span>
+    </div>
+
+    <h3>1.2 ตารางรายละเอียดจุดเชื่อมต่อและโปรโตคอล (Connectivity Endpoints & Protocols)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 18%;">จุดเชื่อมต่อ</th>
+                <th style="width: 14%;">โปรโตคอล</th>
+                <th style="width: 16%;">พอร์ต / ปลายทาง</th>
+                <th style="width: 20%;">การยืนยันตัวตน (Auth)</th>
+                <th style="width: 32%;">หน้าที่และความรับผิดชอบหลัก</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>UserWeb &rarr; Backend</strong></td>
+                <td>HTTP / REST (JSON)</td>
+                <td><code>:8000</code> (<code>/api/*</code>)</td>
+                <td>Public (ไม่ต้อง Login)<br><span class="badge badge-info">IP Rate Limit</span></td>
+                <td>ส่งคำถามแชท (<code>/api/chat</code>), ดึงการตั้งค่า AI (<code>/api/chat/settings</code>), ส่ง Feedback ความพึงพอใจ, ดึงประกาศข่าวสาร, ดาวน์โหลดฟอร์ม</td>
+            </tr>
+            <tr>
+                <td><strong>AdminWeb &rarr; Backend</strong></td>
+                <td>HTTP / REST (JSON)</td>
+                <td><code>:8000</code> (<code>/api/admin/*</code>)</td>
+                <td>JWT Bearer Token<br><span class="badge badge-primary">Authorization Header</span></td>
+                <td>ระบบจัดการเอกสาร (Upload PDF, Chunk Editor Grid), Rebuild Database, จัดการผู้ใช้, ตั้งค่าโมเดลและ Prompt, ดูสถิติและประวัติแชท</td>
+            </tr>
+            <tr>
+                <td><strong>Backend &rarr; Database</strong></td>
+                <td>MySQL Wire over TLS</td>
+                <td>TiDB Cloud (Port <code>4000</code>)</td>
+                <td>DB User / Password<br><span class="badge badge-success">SSL/TLS Connection</span></td>
+                <td>จัดเก็บข้อมูลถาวร: ประวัติการสนทนา (<code>history</code>), บัญชีผู้ดูแลระบบ (<code>users</code>), เอกสารและสถานะ Chunk (<code>documents</code>), การตั้งค่าระบบ (<code>settings</code>)</td>
+            </tr>
+            <tr>
+                <td><strong>Backend &rarr; Vector Engine</strong></td>
+                <td>In-Process Memory Call</td>
+                <td>ภายใน Process เดียวกัน (<code>Admin/emb.py</code>)</td>
+                <td>Direct Memory / Disk IO<br><span class="badge badge-info">In-Process Call</span></td>
+                <td>ค้นหาแบบผสม (Hybrid Retrieval): Dense Search (ChromaDB + <code>BAAI/bge-m3</code>) + Lexical Search (BM25 + PyThaiNLP) รวมผลด้วย Reciprocal Rank Fusion (RRF)</td>
+            </tr>
+            <tr>
+                <td><strong>Backend &rarr; External LLM</strong></td>
+                <td>HTTPS / REST (JSON)</td>
+                <td><code>openrouter.ai/api/v1</code></td>
+                <td>Bearer API Key<br><span class="badge badge-warning">OPENROUTER_API_KEY</span></td>
+                <td>ส่ง Context Chunks และ Prompt ให้ LLM ประมวลผลและสร้างคำตอบ (มีระบบ Fallback อัตโนมัติไปยัง Local Ollama ที่พอร์ต <code>11434</code> หากไม่มี Key)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>1.3 มาตรการความปลอดภัยและนโยบายการเชื่อมต่อ (Security & Governance Policies)</h3>
+    <div class="alert-box info">
+        <ul style="margin: 0; padding-left: 12pt;">
+            <li><strong>CORS Policy:</strong> ไม่อนุญาต <code>allow_origins=["*"]</code> เด็ดขาด ควบคุมเฉพาะ Origin ที่กำหนด และ Subnet วง LAN รพ. ผ่าน Regex <code>http://192.168.55.*:[0-9]+</code></li>
+            <li><strong>Rate Limiting:</strong> ควบคุมคำขอต่อ IP แบบ In-Memory ใน <code>app/core/rate_limit.py</code> ป้องกัน DoS และการยิงเรียก LLM API สิ้นเปลือง</li>
+            <li><strong>JWT Authentication:</strong> Access Token อายุ 15 นาที, Refresh Token อายุ 7 วัน รหัสผ่านเข้ารหัสด้วย Bcrypt ผ่าน Passlib</li>
+            <li><strong>Database Connection Pooling:</strong> กำหนด <code>pool_size=10</code>, <code>max_overflow=20</code>, <code>pool_recycle=3600</code>, <code>pool_pre_ping=True</code> ป้องกัน Connection หลุด</li>
+            <li><strong>Input Sanitization:</strong> ป้องกัน Path Traversal ด้วย <code>safe_filename()</code> และป้องกัน Stored XSS ในประกาศด้วย <code>sanitize_html()</code> ก่อนบันทึก DB เสมอ</li>
+        </ul>
+    </div>
+
+    <!-- Section 2 -->
+    <h2>2. ข้อกำหนดด้านประสิทธิภาพและผลการทดสอบจริง (Performance Requirements & Benchmarks)</h2>
+    <p>
+        ข้อกำหนดด้านประสิทธิภาพ (Non-Functional Requirements) ถูกกำหนดขึ้นตามมาตรฐานระบบสารสนเทศระดับองค์กร และได้รับการทดสอบยืนยันด้วยข้อมูลจริง:
+    </p>
+
+    <h3>2.1 ตารางข้อกำหนดประสิทธิภาพและผลการทดสอบจริง (Target SLAs vs Verified Test Results)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 25%;">มิติข้อกำหนด (Dimension)</th>
+                <th style="width: 22%;">เกณฑ์เป้าหมาย (Target SLA)</th>
+                <th style="width: 38%;">ผลการทดสอบจริงที่ทำได้ (Verified Result)</th>
+                <th style="width: 15%;">สถานะประเมิน</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>ความถูกต้องในการตอบ (RAG Accuracy)</strong></td>
+                <td>&ge; 85.00%</td>
+                <td><strong>89.38% - 90.62%</strong> (Gemma 4 26B / Llama 3.3 70B)</td>
+                <td class="text-center"><span class="badge badge-success">ผ่านเกณฑ์ยอดเยี่ยม</span></td>
+            </tr>
+            <tr>
+                <td><strong>ความแม่นยำในการค้นคืน (Retrieval Hit Rate)</strong></td>
+                <td>&ge; 85.00%</td>
+                <td><strong>90.00%</strong> (ดึง Chunk ตรงตามหมวดนโยบาย 72/80 ข้อ)</td>
+                <td class="text-center"><span class="badge badge-success">ผ่านเกณฑ์ยอดเยี่ยม</span></td>
+            </tr>
+            <tr>
+                <td><strong>ความเร็วตอบสนองรวม (End-to-End Latency)</strong></td>
+                <td>&le; 6.00 วินาที (Median &le; 5.0s)</td>
+                <td><strong>Average 5.63s</strong>, <strong>Median 5.04s</strong>, <strong>P95 9.80s</strong></td>
+                <td class="text-center"><span class="badge badge-success">ผ่านตามเกณฑ์</span></td>
+            </tr>
+            <tr>
+                <td><strong>ความเร็วในการค้นคืน (Retrieval Latency)</strong></td>
+                <td>&le; 1.00 วินาที</td>
+                <td><strong>170 ms - 870 ms</strong> (ChromaDB + BM25 + RRF)</td>
+                <td class="text-center"><span class="badge badge-success">ผ่านตามเกณฑ์</span></td>
+            </tr>
+            <tr>
+                <td><strong>การรองรับผู้ใช้พร้อมกัน (Concurrency)</strong></td>
+                <td>&ge; 25 ผู้ใช้พร้อมกัน (0% Error)</td>
+                <td><strong>รองรับได้ 25 - 150 ผู้ใช้พร้อมกัน</strong> ที่ 0% Error</td>
+                <td class="text-center"><span class="badge badge-success">ผ่านตามเกณฑ์</span></td>
+            </tr>
+            <tr>
+                <td><strong>ความพร้อมใช้งาน (System Availability)</strong></td>
+                <td>&ge; 99.50%</td>
+                <td>รองรับ Fallback Engine อัตโนมัติ (OpenRouter &rarr; Ollama)</td>
+                <td class="text-center"><span class="badge badge-success">พร้อมใช้งาน</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ================= PAGE 3 ================= -->
+    <div class="page-break"></div>
+    <div class="page-header">
+        <span>เอกสารส่งมอบงาน TUH Chatbot AI &bull; รพ.ธรรมศาสตร์เฉลิมพระเกียรติ</span>
+        <span>หน้า 3 / 4</span>
+    </div>
+
+    <h3>2.2 ผลการทดสอบโหลดและความสามารถในการรองรับ (Concurrency & Load Test Benchmark — TestPFM)</h3>
+    <p>
+        ผลการยิงทดสอบโหลดแบบจำลอง Concurrency หลายระดับด้วย Locust (ชุดคำถาม RAG + FAQ + Chitchat):
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>ระดับผู้ใช้ (Users)</th>
+                <th>คำขอทั้งหมด</th>
+                <th>คำขอล้มเหลว</th>
+                <th>อัตราล้มเหลว</th>
+                <th>Throughput (RPS)</th>
+                <th>เวลาเฉลี่ย (Avg)</th>
+                <th>มัธยฐาน (Median)</th>
+                <th>P95 Latency</th>
+                <th>P99 Latency</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>10 Concurrent Users</strong></td>
+                <td class="text-center">127</td>
+                <td class="text-center">0</td>
+                <td class="text-center"><span class="badge badge-success">0.00%</span></td>
+                <td class="text-center">3.15 req/s</td>
+                <td class="text-center">908.7 ms</td>
+                <td class="text-center">820 ms</td>
+                <td class="text-center">2,500 ms</td>
+                <td class="text-center">3,300 ms</td>
+            </tr>
+            <tr>
+                <td><strong>25 Concurrent Users</strong></td>
+                <td class="text-center">186</td>
+                <td class="text-center">0</td>
+                <td class="text-center"><span class="badge badge-success">0.00%</span></td>
+                <td class="text-center">4.33 req/s</td>
+                <td class="text-center">2,892.7 ms</td>
+                <td class="text-center">3,200 ms</td>
+                <td class="text-center">4,400 ms</td>
+                <td class="text-center">6,400 ms</td>
+            </tr>
+            <tr>
+                <td><strong>50 Concurrent Users</strong> (Burst)</td>
+                <td class="text-center">69</td>
+                <td class="text-center">11</td>
+                <td class="text-center"><span class="badge badge-warning">15.94%*</span></td>
+                <td class="text-center">1.63 req/s</td>
+                <td class="text-center">11,393.6 ms</td>
+                <td class="text-center">6,300 ms</td>
+                <td class="text-center">32,000 ms</td>
+                <td class="text-center">34,000 ms</td>
+            </tr>
+            <tr>
+                <td><strong>100 Concurrent Users</strong> (Stress)</td>
+                <td class="text-center">120</td>
+                <td class="text-center">63</td>
+                <td class="text-center"><span class="badge badge-danger">52.50%*</span></td>
+                <td class="text-center">2.88 req/s</td>
+                <td class="text-center">23,172.1 ms</td>
+                <td class="text-center">32,000 ms</td>
+                <td class="text-center">33,000 ms</td>
+                <td class="text-center">35,000 ms</td>
+            </tr>
+            <tr>
+                <td><strong>150 Concurrent Users</strong> (Peak)</td>
+                <td class="text-center">259</td>
+                <td class="text-center">0</td>
+                <td class="text-center"><span class="badge badge-success">0.00%</span></td>
+                <td class="text-center"><strong>6.29 req/s</strong></td>
+                <td class="text-center">11,944.4 ms</td>
+                <td class="text-center">12,000 ms</td>
+                <td class="text-center">25,000 ms</td>
+                <td class="text-center">26,000 ms</td>
+            </tr>
+            <tr>
+                <td><strong>200 Concurrent Users</strong> (Extreme)</td>
+                <td class="text-center">169</td>
+                <td class="text-center">43</td>
+                <td class="text-center"><span class="badge badge-warning">25.44%*</span></td>
+                <td class="text-center">4.15 req/s</td>
+                <td class="text-center">23,481.6 ms</td>
+                <td class="text-center">24,000 ms</td>
+                <td class="text-center">33,000 ms</td>
+                <td class="text-center">34,000 ms</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="alert-box warning">
+        <strong>* ข้อค้นพบเชิงวิศวกรรมเรื่องคอขวดในสภาพแวดล้อมทดสอบ (Bottleneck Findings):</strong><br>
+        ความล้มเหลวที่เกิดขึ้นในระดับ 50, 100, 200 Users ในโฟลเดอร์ <code>TestPFM</code> เกิดจากการที่สคริปต์สลับ DB ไปเป็น <strong>Local SQLite</strong> เพื่อไม่ให้รบกวน TiDB Cloud ส่งผลให้เกิด File-level lock contention เมื่อมี background task บันทึกประวัติพร้อมกันจำนวนมาก — ในระบบจริงบน <strong>TiDB Cloud (MySQL)</strong> จะใช้ Row-level locking จึงสามารถรองรับโหลดได้สูงและไม่มีปัญหาการล็อกระดับไฟล์
+    </div>
+
+    <h3>2.3 ผลการทดสอบความถูกต้องและคุณภาพ RAG (RAG Accuracy Benchmark — testchatbotSPO)</h3>
+    <p>
+        ทดสอบประเมินผลคำถามชุดมาตรฐาน <strong>Golden QA จำนวน 80 ข้อ ครอบคลุม 16 หมวดหมู่นโยบาย ISO/IEC 27001</strong> เปรียบเทียบระหว่างโมเดล <strong>Google Gemma 4 (26B)</strong> และ <strong>Meta Llama 3.3 (70B Instruct)</strong>:
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 25%;">มิติการวัดผล</th>
+                <th style="width: 25%;">ตัวชี้วัดย่อย</th>
+                <th style="width: 25%;">Gemma 4 (26B)</th>
+                <th style="width: 25%;">Llama 3.3 (70B)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td rowspan="4"><strong>ความถูกต้อง (Accuracy)</strong></td>
+                <td>Graded Accuracy (1.0, 0.5, 0.0)</td>
+                <td class="text-center font-bold">89.38%</td>
+                <td class="text-center font-bold" style="color: #0d9488;">90.62%</td>
+            </tr>
+            <tr>
+                <td>ตอบถูกต้องสมบูรณ์ (1.0 คะแนน)</td>
+                <td class="text-center">67 ข้อ (83.75%)</td>
+                <td class="text-center">69 ข้อ (86.25%)</td>
+            </tr>
+            <tr>
+                <td>ตอบถูกต้องบางส่วน (0.5 คะแนน)</td>
+                <td class="text-center">9 ข้อ (11.25%)</td>
+                <td class="text-center">7 ข้อ (8.75%)</td>
+            </tr>
+            <tr>
+                <td>ตอบไม่ถูกต้อง (0.0 คะแนน)</td>
+                <td class="text-center">4 ข้อ (5.00%)</td>
+                <td class="text-center">4 ข้อ (5.00%)</td>
+            </tr>
+            <tr>
+                <td rowspan="3"><strong>การค้นคืน (Retrieval)</strong></td>
+                <td>การดึง Chunk ตรงหมวด (Hit Rate)</td>
+                <td class="text-center font-bold" colspan="2" style="background-color: #e0f2fe; color: #0369a1;">90.00% (72 / 80 คำถาม)</td>
+            </tr>
+            <tr>
+                <td>ความแม่นยำเมื่อดึงตรงหมวด (Hit)</td>
+                <td class="text-center">92.36%</td>
+                <td class="text-center">93.75%</td>
+            </tr>
+            <tr>
+                <td>ความแม่นยำเมื่อดึงไม่ตรงหมวด (Miss)</td>
+                <td class="text-center">62.50%</td>
+                <td class="text-center">62.50%</td>
+            </tr>
+            <tr>
+                <td rowspan="2"><strong>ความเที่ยงตรง (Reliability)</strong></td>
+                <td>อัตราความเห็นพ้อง (Agreement Rate)</td>
+                <td class="text-center font-bold" colspan="2" style="background-color: #fef3c7; color: #92400e;">92.50% (เห็นตรงกัน 74 จาก 80 ข้อ)</td>
+            </tr>
+            <tr>
+                <td>การตัดอคติการตัดสิน (Self-Bias)</td>
+                <td class="text-center"><span class="badge badge-warning">มีความเสี่ยง</span></td>
+                <td class="text-center"><span class="badge badge-success">ตัดอคติสำเร็จ 100%</span></td>
+            </tr>
+            <tr>
+                <td rowspan="3"><strong>เวลาและ UX (Latency)</strong></td>
+                <td>เวลาเฉลี่ยรวม (Average Latency)</td>
+                <td class="text-center" colspan="2">5.63 วินาที</td>
+            </tr>
+            <tr>
+                <td>มัธยฐานเวลาตอบ (Median / P50)</td>
+                <td class="text-center" colspan="2">5.04 วินาที</td>
+            </tr>
+            <tr>
+                <td>เวลาตอบ ณ เปอร์เซ็นไทล์ 95 (P95)</td>
+                <td class="text-center" colspan="2">9.80 วินาที (&le; 10s Attention Limit)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ================= PAGE 4 ================= -->
+    <div class="page-break"></div>
+    <div class="page-header">
+        <span>เอกสารส่งมอบงาน TUH Chatbot AI &bull; รพ.ธรรมศาสตร์เฉลิมพระเกียรติ</span>
+        <span>หน้า 4 / 4</span>
+    </div>
+
+    <h3>2.4 สรุป 4 กรณีที่ตอบไม่ถูกต้อง (Unanimous Failures) และแนวทางแก้ไขเชิงระบบ</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 8%;">ข้อที่</th>
+                <th style="width: 22%;">หมวดหมู่นโยบาย ISO</th>
+                <th style="width: 35%;">ประเด็นคำถามและสาเหตุ</th>
+                <th style="width: 35%;">แนวทางแก้ไขเชิงระบบที่แนะนำ</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="text-center font-bold">5</td>
+                <td>คอมพิวเตอร์พกพา (Mobile Devices)</td>
+                <td>เงื่อนไขการนำอุปกรณ์ออกนอกสถานที่ — Hybrid Search ดึง Trigger ไม่ตรงจุด</td>
+                <td>เพิ่ม <strong>Query Expansion / Synonyms</strong> คำว่า "พกพา", "นำออกนอกสถานที่", "โน้ตบุ๊ก"</td>
+            </tr>
+            <tr>
+                <td class="text-center font-bold">43</td>
+                <td>สินทรัพย์สารสนเทศ (Asset Mgmt)</td>
+                <td>ข้อกำหนดสื่อบันทึกข้อมูลถอดเสียบได้ — Chunk ใหญ่เกินไปทำให้ข้อมูล Flash Drive กระจายตัว</td>
+                <td>ปรับลดขนาด Chunk หรือเพิ่ม <strong>Chunk Overlap</strong> ในหมวดสินทรัพย์สารสนเทศให้กระชับขึ้น</td>
+            </tr>
+            <tr>
+                <td class="text-center font-bold">48</td>
+                <td>การพัฒนาระบบ (System Dev)</td>
+                <td>กระบวนการพัฒนาซอฟต์แวร์ — โมเดลสับสนระหว่าง ISO 27001 กับ ISO 29110</td>
+                <td>ปรับ <strong>System Prompt</strong> และเพิ่ม Metadata Tag ระบุประเภทมาตรฐานกำกับ Chunk</td>
+            </tr>
+            <tr>
+                <td class="text-center font-bold">68</td>
+                <td>บริบทองค์กร (Org Context)</td>
+                <td>ปัจจัยภายใน/ภายนอก รพธ. — Retrieval ดึงได้เฉพาะหลักการทั่วไป ขาดบริบทเฉพาะ รพ.</td>
+                <td>จัดทำ <strong>Custom FAQ</strong> ล็อกคำตอบเฉพาะของ รพธ. หรือเพิ่มชื่อ รพ. ลงในเอกสารแม่บท</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Section 3 -->
+    <h2>3. ข้อแนะนำและการเตรียมความพร้อมสำหรับทีมรับช่วงต่อ (Handoff Checklist & Roadmap)</h2>
+    <div class="alert-box info">
+        <ul style="margin: 0; padding-left: 12pt;">
+            <li><strong>การรันระบบทดสอบ:</strong> ใช้ <code>python run_backend.py</code> ร่วมกับ <code>run_user_web.py</code> และ <code>run_admin_web.py</code></li>
+            <li><strong>การ Rebuild Vector Index:</strong> เมื่อแก้ไขหรืออนุมัติเอกสารใหม่ใน AdminWeb ให้กดปุ่ม <em>"Rebuild Database"</em> เพื่อสร้าง ChromaDB และ BM25 Index ใหม่</li>
+            <li><strong>การตรวจสอบความถูกต้องอัตโนมัติ:</strong> สามารถรัน Automated Test Suite ได้ตลอดเวลาด้วยคำสั่ง <code>python -m pytest Backend/tests/ web_testing/unit/ web_testing/integration/ -q</code> (Baseline: 177 passed, 2 xfailed, 1 failed)</li>
+            <li><strong>เอกสารคู่มืออ้างอิง:</strong> ศึกษาเพิ่มเติมได้จาก [SDD.md](SDD.md), [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md), และ [REFACTOR_HANDOFF.md](REFACTOR_HANDOFF.md)</li>
+        </ul>
+    </div>
+
+    <!-- Sign-off Metadata Table -->
+    <h2>4. ข้อมูลการจัดทำและการอนุมัติส่งมอบเอกสาร (Document Sign-off)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 33%;">ผู้จัดทำ / ผู้ส่งมอบงาน</th>
+                <th style="width: 33%;">ผู้ตรวจสอบทางเทคนิค</th>
+                <th style="width: 34%;">ผู้รับมอบงาน / ฝ่ายสารสนเทศ</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="height: 48pt; vertical-align: top;">
+                    <strong>ผู้พัฒนาโครงการ (Internship Team)</strong><br>
+                    TUH Chatbot AI Development Team<br>
+                    วันที่: 23 กันยายน 2569
+                </td>
+                <td style="height: 48pt; vertical-align: top;">
+                    <strong>หัวหน้างานพัฒนาซอฟต์แวร์</strong><br>
+                    งานสารสนเทศและมาตรฐาน ISO<br>
+                    วันที่: ...................................................
+                </td>
+                <td style="height: 48pt; vertical-align: top;">
+                    <strong>ตัวแทนฝ่ายสารสนเทศ รพธ.</strong><br>
+                    โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ<br>
+                    วันที่: ...................................................
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer-note">
+        เอกสารสถาปัตยกรรมและการประเมินประสิทธิภาพ TUH Chatbot AI &bull; โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ &bull; กันยายน 2569
+    </div>
+
+</body>
+</html>

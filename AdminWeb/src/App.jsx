@@ -1,3 +1,11 @@
+/**
+ * TUH Chatbot AI — AdminWeb Application Root Component
+ * โครงสร้างสถาปัตยกรรมระดับ Front-end:
+ * 1. รวม Custom Hooks ทั้ง 12 ตัวเพื่อแยก Business Logic ออกจาก UI อย่างเด็ดขาด
+ * 2. ใช้ React Context (AdminContext) ในการกระจาย State และ Action Handlers ให้ทุกหน้า (Page)
+ * 3. ควบคุม Tab Routing ด้วย activeTab-string ร่วมกับ localStorage
+ * 4. ครอบด้วย AdminShell Layout สำหรับหน้าจอหลัง Login
+ */
 import React, { useState, useEffect } from 'react';
 import { AdminContext } from './context/AdminContext';
 import AdminShell from './layouts/AdminShell';
@@ -25,20 +33,18 @@ import { useFeedbackAndUnansweredState } from './hooks/useFeedbackAndUnansweredS
 import { useHistoryState } from './hooks/useHistoryState';
 import { useDeleteConfirmation } from './hooks/useDeleteConfirmation';
 
-// เดิม hardcode เป็น http://<hostname>:8000 ตรงๆ ทำให้พังทันทีถ้า deploy หลัง HTTPS/reverse
-// proxy (mixed content ถูก browser บล็อก) — อ่านจาก VITE_API_URL ก่อน ถ้าไม่ตั้งค่าไว้ค่อย
-// fallback เป็นพฤติกรรมเดิมสำหรับ local dev
+// กำหนด URL ของ Backend API (อ่านจาก .env หรือ fallback เป็น host ปัจจุบันที่พอร์ต 8000)
 const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
 function App() {
-  // Dashboard Tabs (trivial routing state — ไม่ได้แยกเป็น hook ตามแผน เพื่อคงรูปแบบ
-  // activeTab-string conditional-render routing เดิมไว้ใน App.jsx)
+  // จัดการ State การสลับแท็บเมนูหลัก (เก็บลง localStorage เพื่อคงหน้าเดิมเมื่อรีเฟรช)
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('tuh_admin_active_tab') || 'dashboard';
     }
     return 'dashboard';
   });
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

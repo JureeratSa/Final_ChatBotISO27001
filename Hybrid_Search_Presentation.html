@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบประมวลผล Hybrid Search ใน RAG Chatbot</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+        
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Sarabun', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1, h2, h3, h4, .font-heading {
+            font-family: 'Prompt', sans-serif;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Slide / Page Container */
+        .page {
+            width: 297mm;
+            height: 210mm;
+            padding: 16mm 20mm;
+            position: relative;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0b0f19 0%, #0f172a 50%, #1e1b4b 100%);
+        }
+
+        /* Background grid effect */
+        .page::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                radial-gradient(rgba(59, 130, 246, 0.08) 1px, transparent 1px),
+                radial-gradient(rgba(147, 51, 234, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-position: 0 0, 12px 12px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .content-layer {
+            position: relative;
+            z-index: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Header Bar */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+        }
+
+        .header-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge-tag {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-family: 'Prompt', sans-serif;
+        }
+
+        .header-subtitle {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-left: 6px;
+        }
+
+        .page-indicator {
+            font-size: 12px;
+            color: #64748b;
+            font-family: 'Prompt', sans-serif;
+            font-weight: 500;
+        }
+
+        /* Footer */
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 10px;
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        /* Cards & Grids */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        .card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px 18px;
+            backdrop-filter: blur(8px);
+        }
+
+        .card-glow-blue {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.12);
+        }
+
+        .card-glow-purple {
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.12);
+        }
+
+        .card-glow-emerald {
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.12);
+        }
+
+        .card-glow-amber {
+            border-color: rgba(245, 158, 11, 0.4);
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.12);
+        }
+
+        /* Typography Styles */
+        .hero-title {
+            font-size: 34px;
+            font-weight: 700;
+            line-height: 1.25;
+            background: linear-gradient(135deg, #ffffff 30%, #93c5fd 70%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .highlight-text {
+            color: #38bdf8;
+            font-weight: 600;
+        }
+
+        .emerald-text {
+            color: #34d399;
+            font-weight: 600;
+        }
+
+        .purple-text {
+            color: #c084fc;
+            font-weight: 600;
+        }
+
+        .amber-text {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+
+        /* SVG Diagram Box */
+        .diagram-container {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 14px;
+            padding: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Tables */
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        .custom-table th {
+            background: rgba(51, 65, 85, 0.8);
+            color: #f1f5f9;
+            text-align: left;
+            padding: 10px 14px;
+            font-family: 'Prompt', sans-serif;
+            font-weight: 500;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .custom-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+        }
+
+        .custom-table tr:hover {
+            background: rgba(51, 65, 85, 0.4);
+        }
+
+        /* Pills */
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .pill-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+        .pill-purple { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+        .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .pill-orange { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
+
+        .feature-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-right: 6px;
+        }
+
+        .bullet-point {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+
+        .bullet-icon {
+            color: #38bdf8;
+            font-weight: bold;
+            margin-top: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==========================================
+         PAGE 1: COVER & EXECUTIVE SUMMARY
+    =========================================== -->
+    <div class="page">
+        <div class="content-layer">
+            <div class="header">
+                <div class="header-title-group">
+                    <span class="badge-tag">RAG Architecture System</span>
+                    <span class="header-subtitle">Enterprise Chatbot Knowledge Base</span>
+                </div>
+                <div class="page-indicator">Slide 01 / 05</div>
+            </div>
+
+            <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center;">
+                <div style="margin-bottom: 24px;">
+                    <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); padding: 5px 14px; border-radius: 30px; margin-bottom: 12px;">
+                        <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+                        <span style="font-size: 13px; color: #38bdf8; font-weight: 500;">หัวข้อการนำเสนอ: เทคโนโลยีการค้นคืนข้อมูลอัจฉริยะ</span>
+                    </div>
+                    <h1 class="hero-title">ระบบประมวลผล Hybrid Search ใน RAG Chatbot</h1>
+                    <p style="font-size: 16px; color: #94a3b8; max-width: 850px; line-height: 1.6;">
+                        การผสานจุดแข็งของ <b>Dense Vector Search (ค้นหาเชิงความหมาย)</b> ร่วมกับ <b>Lexical Search (ค้นหาคำตรงตัว)</b> 
+                        และจัดอันดับด้วย <b>Weighted Reciprocal Rank Fusion (RRF)</b> เพื่อความแม่นยำสูงสุดในการตอบคำถามของ AI
+                    </p>
+                </div>
+
+                <!-- 3 Quick Highlight Cards -->
+                <div class="grid-3">
+                    <div class="card card-glow-blue">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">⚡</span>
+                            <h3 style="font-size: 16px; color: #60a5fa;">ทำงานพร้อมกันต่อ 1 คำถาม</h3>
+                        </div>
+                        <p style="font-size: 12.5px; color: #94a3b8; margin: 0;">
+                            ทุกครั้งที่ผู้ใช้ส่ง 1 ข้อความ ระบบจะยิงค้นหาทั้ง 2 เครื่องยนต์แบบคู่ขนาน (Parallel) ทันที ไม่ใช่การสลับเลือกใช้อย่างใดอย่างหนึ่ง
+                        </p>
+                    </div>
+
+                    <div class="card card-glow-purple">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">🎯</span>
+                            <h3 style="font-size: 16px; color: #c084fc;">ครอบคลุมทั้งคำพ้อง & ศัพท์เฉพาะ</h3>
+                        </div>
+                        <p style="font-size: 12.5px; color: #94a3b8; margin: 0;">
+                            แก้ปัญหาผู้ใช้ถามด้วยภาษาพูดหรือคำย่อ โดยนำข้อดีของ Semantic Search มารวมกับความแม่นยำระดับคำต่อคำของ BM25
+                        </p>
+                    </div>
+
+                    <div class="card card-glow-emerald">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">🛡️</span>
+                            <h3 style="font-size: 16px; color: #34d399;">ลดอาการตอบมั่ว (Zero Hallucination)</h3>
+                        </div>
+                        <p style="font-size: 12.5px; color: #94a3b8; margin: 0;">
+                            การันตีว่า Context ที่ส่งเข้าโมเดล LLM คือเนื้อหาที่ตรงและถูกต้องที่สุด ทำให้ AI อ้างอิงแหล่งที่มาได้อย่างแม่นยำ
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span>ระบบสืบค้นข้อมูลระเบียบและสวัสดิการ | PJChatbot Architecture</span>
+                <span>เอกสารประกอบการนำเสนอ</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PAGE 2: THE PROBLEM & WHY HYBRID SEARCH
+    =========================================== -->
+    <div class="page">
+        <div class="content-layer">
+            <div class="header">
+                <div class="header-title-group">
+                    <span class="badge-tag">Analysis & Comparison</span>
+                    <span class="header-subtitle">ทำไมระบบค้นหาแบบเดิมจึงไม่ตอบโจทย์?</span>
+                </div>
+                <div class="page-indicator">Slide 02 / 05</div>
+            </div>
+
+            <div>
+                <h2 class="section-title">
+                    <span>เปรียบเทียบข้อจำกัดของระบบค้นหาแบบเดี่ยว vs ระบบ Hybrid Search</span>
+                </h2>
+                
+                <div class="grid-2" style="margin-bottom: 14px;">
+                    <!-- Dense Search Card -->
+                    <div class="card" style="border-left: 4px solid #3b82f6;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="font-size: 15px; color: #60a5fa;">1. Dense Vector Search (ChromaDB + BGE-M3)</h3>
+                            <span class="pill pill-blue">Semantic Search</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">✅</span>
+                            <span><b>จุดเด่น:</b> เข้าใจบริบทและเจตนา แม้ใช้คำไม่ตรงกัน เช่น "ตัดแว่น" โยงไปหา "สวัสดิการสายตา"</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">❌</span>
+                            <span><b>จุดอ่อน:</b> ค้นหาคำศัพท์เฉพาะทาง, ตัวย่อ, รหัสเอกสาร (เช่น SPO-2024), หรือชื่อบุคคลได้ไม่แม่นยำ</span>
+                        </div>
+                    </div>
+
+                    <!-- Lexical Search Card -->
+                    <div class="card" style="border-left: 4px solid #a855f7;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="font-size: 15px; color: #c084fc;">2. Lexical Search (BM25 + PyThaiNLP)</h3>
+                            <span class="pill pill-purple">Keyword Search</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">✅</span>
+                            <span><b>จุดเด่น:</b> แม่นยำ 100% กับคำค้นที่ตรงตัว, ชื่อหมวดหมู่, ตัวเลขมาตรา, หรือคำเฉพาะ</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">❌</span>
+                            <span><b>จุดอ่อน:</b> ไม่เข้าใจคำพ้องความหมาย หากเอกสารเขียนว่า "ค่ารักษาพยาบาล" แต่ผู้ใช้ถาม "หาหมอ" จะหาไม่เจอ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Table -->
+                <div class="card" style="padding: 10px 14px; background: rgba(15, 23, 42, 0.9);">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">คุณสมบัติการค้นหา</th>
+                                <th style="width: 25%;">Vector Search อย่างเดียว</th>
+                                <th style="width: 25%;">Keyword Search (BM25) อย่างเดียว</th>
+                                <th style="width: 25%; background: rgba(37, 99, 235, 0.3); color: #38bdf8;">Hybrid Search (ระบบของเรา)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><b>ความเข้าใจภาษาพูดธรรมชาติ</b></td>
+                                <td style="color: #4ade80;">ดีเยี่ยม (High)</td>
+                                <td style="color: #f87171;">ต่ำ (ต้องพิมพ์ตรงคำ)</td>
+                                <td style="color: #38bdf8; font-weight: bold;">ดีเยี่ยมรอบด้าน ⭐⭐⭐</td>
+                            </tr>
+                            <tr>
+                                <td><b>ความแม่นยำกับชื่อเฉพาะ / รหัสระเบียบ</b></td>
+                                <td style="color: #fbbf24;">ปานกลาง - หลุดบ่อย</td>
+                                <td style="color: #4ade80;">ดีเยี่ยม (Exact Match)</td>
+                                <td style="color: #38bdf8; font-weight: bold;">แม่นยำสูงมาก ⭐⭐⭐</td>
+                            </tr>
+                            <tr>
+                                <td><b>การจัดการคำภาษาไทย / คำติดกัน</b></td>
+                                <td style="color: #94a3b8;">ขึ้นกับ Tokenizer ของ Model</td>
+                                <td style="color: #94a3b8;">ใช้ PyThaiNLP ตัดคำล่วงหน้า</td>
+                                <td style="color: #38bdf8; font-weight: bold;">ผสานทั้ง 2 รูปแบบ ⭐⭐⭐</td>
+                            </tr>
+                            <tr>
+                                <td><b>โอกาสดึงเอกสารผิดบริบท</b></td>
+                                <td style="color: #f87171;">มีโอกาสเกิด False Positive</td>
+                                <td style="color: #f87171;">พลาดข้อมูลที่เขียนคนละคำ</td>
+                                <td style="color: #4ade80; font-weight: bold;">ต่ำที่สุด (กรองผ่าน 2 ชั้น)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span>สรุป: Hybrid Search ผสานจุดแข็งของทั้ง 2 โลกเข้าด้วยกันแบบไร้รอยต่อ</span>
+                <span>Slide 02 / 05</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PAGE 3: FULL ARCHITECTURE & PIPELINE FLOW
+    =========================================== -->
+    <div class="page">
+        <div class="content-layer">
+            <div class="header">
+                <div class="header-title-group">
+                    <span class="badge-tag">Pipeline Flowchart</span>
+                    <span class="header-subtitle">แผนภาพการทำงานจริงของ HybridRetriever ในระบบ</span>
+                </div>
+                <div class="page-indicator">Slide 03 / 05</div>
+            </div>
+
+            <div>
+                <h2 class="section-title">
+                    <span>แผนภาพลำดับการประมวลผลต่อ 1 คำถาม (Concurrent Pipeline Flow)</span>
+                </h2>
+
+                <!-- SVG DIAGRAM -->
+                <div class="diagram-container">
+                    <svg viewBox="0 0 920 330" width="100%" height="310" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#1e3a8a" />
+                                <stop offset="100%" stop-color="#2563eb" />
+                            </linearGradient>
+                            <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#581c87" />
+                                <stop offset="100%" stop-color="#9333ea" />
+                            </linearGradient>
+                            <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#064e3b" />
+                                <stop offset="100%" stop-color="#059669" />
+                            </linearGradient>
+                            <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#78350f" />
+                                <stop offset="100%" stop-color="#d97706" />
+                            </linearGradient>
+                            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                                <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.4"/>
+                            </filter>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#60a5fa" />
+                            </marker>
+                            <marker id="arrow-p" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#c084fc" />
+                            </marker>
+                            <marker id="arrow-g" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+                            </marker>
+                        </defs>
+
+                        <!-- STEP 1: USER INPUT -->
+                        <g transform="translate(15, 115)" filter="url(#shadow)">
+                            <rect width="145" height="90" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+                            <text x="72" y="32" fill="#38bdf8" font-family="Prompt" font-size="12" font-weight="600" text-anchor="middle">1. คำถามจากผู้ใช้</text>
+                            <text x="72" y="52" fill="#f8fafc" font-family="Sarabun" font-size="13" font-weight="600" text-anchor="middle">"ตัดแว่นตาเบิกได้</text>
+                            <text x="72" y="70" fill="#f8fafc" font-family="Sarabun" font-size="13" font-weight="600" text-anchor="middle">เท่าไหร่ครับ?"</text>
+                        </g>
+
+                        <!-- FORK ARROWS -->
+                        <path d="M 160 145 C 190 145, 190 75, 220 75" fill="none" stroke="#60a5fa" stroke-width="2.5" marker-end="url(#arrow)" />
+                        <path d="M 160 175 C 190 175, 190 245, 220 245" fill="none" stroke="#c084fc" stroke-width="2.5" marker-end="url(#arrow-p)" />
+                        <text x="185" y="105" fill="#60a5fa" font-family="Prompt" font-size="10" font-weight="500">คู่ขนาน</text>
+                        <text x="185" y="220" fill="#c084fc" font-family="Prompt" font-size="10" font-weight="500">พร้อมกัน</text>
+
+                        <!-- STEP 2A: DENSE VECTOR SEARCH (TOP) -->
+                        <g transform="translate(225, 30)" filter="url(#shadow)">
+                            <rect width="210" height="95" rx="10" fill="url(#blueGrad)" stroke="#60a5fa" stroke-width="1.5"/>
+                            <rect x="10" y="10" width="70" height="20" rx="4" fill="rgba(0,0,0,0.3)"/>
+                            <text x="45" y="24" fill="#93c5fd" font-family="Prompt" font-size="10" font-weight="600" text-anchor="middle">DENSE ENGINE</text>
+                            <text x="105" y="48" fill="#ffffff" font-family="Prompt" font-size="13" font-weight="600" text-anchor="middle">Embedding + ChromaDB</text>
+                            <text x="105" y="68" fill="#bfdbfe" font-family="Sarabun" font-size="11.5" text-anchor="middle">• โมเดล BAAI/bge-m3</text>
+                            <text x="105" y="86" fill="#bfdbfe" font-family="Sarabun" font-size="11.5" text-anchor="middle">• ค้นหาด้วย Cosine Similarity</text>
+                        </g>
+
+                        <!-- STEP 2B: LEXICAL BM25 SEARCH (BOTTOM) -->
+                        <g transform="translate(225, 195)" filter="url(#shadow)">
+                            <rect width="210" height="95" rx="10" fill="url(#purpleGrad)" stroke="#c084fc" stroke-width="1.5"/>
+                            <rect x="10" y="10" width="75" height="20" rx="4" fill="rgba(0,0,0,0.3)"/>
+                            <text x="47" y="24" fill="#e9d5ff" font-family="Prompt" font-size="10" font-weight="600" text-anchor="middle">LEXICAL ENGINE</text>
+                            <text x="105" y="48" fill="#ffffff" font-family="Prompt" font-size="13" font-weight="600" text-anchor="middle">BM25 + PyThaiNLP</text>
+                            <text x="105" y="68" fill="#f3e8ff" font-family="Sarabun" font-size="11.5" text-anchor="middle">• ตัดคำไทย: ["ตัด", "แว่นตา", "เบิก"]</text>
+                            <text x="105" y="86" fill="#f3e8ff" font-family="Sarabun" font-size="11.5" text-anchor="middle">• นับความถี่คำสำคัญ (TF-IDF)</text>
+                        </g>
+
+                        <!-- ARROWS TO FUSION -->
+                        <path d="M 435 75 C 465 75, 465 140, 495 140" fill="none" stroke="#60a5fa" stroke-width="2.5" marker-end="url(#arrow)" />
+                        <path d="M 435 245 C 465 245, 465 180, 495 180" fill="none" stroke="#c084fc" stroke-width="2.5" marker-end="url(#arrow-p)" />
+
+                        <!-- STEP 3: FUSION & RE-RANKING -->
+                        <g transform="translate(500, 105)" filter="url(#shadow)">
+                            <rect width="210" height="110" rx="10" fill="url(#amberGrad)" stroke="#fbbf24" stroke-width="1.5"/>
+                            <rect x="10" y="10" width="90" height="20" rx="4" fill="rgba(0,0,0,0.3)"/>
+                            <text x="55" y="24" fill="#fef08a" font-family="Prompt" font-size="10" font-weight="600" text-anchor="middle">RANK FUSION</text>
+                            <text x="105" y="48" fill="#ffffff" font-family="Prompt" font-size="13" font-weight="600" text-anchor="middle">Weighted RRF + Boost</text>
+                            <text x="105" y="68" fill="#fef3c7" font-family="Sarabun" font-size="11.5" text-anchor="middle">• ถ่วงน้ำหนัก BM25 60% + Dense 40%</text>
+                            <text x="105" y="86" fill="#fef3c7" font-family="Sarabun" font-size="11.5" text-anchor="middle">• Benefit Keyword Boost (+0.15)</text>
+                            <text x="105" y="102" fill="#fef3c7" font-family="Sarabun" font-size="11.5" text-anchor="middle">• คัดเลือก Top-K Chunks ที่ดีที่สุด</text>
+                        </g>
+
+                        <!-- ARROW TO LLM -->
+                        <path d="M 710 160 L 750 160" fill="none" stroke="#34d399" stroke-width="3" marker-end="url(#arrow-g)" />
+
+                        <!-- STEP 4: LLM ANSWER GENERATION -->
+                        <g transform="translate(755, 105)" filter="url(#shadow)">
+                            <rect width="150" height="110" rx="10" fill="url(#greenGrad)" stroke="#34d399" stroke-width="1.5"/>
+                            <rect x="10" y="10" width="60" height="20" rx="4" fill="rgba(0,0,0,0.3)"/>
+                            <text x="40" y="24" fill="#a7f3d0" font-family="Prompt" font-size="10" font-weight="600" text-anchor="middle">LLM CORE</text>
+                            <text x="75" y="48" fill="#ffffff" font-family="Prompt" font-size="13" font-weight="600" text-anchor="middle">ตอบคำถาม</text>
+                            <text x="75" y="68" fill="#d1fae5" font-family="Sarabun" font-size="11.5" text-anchor="middle">AI สรุปคำตอบ</text>
+                            <text x="75" y="86" fill="#d1fae5" font-family="Sarabun" font-size="11.5" text-anchor="middle">จากเอกสารที่ค้นได้</text>
+                            <text x="75" y="102" fill="#a7f3d0" font-family="Prompt" font-size="11" font-weight="600" text-anchor="middle">พร้อม Citation อ้างอิง</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span>หัวใจหลัก: ทำงานคู่ขนานกันในเสี้ยววินาทีเพื่อดึงผลลัพธ์มา Re-rank ก่อนส่งให้ LLM</span>
+                <span>Slide 03 / 05</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PAGE 4: MATHEMATICAL FUSION & BOOSTING
+    =========================================== -->
+    <div class="page">
+        <div class="content-layer">
+            <div class="header">
+                <div class="header-title-group">
+                    <span class="badge-tag">Algorithm & Formula</span>
+                    <span class="header-subtitle">เจาะลึกสูตรการคำนวณคะแนน Weighted RRF</span>
+                </div>
+                <div class="page-indicator">Slide 04 / 05</div>
+            </div>
+
+            <div>
+                <h2 class="section-title">
+                    <span>กลไกการรวมคะแนนและการปรับจูนประสิทธิภาพ (Tuning)</span>
+                </h2>
+
+                <div class="grid-2" style="margin-bottom: 12px;">
+                    <!-- Formula Box -->
+                    <div class="card card-glow-amber">
+                        <h3 style="font-size: 15px; color: #fbbf24; margin-bottom: 8px;">สูตร Reciprocal Rank Fusion (RRF) แบบถ่วงน้ำหนัก</h3>
+                        <div style="background: rgba(0,0,0,0.4); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #fef08a; text-align: center;">
+                            Score(d) = 0.4 × (1 / (60 + Rank_dense)) + 0.6 × (1 / (60 + Rank_bm25))
+                        </div>
+                        <p style="font-size: 12.5px; color: #cbd5e1; margin-bottom: 6px;">
+                            • <b>Rank</b> คืออันดับที่เอกสารชิ้นนั้นทำได้ในแต่ละระบบ (อันดับ 1, 2, 3, ...)<br>
+                            • <b>ค่าคงที่ k = 60</b> ช่วยป้องกันไม่ให้อันดับ 1 มีอิทธิพลโดดจนกลบเอกสารดีอื่นๆ<br>
+                            • <b>การถ่วงน้ำหนัก (60:40):</b> ให้ความสำคัญกับ BM25 0.6 และ Dense 0.4 เพราะเอกสารระเบียบองค์กรต้องการความถูกต้องของคำและเงื่อนไขสูงมาก
+                        </p>
+                    </div>
+
+                    <!-- Keyword Boost Box -->
+                    <div class="card card-glow-emerald">
+                        <h3 style="font-size: 15px; color: #34d399; margin-bottom: 8px;">ระบบสิทธิประโยชน์บูสท์ (Benefit Keyword Boosting)</h3>
+                        <p style="font-size: 12.5px; color: #cbd5e1; margin-bottom: 8px;">
+                            ระบบมีกลไกตรวจสอบคำสำคัญในสิทธิประโยชน์เฉพาะ หากพบคำในรายการจะทำการ <b>Boost คะแนนพิเศษ (+0.15)</b> ทันที เพื่อป้องกันข้อมูลตกหล่น:
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                            <span class="pill pill-green">👓 แว่น / เลนส์ / เลสิก</span>
+                            <span class="pill pill-green">🦷 ฟัน / ทันตกรรม</span>
+                            <span class="pill pill-green">💉 วัคซีน / ตรวจสุขภาพ</span>
+                            <span class="pill pill-green">👟 รองเท้า / กีฬา / ฟิตเนส</span>
+                            <span class="pill pill-green">💆 นวด / กายภาพบำบัด</span>
+                            <span class="pill pill-green">💊 ยา / วิตามิน</span>
+                            <span class="pill pill-green">🦺 หมวกนิรภัย / แมสก์</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Summary Card -->
+                <div class="card" style="padding: 12px 18px;">
+                    <h4 style="color: #60a5fa; font-size: 14px; margin-bottom: 6px;">กระบวนการหลังจากรวมคะแนนเสร็จสิ้น:</h4>
+                    <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px;">
+                        <div style="flex: 1; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px;">
+                            <b class="emerald-text">1. เรียงลำดับคะแนนรวม:</b> จัดเรียง Chunks ทั้งหมดจากคะแนนสูงสุดลงมา
+                        </div>
+                        <div style="flex: 1; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px;">
+                            <b class="highlight-text">2. คัดกรอง Top-K (เช่น 5 Chunks):</b> เลือกเฉพาะเนื้อหาที่มีน้ำหนักเกี่ยวข้องจริง
+                        </div>
+                        <div style="flex: 1; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px;">
+                            <b class="purple-text">3. แนบ Metadata:</b> พ่วงชื่อไฟล์และหน้าที่มา เพื่อให้ AI แสดง Citations อ้างอิงได้
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span>สูตรคณิตศาสตร์ RRF เป็นมาตรฐานระดับสากลที่ใช้ในระบบ Search Engine ยุคใหม่</span>
+                <span>Slide 04 / 05</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         PAGE 5: REAL WORLD EXAMPLES & CONCLUSION
+    =========================================== -->
+    <div class="page">
+        <div class="content-layer">
+            <div class="header">
+                <div class="header-title-group">
+                    <span class="badge-tag">Case Studies & Summary</span>
+                    <span class="header-subtitle">ตัวอย่างสถานการณ์จริงและบทสรุปเพื่อการนำเสนอ</span>
+                </div>
+                <div class="page-indicator">Slide 05 / 05</div>
+            </div>
+
+            <div>
+                <h2 class="section-title">
+                    <span>ตัวอย่างสถานการณ์จริงเปรียบเทียบผลลัพธ์การค้นหา</span>
+                </h2>
+
+                <div class="grid-2" style="margin-bottom: 14px;">
+                    <!-- Case 1 -->
+                    <div class="card" style="background: rgba(30, 41, 59, 0.9);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span class="pill pill-blue">กรณีที่ 1: ภาษาพูด / คำพ้อง</span>
+                            <span style="font-size: 11px; color: #94a3b8;">User ถามไม่ตรงกับเอกสาร</span>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; font-size: 13px; margin-bottom: 8px; color: #f8fafc;">
+                            <b>คำถาม:</b> "อยากทำเลสิกรักษาตา เบิกเงินช่วยเหลือได้ไหม"
+                        </div>
+                        <p style="font-size: 12px; color: #cbd5e1; margin: 0; line-height: 1.5;">
+                            • <b>BM25:</b> อาจหาไม่พบ หากในเอกสารใช้คำว่า "การรักษาความผิดปกติทางสายตาด้วยแสงเลเซอร์"<br>
+                            • <b>Dense Search:</b> เข้าใจความหมายและดึงหมวดสวัสดิการสายตาขึ้นมา<br>
+                            • <b class="emerald-text">ผลลัพธ์ Hybrid:</b> ได้ข้อมูลที่ถูกต้องครบถ้วน 100%
+                        </p>
+                    </div>
+
+                    <!-- Case 2 -->
+                    <div class="card" style="background: rgba(30, 41, 59, 0.9);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span class="pill pill-purple">กรณีที่ 2: รหัสเฉพาะ / ชื่อระเบียบ</span>
+                            <span style="font-size: 11px; color: #94a3b8;">User ถามด้วยรหัสหรือคำย่อ</span>
+                        </div>
+                        <div style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; font-size: 13px; margin-bottom: 8px; color: #f8fafc;">
+                            <b>คำถาม:</b> "ตามระเบียบ SPO-2024 หมวด 3 มีเงื่อนไขอย่างไร"
+                        </div>
+                        <p style="font-size: 12px; color: #cbd5e1; margin: 0; line-height: 1.5;">
+                            • <b>Dense Search:</b> อาจมองข้ามรหัสเฉพาะเพราะเวกเตอร์คำเฉพาะใกล้เคียงกับระเบียบอื่น<br>
+                            • <b>BM25:</b> ล็อกเป้าหมายคำว่า "SPO-2024" และ "หมวด 3" ได้ตรงเผง<br>
+                            • <b class="emerald-text">ผลลัพธ์ Hybrid:</b> ชี้เป้าข้อระเบียบที่ถูกต้องทันที
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 4 Key Takeaways for Presentation -->
+                <div class="card card-glow-blue" style="padding: 12px 18px; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(30, 58, 138, 0.4));">
+                    <h3 style="font-size: 15px; color: #38bdf8; margin-bottom: 8px;">สรุป 4 ประเด็นสำคัญสำหรับใช้นำเสนอ (Key Takeaways):</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px;">
+                        <div class="bullet-point">
+                            <span class="bullet-icon">1.</span>
+                            <span><b>ทำงานคู่ขนาน:</b> ประมวลผลทั้ง 2 ระบบพร้อมกันทุกครั้งใน 1 คำถาม ไม่ใช่แค่ทางเลือกสำรอง</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">2.</span>
+                            <span><b>ผสานจุดเด่น:</b> ดึงทั้ง "ความหมายเชิงลึก (Dense)" และ "ความตรงตัวของคำ (BM25)"</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">3.</span>
+                            <span><b>ปรับแต่งเพื่อองค์กร:</b> มีระบบถ่วงน้ำหนัก 60:40 และ Keyword Boost สำหรับสวัสดิการโดยเฉพาะ</span>
+                        </div>
+                        <div class="bullet-point">
+                            <span class="bullet-icon">4.</span>
+                            <span><b>ตอบตรง เชื่อถือได้:</b> ป้องกัน AI กุเรื่อง (Hallucination) ด้วยหลักฐานบริบทที่แม่นยำ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span>พร้อมสำหรับการนำเสนอ | Hybrid Search Architecture in Action</span>
+                <span>Slide 05 / 05</span>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

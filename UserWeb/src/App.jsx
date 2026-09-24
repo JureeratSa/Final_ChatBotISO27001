@@ -1,3 +1,11 @@
+/**
+ * TUH Chatbot AI — UserWeb Application Root Component
+ * โครงสร้างสถาปัตยกรรมระดับ Front-end (ฝั่งผู้ใช้งานทั่วไป):
+ * 1. แยก State และ Effect ออกเป็น Custom Hooks ทั้ง 13 ตัวอย่างเป็นระบบ
+ * 2. จัดการวงจรชีวิตของ Session แชท, Auto-expire หลัง 1 ชั่วโมง, และประวัติการคุย
+ * 3. ควบคุมการปรับแต่งหน้าจอ (Dark/Light mode, ขนาดฟอนต์ 3 ระดับ, ลากปรับความกว้าง Sidebar)
+ * 4. จัดการ Modals: ให้คะแนนความพึงพอใจ (CSAT), แจ้งเหตุผล Dislike, คู่มือการใช้งาน, และข่าวประกาศ
+ */
 import React, { useState } from 'react';
 import logo from './logo.png';
 import { Sidebar } from './components/Sidebar';
@@ -24,11 +32,13 @@ import { useAnnouncements } from './hooks/useAnnouncements';
 import { useUserIp } from './hooks/useUserIp';
 
 function App() {
-  const currentTime = useClock();
-  const { isDarkMode, setIsDarkMode, currentMascot, currentBotAvatar } = useTheme();
-  const { sidebarWidth, startResizing, startTouchResizing } = useSidebarResize();
-  const { fontSize, setFontSize } = useFontSize();
-  const { isSidebarOpen, setIsSidebarOpen, copiedId, handleCopyMessage } = useSidebarToggle();
+  // ─── 1. Core Interface & Styling Hooks ────────────────────────────────────────
+  const currentTime = useClock(); // นาฬิกา Real-time สำหรับคำนวณอายุ Session
+  const { isDarkMode, setIsDarkMode, currentMascot, currentBotAvatar } = useTheme(); // จัดการธีมและรูปมาสคอต
+  const { sidebarWidth, startResizing, startTouchResizing } = useSidebarResize(); // ระบบลากปรับขนาด Sidebar
+  const { fontSize, setFontSize } = useFontSize(); // ปรับขนาดตัวอักษร (small / normal / large)
+  const { isSidebarOpen, setIsSidebarOpen, copiedId, handleCopyMessage } = useSidebarToggle(); // เปิด/ปิด Sidebar และคัดลอกข้อความ
+
 
   // showGuide เป็นสถานะเล็กๆ ที่ไม่มี effect ผูกอยู่ จึงเก็บไว้ตรงนี้แทนที่จะแยกเป็น hook
   const [showGuide, setShowGuide] = useState(false);

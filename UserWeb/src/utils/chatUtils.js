@@ -1,18 +1,23 @@
-// TUH Chatbot AI — UserWeb chat business-logic utilities
-// แยกออกมาจาก App.jsx: ฟังก์ชัน pure ที่ไม่ผูกกับ closure ของ component (ไม่พึ่งพา React state/hooks
-// โดยตรง) ย้ายมาไว้ที่นี่เพื่อให้ App.jsx เหลือแต่การประกอบ hook เข้าด้วยกัน — พฤติกรรม/ผลลัพธ์เดิมทุกกรณี
+/**
+ * TUH Chatbot AI — UserWeb Chat Business-Logic Utilities
+ * รวบรวมฟังก์ชัน Pure Function สำหรับประมวลผลข้อความแชท:
+ * 1. API_URL: URL ปลายทางของ Backend (รองรับ Dynamic Host / Reverse Proxy)
+ * 2. escapeHtml & parseMarkdown: แปลง Markdown เป็น HTML ปลอดภัย (XSS Prevention)
+ * 3. getBotResponse: Fallback Handler ตอบกลับคำถามและคำสำคัญเบื้องต้น
+ */
 import React from 'react';
 
-// เดิม hardcode เป็น http://<hostname>:8000 ตรงๆ ทำให้พังทันทีถ้า deploy หลัง HTTPS/reverse
-// proxy (mixed content ถูก browser บล็อก) — อ่านจาก VITE_API_URL ก่อน ถ้าไม่ตั้งค่าไว้ค่อย
-// fallback เป็นพฤติกรรมเดิมสำหรับ local dev
+// กำหนด URL ของ Backend API โดยตรวจสอบจาก Environment Variable หรือ Host ปัจจุบัน
 export const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
-export const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI  ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับสวัสดีการสามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ';
+export const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับสวัสดิการสามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ 🏥🤖';
 export const DEFAULT_GREETING = 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖';
 
-// Escape ก่อนเสมอ ป้องกัน XSS จากคำตอบบอท (LLM output อาจถูกชี้นำผ่านเนื้อหาเอกสารที่แอดมินอัปโหลด
-// ให้ฝัง <script>/onerror ปนมาได้ — เดิม parseMarkdown() เอา text ไปต่อ HTML ตรงๆ ไม่ escape เลย)
+/**
+ * ป้องกันช่องโหว่ Cross-Site Scripting (XSS) โดยการ Escape อักขระพิเศษในข้อความ
+ * @param {string} str - ข้อความดิบ
+ * @returns {string} ข้อความที่ Escape อักขระพิเศษแล้ว
+ */
 export const escapeHtml = (str) => str
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -20,23 +25,30 @@ export const escapeHtml = (str) => str
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+/**
+ * แปลงรูปแบบ Markdown เป็น HTML Element ปลอดภัย
+ * - แปลง **bold** เป็น <strong>
+ * - แปลงรายการ bullet (*, -) และตัวเลข (1.) เป็น <li>
+ * - กรองและจำกัด href ของลิงก์ให้เป็นเฉพาะ http, https หรือ relative path เท่านั้น (ตัด javascript: URL)
+ * @param {string} text - ข้อความ Markdown
+ * @returns {React.ReactElement} React Element สำหรับเรนเดอร์ข้อความ
+ */
 export const parseMarkdown = (text) => {
   if (!text) return '';
   let html = escapeHtml(text);
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-tuh-navy dark:text-white">$1</strong>');
   html = html.replace(/^[-\*]\s*(.*?)$/gm, '<li class="ml-4 list-disc">$1</li>');
   html = html.replace(/^\d+\.\s(.*?)$/gm, '<li class="ml-4 list-decimal">$1</li>');
-  // จำกัด href ให้เป็น http(s) หรือ path ภายในเว็บเท่านั้น กัน javascript: URL scheme
+  
+  // จำกัด href ป้องกัน javascript: URL Injection
   html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, url) => {
     const safeUrl = /^(https?:\/\/|\/)/i.test(url) ? url : '#';
     return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-tuh-rose dark:text-tuh-coral hover:text-tuh-coral dark:hover:text-tuh-pink underline font-semibold hover:opacity-80 transition">${label} <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i></a>`;
   });
   html = html.replace(/\n/g, '<br/>');
-  // ไฟล์นี้เป็น .js (ไม่ใช่ .jsx) จึงใช้ React.createElement ตรงๆ แทน JSX syntax
-  // (esbuild/Vite ไม่ parse JSX ในไฟล์ .js ตาม default loader) — ให้ผลลัพธ์ element เดียวกันทุกประการ
-  // กับ <span dangerouslySetInnerHTML={{ __html: html }} /> เดิม
   return React.createElement('span', { dangerouslySetInnerHTML: { __html: html } });
 };
+
 
 // ระบบกำหนดเส้นทางการตอบกลับของบอทแบบปรับแต่งเอง
 // เดิมเป็น closure ที่อ่าน faqsList จาก state ของ component ตรงๆ — ย้ายมาเป็น pure function จึงต้องรับ

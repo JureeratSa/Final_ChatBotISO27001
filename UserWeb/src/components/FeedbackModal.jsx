@@ -1,3 +1,11 @@
+/**
+ * TUH Chatbot AI — FeedbackModal Component
+ * หน้าต่างแบบสอบถามความพึงพอใจการใช้งาน (Feedback / CSAT Modal):
+ * 1. รองรับทั้งแบบเปิดเอง (สามารถกดยกเลิกหรือกากบาทปิดได้) และแบบบังคับกรอก (Forced feedback หลังถาม 3 ข้อ)
+ * 2. แถบดาวเลือกคะแนนความพึงพอใจ (1 ถึง 5 ดาว)
+ * 3. Textarea รับข้อเสนอแนะหรือปัญหาที่พบ
+ * 4. การแสดงสถานะกำลังส่ง ข้อผิดพลาด (Error banner) และสถานะสำเร็จ (Success screen พร้อมไอคอนเคลื่อนไหว)
+ */
 import React from 'react';
 
 export const FeedbackModal = ({
@@ -17,24 +25,27 @@ export const FeedbackModal = ({
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-lg w-full border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden">
-        {/* ส่วนหัวข้อเสนอแนะ */}
+        {/* 1. ส่วนหัวข้อเสนอแนะ */}
         <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
           <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
             <i className="fa-solid fa-comments text-tuh-rose"></i>
             ส่งข้อเสนอแนะการใช้งาน
           </h3>
+          {/* ปุ่มปิด (แสดงเฉพาะกรณีไม่ได้เป็นแบบบังคับตอบ) */}
           {!isForcedFeedback && (
             <button
               onClick={() => setShowFeedback(false)}
               className="w-8 h-8 rounded-full flex items-center justify-center text-tuh-indigo/50 hover:text-tuh-navy dark:text-tuh-pink/50 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-tuh-indigo/80 transition"
+              title="ปิดหน้าต่าง"
             >
               <i className="fa-solid fa-xmark"></i>
             </button>
           )}
         </div>
 
-        {/* เนื้อหาข้อเสนอแนะ */}
+        {/* 2. เนื้อหาข้อเสนอแนะ */}
         {feedbackSuccess ? (
+          /* หน้าต่างเมื่อส่งแบบประเมินสำเร็จ (Success Screen) */
           <div className="p-8 text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 text-3xl flex items-center justify-center mx-auto animate-bounce">
               <i className="fa-solid fa-circle-check"></i>
@@ -45,9 +56,10 @@ export const FeedbackModal = ({
             </p>
           </div>
         ) : (
+          /* ฟอร์มกรอกคะแนนและข้อเสนอแนะ */
           <form onSubmit={handleFeedbackSubmit} className="p-6 space-y-4">
 
-            {/* แถบดาวแสดงความพึงพอใจ */}
+            {/* แถบดาวแสดงความพึงพอใจ 1 - 5 ดาว */}
             <div>
               <label className="block text-xs font-semibold text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">คะแนนความพึงพอใจการใช้ระบบ</label>
               <div className="flex gap-2 items-center">
@@ -57,6 +69,7 @@ export const FeedbackModal = ({
                     key={star}
                     onClick={() => setFeedbackRating(star)}
                     className="text-2xl transition hover:scale-110 focus:outline-none"
+                    title={`ให้ ${star} ดาว`}
                   >
                     <i className={`fa-solid fa-star ${star <= feedbackRating ? 'text-amber-400' : 'text-slate-200 dark:text-white'}`}></i>
                   </button>
@@ -67,7 +80,7 @@ export const FeedbackModal = ({
               </div>
             </div>
 
-            {/* ช่องกรอกข้อความ */}
+            {/* ช่องกรอกข้อความข้อเสนอแนะ */}
             <div>
               <label className="block text-xs font-semibold text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">ข้อแนะนำ / สิ่งที่ควรปรับปรุง</label>
               <textarea
@@ -79,14 +92,14 @@ export const FeedbackModal = ({
               ></textarea>
             </div>
 
-            {/* ข้อความแจ้งเตือนเมื่อส่งไม่สำเร็จ */}
+            {/* ข้อความแจ้งเตือนเมื่อเกิดข้อผิดพลาด */}
             {feedbackError && (
               <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-500/30 text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
                 <i className="fa-solid fa-circle-exclamation"></i> {feedbackError}
               </div>
             )}
 
-            {/* ปุ่มส่งข้อเสนอแนะและยกเลิก */}
+            {/* ปุ่มกดส่งข้อเสนอแนะและยกเลิก */}
             <div className="flex justify-end gap-2 pt-2">
               {!isForcedFeedback && (
                 <button
@@ -113,3 +126,4 @@ export const FeedbackModal = ({
 };
 
 export default FeedbackModal;
+

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>TUH Chatbot AI — โพรเซสการทำงานของระบบตั้งแต่การคลีนข้อมูล (Data Pipeline & RAG Specification)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+        @page {
+            size: A4;
+            margin: 18mm 15mm 20mm 15mm;
+            @bottom-right {
+                content: counter(page);
+            }
+        }
+
+        :root {
+            --primary: #0284c7;
+            --primary-dark: #0369a1;
+            --secondary: #0f172a;
+            --accent: #06b6d4;
+            --bg-light: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --code-bg: #0f172a;
+            --code-text: #e2e8f0;
+            --badge-bg: #e0f2fe;
+            --badge-text: #0369a1;
+            --danger-bg: #fee2e2;
+            --danger-text: #b91c1c;
+            --success-bg: #dcfce7;
+            --success-text: #15803d;
+            --warn-bg: #fef3c7;
+            --warn-text: #b45309;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sarabun', 'Prompt', sans-serif;
+            color: var(--text-main);
+            background-color: #ffffff;
+            line-height: 1.65;
+            font-size: 13.5px;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Prompt', sans-serif;
+            color: var(--secondary);
+            margin-top: 1.3em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 23px;
+            color: var(--primary-dark);
+            border-bottom: 2.5px solid var(--primary);
+            padding-bottom: 6px;
+        }
+
+        h2 {
+            font-size: 17px;
+            color: var(--secondary);
+            background-color: #f1f5f9;
+            padding: 8px 12px;
+            border-left: 5px solid var(--primary);
+            border-radius: 0 6px 6px 0;
+            margin-top: 1.8em;
+        }
+
+        h3 {
+            font-size: 15px;
+            color: #0369a1;
+            margin-top: 1.1em;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 4px;
+        }
+
+        p {
+            margin: 0.4em 0 0.8em 0;
+        }
+
+        .cover-page {
+            text-align: center;
+            padding: 60px 20px;
+            page-break-after: always;
+        }
+
+        .cover-title {
+            font-size: 30px;
+            font-weight: 700;
+            color: #0369a1;
+            margin-bottom: 10px;
+        }
+
+        .cover-subtitle {
+            font-size: 17px;
+            color: #475569;
+            margin-bottom: 25px;
+        }
+
+        .cover-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #0284c7, #06b6d4);
+            color: white;
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 35px;
+        }
+
+        .cover-meta {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 22px;
+            max-width: 540px;
+            margin: 30px auto;
+            text-align: left;
+        }
+
+        .cover-meta table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .cover-meta td {
+            padding: 6px 10px;
+            font-size: 13.5px;
+        }
+
+        .cover-meta td:first-child {
+            font-weight: 600;
+            color: #475569;
+            width: 35%;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11.5px;
+            font-weight: 600;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .badge-info { background: var(--badge-bg); color: var(--badge-text); }
+        .badge-danger { background: var(--danger-bg); color: var(--danger-text); }
+        .badge-success { background: var(--success-bg); color: var(--success-text); }
+        .badge-warn { background: var(--warn-bg); color: var(--warn-text); }
+
+        pre, code {
+            font-family: 'Fira Code', Consolas, Monaco, monospace;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 12px 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.5;
+            border: 1px solid #334155;
+            margin: 10px 0 14px 0;
+            page-break-inside: avoid;
+        }
+
+        p code, li code, td code {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .step-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 16px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            page-break-inside: avoid;
+            border-left: 4px solid var(--primary);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .step-number {
+            background: var(--primary);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+
+        .step-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .importance-box {
+            background-color: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .importance-box strong {
+            color: #15803d;
+        }
+
+        .security-box {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .security-box strong {
+            color: #b91c1c;
+        }
+
+        .formula-box {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 12px 0;
+            text-align: center;
+            font-family: 'Fira Code', monospace;
+            font-weight: 600;
+            color: #0369a1;
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 12.5px;
+            page-break-inside: avoid;
+        }
+
+        table.data-table th {
+            background-color: #0f172a;
+            color: #ffffff;
+            text-align: left;
+            padding: 8px 10px;
+            font-weight: 600;
+        }
+
+        table.data-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        table.data-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 30px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- COVER PAGE                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="cover-page">
+    <div style="font-size: 52px; margin-bottom: 15px;">📊⚙️</div>
+    <div class="cover-title">TUH Chatbot AI v2.0</div>
+    <div class="cover-subtitle">คู่มือผังกระบวนการประมวลผลข้อมูล RAG และการคลีนข้อมูลอย่างละเอียด</div>
+    <div class="cover-badge">Data Cleaning & RAG Pipeline Specification</div>
+
+    <div class="cover-meta">
+        <table>
+            <tr><td>หัวข้อเอกสาร:</td><td><strong>กระบวนการทำงานตั้งแต่การคลีนข้อมูล (End-to-End Data Pipeline)</strong></td></tr>
+            <tr><td>ระบบ:</td><td><strong>TUH Chatbot AI (โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ)</strong></td></tr>
+            <tr><td>โมดูลที่เกี่ยวข้อง:</td><td><strong>cleanData.py, sanitize.py, document_service, emb.py, rag_service</strong></td></tr>
+            <tr><td>วันที่จัดทำ:</td><td><strong>24 กันยายน 2026</strong></td></tr>
+            <tr><td>ผู้จัดทำ:</td><td><strong>Tech Lead / Lead Architecture Team</strong></td></tr>
+        </table>
+    </div>
+
+    <p style="color: #64748b; font-size: 12.5px; max-width: 500px; margin: 30px auto;">
+        เอกสารฉบับนี้อธิบายลำดับการทำงาน (Process Flow), ฟังก์ชันที่รับผิดชอบ, Input/Output, และตรรกะการแปลงข้อมูลอย่างสมบูรณ์ เพื่อเป็นมาตรฐานสำหรับการบำรุงรักษาและส่งมอบระบบ
+    </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: ARCHITECTURE OVERVIEW                          -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>1. ภาพรวมกระบวนการประมวลผลข้อมูล (Pipeline Overview)</h1>
+
+<p>
+    ระบบจัดการข้อมูลของ TUH Chatbot AI แบ่งออกเป็น <strong>3 ไปป์ไลน์หลัก</strong> ที่ทำงานประสานกันอย่างมีระบบ:
+</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th style="width: 25%;">ไปป์ไลน์ (Pipeline)</th>
+            <th style="width: 35%;">โมดูลที่รับผิดชอบ</th>
+            <th>หน้าที่และเป้าหมายหลัก</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>1. Document & Text Pipeline</strong></td>
+            <td><code>admin_documents.py</code><br><code>document_service.py</code><br><code>Admin/cleanData.py</code></td>
+            <td>รับไฟล์ PDF สวัสดิการ สกัดข้อความดิบ คลีนข้อความภาษาไทย แปลงเลขไทย และแบ่งเป็น Chunks ย่อย</td>
+        </tr>
+        <tr>
+            <td><strong>2. Indexing & Vectorization</strong></td>
+            <td><code>rebuild_service.py</code><br><code>Admin/emb.py</code><br><code>Admin/rebuild_db.py</code></td>
+            <td>แปลง Chunks ที่อนุมัติแล้วให้เป็น Dense Vector (BGE-M3) และสร้าง BM25 Lexical Keyword Index</td>
+        </tr>
+        <tr>
+            <td><strong>3. HTML Sanitization Pipeline</strong></td>
+            <td><code>Backend/app/utils/sanitize.py</code></td>
+            <td>ทำความสะอาดโค้ด HTML จาก Rich Text Editor ป้องกัน Stored XSS ในข่าวประชาสัมพันธ์</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: DOCUMENT & CLEANING PIPELINE                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>2. โพรเซสการประมวลผลเอกสารและการคลีนข้อมูล (Step-by-Step)</h1>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-number">STEP 1</span>
+            <span class="step-title">การอัปโหลดไฟล์ PDF และตรวจสอบความปลอดภัย</span>
+        </div>
+        <span class="badge badge-info">admin_documents.py</span>
+    </div>
+    <p><strong>กระบวนการทำงาน:</strong></p>
+    <ol>
+        <li>ผู้ดูแลระบบอัปโหลดไฟล์ PDF สวัสดิการผ่านหน้า AdminWeb</li>
+        <li>ระบบเรียกฟังก์ชัน <code>safe_filename(file.filename)</code> ตัด Path Delimiters (<code>/</code>, <code>\</code>) ออก เพื่อป้องกันการตั้งชื่อไฟล์ที่แฝง Path Traversal</li>
+        <li>บันทึกไฟล์ต้นฉบับลงโฟลเดอร์ <code>uploads/[filename].pdf</code></li>
+        <li>สร้างเรคอร์ดลงตาราง <code>documents</code> ในสถานะ <code>status = "Processing"</code></li>
+    </ol>
+</div>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-number">STEP 2</span>
+            <span class="step-title">การสกัดข้อความดิบรายหน้า (Raw Text Extraction)</span>
+        </div>
+        <span class="badge badge-info">document_service.py / PyMuPDF</span>
+    </div>
+    <p><strong>กระบวนการทำงาน:</strong></p>
+    <ol>
+        <li>ใช้ไลบรารี <code>PyMuPDF</code> (<code>fitz</code>) เปิดอ่านไฟล์ PDF ทีละหน้า</li>
+        <li>สกัดข้อความ Text พร้อมใส่ Marker กำกับเลขหน้า เช่น <code>
+# Page 1
+[ข้อความในหน้า 1]...</code></li>
+        <li>บันทึกไฟล์ข้อความดิบลงใน <code>uploads/[filename].raw.txt</code></li>
+        <li>อัปเดตสถานะเอกสารเป็น <code>status = "Step_Raw_Text"</code></li>
+    </ol>
+    <pre><code># โค้ดสกัดข้อความรายหน้า
+doc = fitz.open(pdf_path)
+raw_text = ""
+for page_num, page in enumerate(doc):
+    raw_text += f"
+# Page {page_num + 1}
+" + page.get_text()</code></pre>
+</div>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-number">STEP 3</span>
+            <span class="step-title">การคลีนและทำความสะอาดข้อมูลภาษาไทย (Thai Text Normalization)</span>
+        </div>
+        <span class="badge badge-warn">Admin/cleanData.py</span>
+    </div>
+    <p><strong>ตรรกะการคลีนข้อมูล 4 ขั้นตอน:</strong></p>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 30%;">กฎการคลีน (Rule)</th>
+                <th style="width: 35%;">ตัวอย่างข้อมูลก่อนคลีน</th>
+                <th>ผลลัพธ์หลังคลีน</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>1. แปลงเลขไทยเป็นอารบิก</strong><br><code>replace_thai_numbers()</code></td>
+                <td><code>เบิกได้ไม่เกิน ๕,๐๐๐ บาท ในข้อ ๑๒</code></td>
+                <td><code>เบิกได้ไม่เกิน 5,000 บาท ในข้อ 12</code></td>
+            </tr>
+            <tr>
+                <td><strong>2. ซ่อมสระอำแตก/วรรณยุกต์ลอย</strong><br><code>re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'ำ')</code></td>
+                <td><code>น ้า , ประจ า , ท าการ</code></td>
+                <td><code>น้ำ , ประจำ , ทำการ</code></td>
+            </tr>
+            <tr>
+                <td><strong>3. กรองหน้าที่ยกเว้น</strong><br><code>exclude_pages = [1, 2]</code></td>
+                <td>หน้า 1 (หน้าปก), หน้า 2 (คำนำ)</td>
+                <td>ตัดทิ้งทั้ง Block ไม่นำมาประมวลผล</td>
+            </tr>
+            <tr>
+                <td><strong>4. ตัด Whitespace ซ้ำซ้อน</strong></td>
+                <td><code>ระเบียบ     สวัสดิการ  
+
+
+
+</code></td>
+                <td><code>ระเบียบ สวัสดิการ 
+</code></td>
+            </tr>
+        </tbody>
+    </table>
+    <p>เมื่อคลีนเสร็จ บันทึกไฟล์เป็น <code>uploads/[filename].clean.txt</code> และตั้งสถานะเป็น <code>Step_Cleaned</code></p>
+</div>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-number">STEP 4</span>
+            <span class="step-title">การตัดแบ่งข้อความเป็นท่อนย่อย (Text Chunking)</span>
+        </div>
+        <span class="badge badge-info">LangChain Text Splitter</span>
+    </div>
+    <p><strong>พารามิเตอร์การตัด Chunk:</strong></p>
+    <ul>
+        <li><code>chunk_size = 800 - 1000</code> ตัวอักษร (ขนาดที่พอดีต่อการทำ Embedding และไม่เกิน Context Window)</li>
+        <li><code>chunk_overlap = 150</code> ตัวอักษร (ช่วยรักษาความต่อเนื่องของประโยคระหว่างรอยต่อ)</li>
+        <li><strong>Metadata Binding:</strong> แต่ละ Chunk จะถูกผูกกับ <code>source</code> (ชื่อไฟล์), <code>page</code> (เลขหน้า), และ <code>chunk_id</code></li>
+    </ul>
+    <p>บันทึก Chunks ลงไฟล์ <code>sample_chunks.json</code> และปรับสถานะเป็น <code>Step_Chunk_Preview</code> เพื่อให้แอดมินตรวจทานบนหน้าเว็บ</p>
+</div>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-number">STEP 5</span>
+            <span class="step-title">การตรวจทานและอนุมัติ (Admin Review & Approval)</span>
+        </div>
+        <span class="badge badge-success">AdminWeb Chunk Editor Grid</span>
+    </div>
+    <p><strong>การทำงาน:</strong></p>
+    <ol>
+        <li>แอดมินสามารถเปิดดู Chunks ทั้งหมด แก้ไขข้อความที่สแกนผิด หรือลบ Chunk ที่ไม่จำเป็นได้ผ่านหน้าเว็บ</li>
+        <li>เมื่อกด <strong>"อนุมัติเอกสาร (Approve)"</strong> สถานะเอกสารจะเปลี่ยนเป็น <code>Active</code></li>
+        <li>ระบบจะสั่งรัน <strong>Background Rebuild Task</strong> เพื่อนำ Chunks เข้าสู่ Vector DB ทันที</li>
+    </ol>
+</div>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-number">STEP 6</span>
+            <span class="step-title">การสร้างดัชนีค้นหาแบบผสมผสาน (Hybrid Vector & Lexical Indexing)</span>
+        </div>
+        <span class="badge badge-danger">Admin/emb.py & rebuild_db.py</span>
+    </div>
+    <p><strong>การประมวลผลดัชนี 2 รูปแบบพร้อมกัน:</strong></p>
+    <ol>
+        <li><strong>Dense Vector Embedding:</strong> รันโมเดล <code>BAAI/bge-m3</code> สร้างเวกเตอร์ความหมายขนาด 1024 มิติ แล้วบันทึกลง <strong>ChromaDB</strong></li>
+        <li><strong>Lexical Keyword Indexing:</strong> ใช้ <code>PyThaiNLP (engine='newmm')</code> ตัดคำภาษาไทยเพื่อสร้างตารางดัชนีคำของ <strong>BM25</strong></li>
+        <li>เมื่อ Indexing เสร็จสิ้น จะสั่ง <code>reload_retriever()</code> โหลดข้อมูลใหม่ขึ้น RAM พร้อมให้บริการแชททันที</li>
+    </ol>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: HTML SANITIZATION PIPELINE                     -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>3. โพรเซสการคลีนข้อมูล HTML เพื่อความปลอดภัย (XSS Sanitization)</h1>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-title">การทำความสะอาดเนื้อหาประกาศข่าวสาร (sanitize_html)</span>
+        </div>
+        <span class="badge badge-danger">Backend/app/utils/sanitize.py</span>
+    </div>
+    <p><strong>หลักการทำงานของฟังก์ชัน sanitize_html:</strong></p>
+    <p>ใช้ไลบรารี <code>nh3</code> (Rust-based HTML Sanitizer ความเร็วและความปลอดภัยสูง) ทำการกรองเนื้อหาที่ส่งมาจาก CKEditor ก่อนบันทึกลงตาราง <code>announcements</code></p>
+    
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 30%;">ประเภทความปลอดภัย</th>
+                <th style="width: 35%;">สิ่งที่ระบบตรวจสอบและอนุญาต</th>
+                <th>สิ่งที่ระบบตัดทิ้งทันที (Filtered Out)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>HTML Tags</strong></td>
+                <td><code>&lt;p&gt;, &lt;strong&gt;, &lt;em&gt;, &lt;u&gt;, &lt;ul&gt;, &lt;ol&gt;, &lt;li&gt;, &lt;a&gt;, &lt;table&gt;, &lt;tr&gt;, &lt;td&gt;, &lt;span&gt;</code></td>
+                <td><code>&lt;script&gt;, &lt;iframe&gt;, &lt;object&gt;, &lt;embed&gt;, &lt;form&gt;, &lt;input&gt;</code></td>
+            </tr>
+            <tr>
+                <td><strong>Attributes</strong></td>
+                <td><code>href, target, style, colspan, rowspan</code></td>
+                <td>Inline Event Handlers ทั้งหมด (<code>onclick, onerror, onload, onmouseover</code>)</td>
+            </tr>
+            <tr>
+                <td><strong>URL Schemes</strong></td>
+                <td><code>http://, https://, mailto:</code></td>
+                <td><code>javascript:, data:, vbscript:</code></td>
+            </tr>
+            <tr>
+                <td><strong>Link Protection</strong></td>
+                <td>เพิ่ม <code>rel="noopener noreferrer"</code> อัตโนมัติ</td>
+                <td>ป้องกัน Tabnabbing Attack จากลิงก์ภายนอก</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: QUERY & RETRIEVAL WORKFLOW                     -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>4. โพรเซสการสืบค้นและสร้างคำตอบ (Retrieval & LLM Generation)</h1>
+
+<div class="step-card">
+    <div class="step-header">
+        <div>
+            <span class="step-title">กระบวนการค้นหาและตอบคำถาม (RAG Query Execution Flow)</span>
+        </div>
+        <span class="badge badge-info">rag_service.py & chat.py</span>
+    </div>
+
+    <p><strong>ลำดับการทำงานเมื่อมีคำถามเข้ามา (Query Execution Steps):</strong></p>
+    <ol>
+        <li><strong>Step 1: กรองคำทักทายและคำหยาบคาย (Fast-Path Check)</strong>
+            * ถ้าเป็นคำทักทาย (สวัสดี, hello) ตอบข้อความทักทายทันที ไม่เรียกโมเดล AI
+            * ถ้าเป็นคำถามด่วนที่ตรงกับ FAQ หน้าแรก ส่งคำตอบตายตัวกลับทันที
+        </li>
+        <li><strong>Step 2: การค้นหาแบบผสมผสาน (Hybrid Retrieval)</strong>
+            * ค้นหา Vector Similarity ใน ChromaDB ได้อันดับ Rank(dense)
+            * ค้นหา Keyword Matching ใน BM25 ได้อันดับ Rank(bm25)
+        </li>
+        <li><strong>Step 3: การจัดอันดับด้วย Weighted RRF (Reciprocal Rank Fusion)</strong>
+            <div class="formula-box">
+                Score = (0.4 / (60 + Rank_dense)) + (0.6 / (60 + Rank_bm25))
+            </div>
+            * ให้ค่าน้ำหนัก BM25 = 0.6 และ Dense = 0.4 เพื่อความแม่นยำสูงสุดในข้อความภาษาไทยที่มีคำเฉพาะทาง
+        </li>
+        <li><strong>Step 4: ประกอบ Context และส่งคำขอไปยัง LLM</strong>
+            * ดึง Chunks ที่ได้คะแนนสูงสุด `top_k` (ค่าเริ่มต้น 3 ชิ้น)
+            * ประกอบเข้ากับ System Prompt ของโรงพยาบาล
+            * ยิงคำขอแบบ Async ผ่าน <code>httpx</code> ไปยัง OpenRouter API (โมเดล Google Gemma)
+        </li>
+        <li><strong>Step 5: ส่งคืนคำตอบพร้อมเอกสารอ้างอิง</strong>
+            * ส่งคำตอบให้ผู้ใช้ พร้อมแนบข้อมูลเอกสารและเลขหน้า PDF ต้นฉบับ
+            * บันทึกประวัติคำถาม-คำตอบลงฐานข้อมูล <code>history</code> ใน Background
+        </li>
+    </ol>
+</div>
+
+<div class="footer-note">
+    <p>— เอกสารสรุปโพรเซสการทำงานของระบบ TUH Chatbot AI v2.0 (สำหรับส่งมอบโครงการ) —</p>
+</div>
+
+</body>
+</html>

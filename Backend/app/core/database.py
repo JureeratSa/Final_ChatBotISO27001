@@ -1,5 +1,9 @@
 """
 TUH Chatbot AI — Database Connection (async SQLAlchemy + TiDB Cloud MySQL)
+จัดการการเชื่อมต่อฐานข้อมูลแบบ Asynchronous I/O รองรับ High-Concurrency
+- Database: TiDB Cloud (Serverless MySQL)
+- Driver: aiomysql (Async) / pymysql (Sync)
+- ORM: SQLAlchemy 2.0 (Mapped Column Syntax)
 """
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
@@ -7,7 +11,11 @@ from typing import AsyncGenerator
 
 from app.core.config import settings
 
-# Async Engine (TiDB Serverless requires SSL)
+# ─── 1. Async Database Engine ──────────────────────────────────────────────────
+# ตั้งค่า Connection Pool และเปิดใช้งาน SSL สำหรับ TiDB Serverless
+# - pool_size=10: จำนวน Connection หลักที่เปิดค้างไว้ใน Pool
+# - max_overflow=20: จำนวน Connection ชั่วคราวที่เปิดเพิ่มได้เมื่อมี Request หนาแน่น
+# - pool_pre_ping=True: ทดสอบ Ping ตรวจสอบ Connection ก่อนส่งให้ Query ป้องกัน Connection หลุด
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
@@ -17,21 +25,29 @@ engine = create_async_engine(
     connect_args={"ssl": True}
 )
 
-# Session Factory
+# ─── 2. Async Session Factory ──────────────────────────────────────────────────
+# ตัวสร้าง Database Session สำหรับการทำงานแบบ Async
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
-    expire_on_commit=False,
+    expire_on_commit=False,  # ไม่ expire attributes หลัง commit เพื่อให้อ่านค่าต่อได้
 )
 
 
+# ─── 3. Declarative Base Class ─────────────────────────────────────────────────
 class Base(DeclarativeBase):
-    """Base class สำหรับ SQLAlchemy models ทั้งหมด"""
+    """Base class หลักสำหรับ SQLAlchemy models ทั้งหมดในระบบ"""
     pass
 
 
+# ─── 4. Database Session Dependency ────────────────────────────────────────────
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency สำหรับ inject database session เข้า FastAPI routes"""
+    """
+    FastAPI Dependency: จ่าย Database Session ให้กับ Route Handlers แต่ละตัว
+    - เมื่อทำงานสำเร็จ: ทำการ commit() ข้อมูลลงฐานข้อมูลอัตโนมัติ
+    - หากเกิด Exception: ทำการ rollback() ทันทีเพื่อป้องกันข้อมูลเสียหาย
+    - เมื่อเสร็จสิ้น: ปิด Session และคืน Connection กลับ Pool เสมอ
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -43,20 +59,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+# ─── 5. Table Initialization Helper ───────────────────────────────────────────
 async def create_tables():
     """
-    สร้างตารางที่ยังไม่มีตอน startup (เผื่อกรณี dev/CI ที่ยังไม่เคยรัน migration เลย)
-
-    หมายเหตุ: การเปลี่ยนแปลง schema จริง (เพิ่ม/แก้/ลบคอลัมน์ใน DB ที่มีข้อมูลอยู่แล้ว)
-    ต้องทำผ่าน Alembic migration เท่านั้น (`alembic revision --autogenerate` แล้ว
-    `alembic upgrade head`) — ดู Backend/README ส่วน Database Migrations
-    เดิมโค้ดตรงนี้ต่อท้ายด้วย ALTER TABLE ... try/except: pass ทีละคอลัมน์ทุกครั้งที่มีคนเพิ่ม
-    field ใหม่ใน models.py ซึ่งกลืน error จริงทิ้งหมด (ต่อ DB ไม่ติด, สิทธิ์ไม่พอ ฯลฯ ก็จะเงียบ
-    เหมือนสำเร็จ) และไม่มีที่มาให้ตรวจสอบว่า schema ปัจจุบันอยู่สถานะไหน — Alembic migration
-    history แก้ปัญหานี้แทนแล้ว metadata.create_all() ที่เหลือไว้ตรงนี้เป็นแค่ safety net
-    สำหรับ dev/CI ที่รัน SQLite ชั่วคราว ไม่ได้มีหน้าที่ปรับ schema ของ DB ที่มีอยู่แล้ว
-    (create_all ไม่แก้ไข/เพิ่มคอลัมน์ในตารางที่มีอยู่แล้วอยู่แล้ว เพิ่มเฉพาะตารางที่ยังไม่มี)
+    สร้างตารางฐานข้อมูลที่ยังไม่มีตอน Startup (Safety Net สำหรับกรณี Initial Setup)
+    หมายเหตุ: สำหรับการเปลี่ยนแปลง Schema บน Production (เพิ่ม/ลดคอลัมน์)
+    ให้ใช้ Alembic Migration เสมอ (alembic revision --autogenerate && alembic upgrade head)
     """
-    from app.models import models  # noqa
+    from app.models import models  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+

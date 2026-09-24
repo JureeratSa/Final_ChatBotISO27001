@@ -1,20 +1,25 @@
+/**
+ * TUH Chatbot AI — useDislikeModal Custom Hook
+ * จัดการ Modal แจ้งเหตุผลไม่พึงพอใจ (Dislike Feedback Modal):
+ * 1. เปิด Modal อัตโนมัติเมื่อผู้ใช้กดปุ่ม Dislike (thumbs-down) ที่ข้อความของบอท
+ * 2. ล็อกคำถามเดิมและคำตอบของบอท (Read-only) เพื่อให้ผู้ใช้พิมพ์เหตุผลหรือคำตอบที่ถูกต้อง
+ * 3. ส่งข้อมูลความคิดเห็นไปยัง API '/api/admin/feedback/submit'
+ */
 import { useState } from 'react';
 import { API_URL } from '../utils/chatUtils';
 
-// สถานะของฟอร์มระบุเหตุผลที่ไม่พึงพอใจ (dislike) + การส่งคำอธิบายไปยังส่วนหลังบ้าน
-// dislikeMsgId ต้องอยู่ภายในไฟล์นี้เท่านั้น (purely internal) — ใช้ประกอบ payload ตอนส่งฟอร์มเท่านั้น
-// ห้ามส่งออกไปเป็น prop ของ <DislikeModal> เด็ดขาด (เหมือนพฤติกรรมเดิมทุกประการ)
 export function useDislikeModal() {
   const [showDislikeModal, setShowDislikeModal] = useState(false);
-  const [dislikeQuestion, setDislikeQuestion] = useState('');
-  const [dislikeAnswer, setDislikeAnswer] = useState('');
-  const [dislikeMsgId, setDislikeMsgId] = useState('');
-  const [dislikeReason, setDislikeReason] = useState('');
-  const [dislikeSuccess, setDislikeSuccess] = useState(false);
-  const [dislikeError, setDislikeError] = useState('');
+  const [dislikeQuestion, setDislikeQuestion] = useState(''); // คำถามของผู้ใช้
+  const [dislikeAnswer, setDislikeAnswer] = useState(''); // คำตอบที่บอทตอบ
+  const [dislikeMsgId, setDislikeMsgId] = useState(''); // ID ข้อความที่ถูก dislike
+  const [dislikeReason, setDislikeReason] = useState(''); // เหตุผลที่ผู้ใช้ระบุ
+  const [dislikeSuccess, setDislikeSuccess] = useState(false); // สถานะส่งสำเร็จ
+  const [dislikeError, setDislikeError] = useState(''); // ข้อความแจ้งเตือนข้อผิดพลาด
 
-  // เปิดหน้าต่างระบุเหตุผลที่ไม่พึงพอใจ — จุดเดียวที่ตั้งค่า dislikeMsgId ได้ (ผู้เรียกภายนอก เช่น
-  // handleLikeMessage ใน App.jsx ไม่มีทางแตะ setter ของ dislikeMsgId ได้โดยตรง)
+  /**
+   * เปิด Modal ระบุเหตุผลที่ไม่พึงพอใจ พร้อมผูกบริบทคำถาม-คำตอบ
+   */
   const openDislikeModal = ({ question, answer, msgId }) => {
     setDislikeQuestion(question || 'ไม่พบคำถาม');
     setDislikeAnswer(answer);
@@ -25,12 +30,16 @@ export function useDislikeModal() {
     setShowDislikeModal(true);
   };
 
+  /**
+   * ส่งเหตุผลความไม่พึงพอใจไปยัง Backend
+   */
   const handleDislikeSubmit = (e) => {
     e.preventDefault();
     if (!dislikeReason.trim()) return;
 
     setDislikeError('');
 
+    // ยิง API บันทึกข้อมูล Dislike พร้อมเหตุผล
     fetch(API_URL + '/api/admin/feedback/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -49,6 +58,7 @@ export function useDislikeModal() {
       .then(data => {
         if (!data.success) throw new Error("Feedback submit did not report success");
         setDislikeSuccess(true);
+        // แสดงข้อความขอบคุณ 1.5 วินาทีแล้วปิด Modal
         setTimeout(() => {
           setShowDislikeModal(false);
           setDislikeSuccess(false);
@@ -56,8 +66,6 @@ export function useDislikeModal() {
         }, 1500);
       })
       .catch(err => {
-        // เดิม .catch() นี้ set success=true เหมือนกัน ทำให้ผู้ใช้เห็นว่าส่งสำเร็จทั้งที่ backend
-        // ไม่ได้บันทึกความเห็นไว้เลย (เหตุผลเดียวกับ handleFeedbackSubmit ใน useFeedbackModal.js)
         console.error("Failed to submit dislike explanation:", err);
         setDislikeError('ส่งความคิดเห็นไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (เช็คการเชื่อมต่ออินเทอร์เน็ต)');
       });
@@ -71,3 +79,4 @@ export function useDislikeModal() {
     handleDislikeSubmit, openDislikeModal
   };
 }
+

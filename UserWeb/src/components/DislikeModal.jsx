@@ -1,3 +1,10 @@
+/**
+ * TUH Chatbot AI — DislikeModal Component
+ * หน้าต่างระบุเหตุผลเมื่อผู้ใช้ไม่พึงพอใจคำตอบของบอท (Dislike Explanation Modal):
+ * 1. แสดงคำถามของผู้ใช้และคำตอบของบอทแบบ Read-only เพื่อเป็นบริบทอ้างอิง
+ * 2. ช่อง Textarea บังคับกรอกเหตุผลหรือข้อแก้ไขที่ถูกต้อง (Required)
+ * 3. แจ้งเตือนข้อผิดพลาด (Error banner) และแจ้งเตือนส่งสำเร็จ (Success screen)
+ */
 import React from 'react';
 
 export const DislikeModal = ({
@@ -16,7 +23,7 @@ export const DislikeModal = ({
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="bg-white dark:bg-[#1B2062] rounded-3xl max-w-lg w-full border border-slate-200 dark:border-tuh-purple/30 shadow-2xl overflow-hidden">
-        {/* ส่วนหัวข้อเสนอแนะที่ไม่พึงพอใจ */}
+        {/* 1. ส่วนหัวข้อเสนอแนะที่ไม่พึงพอใจ */}
         <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/25 flex items-center justify-between bg-slate-50 dark:bg-tuh-navy/35">
           <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
             <i className="fa-solid fa-face-frown text-red-500"></i>
@@ -25,13 +32,15 @@ export const DislikeModal = ({
           <button
             onClick={() => setShowDislikeModal(false)}
             className="w-8 h-8 rounded-full flex items-center justify-center text-tuh-indigo/50 hover:text-tuh-navy dark:text-tuh-pink/50 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-tuh-indigo/80 transition"
+            title="ปิดหน้าต่าง"
           >
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
 
-        {/* เนื้อหาข้อเสนอแนะที่ไม่พึงพอใจ */}
+        {/* 2. เนื้อหาข้อเสนอแนะที่ไม่พึงพอใจ */}
         {dislikeSuccess ? (
+          /* หน้าจอเมื่อส่งคำอธิบายสำเร็จ */
           <div className="p-8 text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 text-3xl flex items-center justify-center mx-auto animate-bounce">
               <i className="fa-solid fa-circle-check"></i>
@@ -42,8 +51,9 @@ export const DislikeModal = ({
             </p>
           </div>
         ) : (
+          /* ฟอร์มระบุเหตุผล */
           <form onSubmit={handleDislikeSubmit} className="p-6 space-y-4">
-            {/* คำถาม (ปิด) */}
+            {/* คำถามของผู้ใช้ (Read-only) */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">คำถามของคุณ</label>
               <div className="p-3.5 bg-slate-50 dark:bg-tuh-navy/30 border border-slate-200 dark:border-tuh-purple/10 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-200 select-none max-h-24 overflow-y-auto">
@@ -51,7 +61,7 @@ export const DislikeModal = ({
               </div>
             </div>
 
-            {/* คำตอบ (ปิด) */}
+            {/* คำตอบจากบอท (Read-only) */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">คำตอบจากบอท</label>
               <div className="p-3.5 bg-slate-50 dark:bg-tuh-navy/30 border border-slate-200 dark:border-tuh-purple/10 rounded-2xl text-sm text-slate-500 dark:text-slate-400 select-none max-h-36 overflow-y-auto whitespace-pre-wrap">
@@ -59,7 +69,7 @@ export const DislikeModal = ({
               </div>
             </div>
 
-            {/* ช่องกรอกเหตุผลหรือข้อแก้ไขที่ถูกต้อง */}
+            {/* ช่องกรอกเหตุผลหรือข้อแก้ไขที่ถูกต้อง (Required) */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-tuh-indigo/60 dark:text-tuh-pink/60 mb-1.5">ระบุเหตุผลหรือข้อแก้ไขที่ถูกต้อง <span className="text-red-500">*</span></label>
               <textarea
@@ -72,14 +82,14 @@ export const DislikeModal = ({
               ></textarea>
             </div>
 
-            {/* ข้อความแจ้งเตือนเมื่อส่งไม่สำเร็จ */}
+            {/* ข้อความแจ้งเตือนเมื่อเกิดข้อผิดพลาดในการส่ง */}
             {dislikeError && (
               <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-500/30 text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
                 <i className="fa-solid fa-circle-exclamation"></i> {dislikeError}
               </div>
             )}
 
-            {/* ปุ่มส่งข้อเสนอแนะที่ไม่พึงพอใจและยกเลิก */}
+            {/* ปุ่มส่งคำอธิบายและยกเลิก */}
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -103,3 +113,4 @@ export const DislikeModal = ({
 };
 
 export default DislikeModal;
+

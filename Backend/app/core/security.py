@@ -1,6 +1,9 @@
 """
-TUH Chatbot AI — Security Module (Cybersecurity Engineer)
-รับผิดชอบ: JWT Token, Password Hashing, Token Verification
+TUH Chatbot AI — Security Module (Cybersecurity & Cryptography)
+รับผิดชอบ:
+1. การแฮชและตรวจสอบรหัสผ่านด้วย bcrypt (Salted Hash)
+2. การสร้างและตรวจสอบ JWT Token (HMAC-SHA256)
+3. การป้องกันช่องโหว่ Path Traversal (CWE-22) ในการเข้าถึงไฟล์ระบบ
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
@@ -14,17 +17,30 @@ from jose import JWTError, jwt
 import bcrypt
 from app.core.config import settings
 
-# ─── Password Utilities ────────────────────────────────────────────────────────
+# ─── 1. Password Utilities (ระบบรหัสผ่าน) ────────────────────────────────────────
 
 def hash_password(plain_password: str) -> str:
-    """Hash รหัสผ่านด้วย bcrypt"""
+    """
+    สร้าง Hash รหัสผ่านด้วยอัลกอริทึม bcrypt
+    Args:
+        plain_password (str): รหัสผ่านแบบข้อความธรรมดา
+    Returns:
+        str: รหัสผ่านที่ผ่านการ Salt และ Hash เรียบร้อยแล้ว
+    """
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(plain_password.encode('utf-8'), salt)
     return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """ตรวจสอบรหัสผ่านกับ hash ที่เก็บไว้"""
+    """
+    ตรวจสอบความถูกต้องของรหัสผ่านเทียบกับ Hash ที่เก็บในฐานข้อมูล
+    Args:
+        plain_password (str): รหัสผ่านที่ผู้ใช้ป้อนเข้ามา
+        hashed_password (str): Hash ที่เก็บอยู่ในฐานข้อมูล
+    Returns:
+        bool: True ถ้ารหัสผ่านถูกต้อง, False ถ้าไม่ถูกต้อง
+    """
     try:
         return bcrypt.checkpw(
             plain_password.encode('utf-8'),
@@ -36,8 +52,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def verify_legacy_password(plain_password: str, salt_hex: str, hash_hex: str) -> bool:
     """
-    ตรวจสอบรหัสผ่านรูปแบบเก่า (pbkdf2_hmac) สำหรับ migrate ข้อมูล admin เดิม
-    ใช้ชั่วคราวระหว่างการ migrate เท่านั้น
+    ตรวจสอบรหัสผ่านรูปแบบเก่า (PBKDF2-HMAC-SHA256)
+    ใช้สำหรับการยืนยันรหัสผ่านระหว่างการ Migrate ข้อมูลจากระบบ v1
     """
     try:
         salt = bytes.fromhex(salt_hex)
@@ -52,10 +68,17 @@ def verify_legacy_password(plain_password: str, salt_hex: str, hash_hex: str) ->
         return False
 
 
-# ─── JWT Token Utilities ───────────────────────────────────────────────────────
+# ─── 2. JWT Token Utilities (ระบบ Token ยืนยันตัวตน) ──────────────────────────
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    """สร้าง JWT Access Token (อายุ 15 นาที)"""
+    """
+    สร้าง JWT Access Token (มีอายุสั้น เช่น 15 นาที) สำหรับแนบใน Header ทุก Request
+    Args:
+        data (dict): Payload ข้อมูล (เช่น {"sub": username})
+        expires_delta (timedelta, optional): กำหนดอายุ Token เอง
+    Returns:
+        str: JWT Token สตริงที่ลงลายมือชื่อดิจิทัลแล้ว
+    """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -65,7 +88,13 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
 
 
 def create_refresh_token(data: Dict[str, Any]) -> str:
-    """สร้าง JWT Refresh Token (อายุ 7 วัน)"""
+    """
+    สร้าง JWT Refresh Token (มีอายุยาว เช่น 7 วัน) สำหรับใช้ขอ Access Token ใหม่
+    Args:
+        data (dict): Payload ข้อมูล (เช่น {"sub": username})
+    Returns:
+        str: JWT Refresh Token สตริง
+    """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
@@ -73,7 +102,13 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
 
 
 def decode_token(token: str) -> Dict[str, Any]:
-    """Decode และตรวจสอบ JWT Token (raise exception หากไม่ valid)"""
+    """
+    ถอดรหัสและตรวจสอบความถูกต้องของ JWT Token
+    Raises:
+        ValueError: ถ้า Token หมดอายุหรือ Signature ไม่ถูกต้อง
+    Returns:
+        dict: Payload ข้อมูลที่อยู่ใน Token
+    """
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload
@@ -82,7 +117,9 @@ def decode_token(token: str) -> Dict[str, Any]:
 
 
 def verify_access_token(token: str) -> Dict[str, Any]:
-    """ตรวจสอบ Access Token โดยเฉพาะ"""
+    """
+    ตรวจสอบ Access Token โดยเฉพาะ (ต้องมี type == 'access')
+    """
     payload = decode_token(token)
     if payload.get("type") != "access":
         raise ValueError("Not an access token")
@@ -90,7 +127,9 @@ def verify_access_token(token: str) -> Dict[str, Any]:
 
 
 def verify_refresh_token(token: str) -> Dict[str, Any]:
-    """ตรวจสอบ Refresh Token โดยเฉพาะ"""
+    """
+    ตรวจสอบ Refresh Token โดยเฉพาะ (ต้องมี type == 'refresh')
+    """
     payload = decode_token(token)
     if payload.get("type") != "refresh":
         raise ValueError("Not a refresh token")
@@ -98,7 +137,9 @@ def verify_refresh_token(token: str) -> Dict[str, Any]:
 
 
 def generate_token_pair(username: str) -> Dict[str, str]:
-    """สร้าง Access + Refresh Token คู่สำหรับ login"""
+    """
+    สร้างคู่ Token (Access + Refresh Token) ส่งให้ Client ตอน Login สำเร็จ
+    """
     data = {"sub": username}
     access_token = create_access_token(data)
     refresh_token = create_refresh_token(data)
@@ -109,17 +150,26 @@ def generate_token_pair(username: str) -> Dict[str, str]:
     }
 
 
+# ─── 3. Path Traversal Defenses (ป้องกันการโจมตีไฟล์ระบบ) ──────────────────────
+
 def safe_path(base_dir: Path, relative_path: str) -> Path:
     """
-    คืนค่า Path ที่ปลอดภัยและถูกจำกัดให้อยู่ภายใต้ base_dir เท่านั้น
-    เพื่อป้องกัน Path Traversal Attack (CWE-22)
+    ตรวจสอบและแปลง Relative Path ให้เป็น Absolute Path ภายใต้ base_dir เท่านั้น
+    เพื่อป้องกัน Path Traversal Attack (CWE-22) เช่น '../../windows/system32'
+    
+    Args:
+        base_dir (Path): โฟลเดอร์ต้นทางที่อนุญาต (เช่น /app/uploads)
+        relative_path (str): Path ที่รับมาจากคำขอของผู้ใช้
+    Returns:
+        Path: Absolute Path ที่ปลอดภัย
+    Raises:
+        HTTPException(400): ถ้า Path หลุดออกนอก base_dir
     """
     from fastapi import HTTPException
     base_abs = base_dir.resolve()
     target_abs = (base_abs / relative_path).resolve()
-    # เดิมใช้ str(...).startswith(...) ซึ่ง bypass ได้ง่าย เช่น base_dir="/app/uploads"
-    # จะจับ "/app/uploads_evil" ผ่านด้วย เพราะ string ขึ้นต้นตรงกัน ทั้งที่เป็นคนละโฟลเดอร์
-    # is_relative_to() เทียบเป็น path segment จริงๆ ไม่ใช่ string prefix
+    
+    # ตรวจสอบว่า target_abs ต้องเป็นโฟลเดอร์ย่อยของ base_abs จริงๆ
     if target_abs != base_abs and base_abs not in target_abs.parents:
         raise HTTPException(status_code=400, detail="รูปแบบชื่อไฟล์ไม่ปลอดภัย (Path Traversal Detected)")
     return target_abs
@@ -127,11 +177,12 @@ def safe_path(base_dir: Path, relative_path: str) -> Path:
 
 def safe_filename(filename: str) -> str:
     """
-    ตัด path component ทั้งหมดออกจากชื่อไฟล์ที่รับจาก client (เช่น header/ชื่อไฟล์อัปโหลด)
-    เหลือแค่ basename ป้องกัน Path Traversal ตั้งแต่ต้นทาง ก่อนเอาไปต่อ path ใดๆ
+    ตัด Directory Separator ทั้งหมดออกจากชื่อไฟล์ที่รับจาก Client เหลือเฉพาะ Base File Name
+    ป้องกันการแทรก Path มาในชื่อไฟล์ที่อัปโหลด
     """
     from fastapi import HTTPException
     name = Path(filename.replace("\\", "/")).name.strip()
     if not name or name in (".", ".."):
         raise HTTPException(status_code=400, detail="ชื่อไฟล์ไม่ถูกต้อง")
     return name
+
