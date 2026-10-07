@@ -132,6 +132,71 @@ def make_http_post(url: str, payload: dict, headers: dict = None, timeout: int =
         return json.loads(response.read().decode("utf-8"))
 
 
+# ─── Condense Question (แปลงคำถามตามบริบทก่อนค้นเอกสาร) ──────────────────────────
+# ผู้ใช้มักถามต่อสั้นๆ เช่น "มีแนะนำมั้ย" หลังคุยเรื่องรหัสผ่าน — ถ้าเอาคำถามนี้ไปค้นตรงๆ retriever
+# จะไม่รู้ว่าหมายถึงรหัสผ่าน (เคยดึงนโยบายเข้ารหัสมาตอบเรื่อง WPA3/TLS) ฟังก์ชันนี้ให้ LLM เขียนคำถาม
+# ใหม่ให้สมบูรณ์จากประวัติแชท ใช้เฉพาะตอนค้นเอกสาร — การตอบยังส่งคำถามจริงของผู้ใช้ + ประวัติให้ LLM
+
+_CONDENSE_PROMPT = """คุณมีหน้าที่เติมคำถามล่าสุดของผู้ใช้ให้เข้าใจได้โดยไม่ต้องอ่านบทสนทนาก่อนหน้า เพื่อใช้ค้นหาเอกสาร
+- ถ้าคำถามล่าสุดมีหัวข้อเรื่องชัดเจนอยู่แล้ว หรือเปลี่ยนไปถามเรื่องใหม่ ให้ตอบคำถามเดิมกลับมาตามเดิมทุกตัวอักษร
+- ถ้าคำถามกำกวม ให้เติมเฉพาะหัวข้อเรื่องสั้นๆ ที่ผู้ใช้หมายถึง (เช่น รหัสผ่าน, การสำรองข้อมูล, การทำงานจากที่บ้าน) คงถ้อยคำเดิมของผู้ใช้ไว้
+- ห้ามเติมชื่อนโยบายเต็ม ห้ามเติมชื่อโรงพยาบาล ห้ามเติมคำอธิบาย ห้ามเปลี่ยนสิ่งที่ผู้ใช้ถาม
+- ห้ามตอบคำถาม ตอบกลับเฉพาะคำถาม 1 บรรทัด
+ตัวอย่าง: คุยเรื่องการตั้งรหัสผ่าน แล้วผู้ใช้ถาม "มีแนะนำมั้ย" → "มีคำแนะนำการตั้งรหัสผ่านมั้ย\""""
+
+
+def _history_lines(history: List, max_messages: int = 6, max_chars: int = 500) -> List[str]:
+    lines = []
+    for msg in (history or [])[-max_messages:]:
+        sender = msg.sender if hasattr(msg, "sender") else msg.get("sender")
+        text = msg.text if hasattr(msg, "text") else msg.get("text", "")
+        text = clean_appended_metadata(text or "")[:max_chars]
+        if text:
+            lines.append(f"{'ผู้ใช้' if sender == 'user' else 'บอท'}: {text}")
+    return lines
+
+
+async def condense_question(query: str, history: List, config: Dict) -> str:
+    """คืนคำถามที่เขียนใหม่ให้สมบูรณ์จากประวัติแชท สำหรับใช้ค้นเอกสาร
+    ไม่มีประวัติฝั่งผู้ใช้ / ไม่มี API key / เรียก LLM ไม่สำเร็จ / ผลแปลกๆ → คืนคำถามเดิมเสมอ"""
+    lines = _history_lines(history)
+    if not any(l.startswith("ผู้ใช้:") for l in lines):
+        return query
+    api_key = config.get("gemini_api_key", "") or settings.LLM_API_KEY or ""
+    if not api_key:
+        return query
+    payload = {
+        "model": config.get("model_name") or settings.DEFAULT_LLM_MODEL,
+        "messages": [
+            {"role": "system", "content": _CONDENSE_PROMPT},
+            {"role": "user", "content": "บทสนทนา:\n" + "\n".join(lines)
+             + f"\n\nคำถามล่าสุด: {query}\nคำถามที่เขียนใหม่:"},
+        ],
+        "temperature": 0.0,
+        "max_tokens": 150,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "HTTP-Referer": "http://localhost:8000",
+        "X-Title": "TUH Chatbot v2",
+    }
+    try:
+        loop = asyncio.get_event_loop()
+        res = await loop.run_in_executor(
+            None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload, headers, 15
+        )
+        text = (res.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+    except Exception as e:
+        logger.warning("[Condense] fallback to original query: %s", e)
+        return query
+    rewritten = text.strip().split("\n")[0].strip().strip('"“”').replace("คำถามที่เขียนใหม่:", "").strip()
+    if not rewritten or len(rewritten) > 300:
+        return query
+    logger.info("[Condense] %r -> %r", query, rewritten)
+    return rewritten
+
+
 # ─── Context Cleaner ──────────────────────────────────────────────────────────
 
 def clean_appended_metadata(text: str) -> str:
