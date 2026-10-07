@@ -23,6 +23,23 @@ except ImportError:
     HAS_LEXICAL = False
 
 
+def resolve_chroma_dir(index_dir: str) -> str:
+    """ที่เก็บ ChromaDB ของทั้งระบบ (retriever, ลบเอกสาร, rebuild ใช้ฟังก์ชันนี้ร่วมกัน)
+    1. env var CHROMA_DB_DIR  2. CHROMA_DB_DIR ใน Backend/.env  3. <index_dir>/chroma_db
+    เดิม hardcode path ใต้โฟลเดอร์ผู้ใช้ของเครื่องพัฒนาไว้บน Windows — เครื่องอื่นที่ไม่มี path นั้น
+    จะหา ChromaDB ไม่เจอแล้วตกไปใช้ BM25 อย่างเดียวแบบเงียบๆ"""
+    path = os.getenv("CHROMA_DB_DIR")
+    if not path:
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Backend", ".env")
+        if os.path.exists(env_file):
+            try:
+                from dotenv import dotenv_values
+                path = dotenv_values(env_file).get("CHROMA_DB_DIR")
+            except ImportError:
+                pass
+    return path or os.path.join(index_dir, "chroma_db")
+
+
 def build_indices():
     """
     ฟังก์ชันสำหรับอ่านไฟล์ sample_chunks.json แล้วนำมาสร้างดัชนีค้นหา:
@@ -86,7 +103,7 @@ def build_indices():
     dense_model = SentenceTransformer("BAAI/bge-m3")
     embeddings = dense_model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
 
-    chroma_dir = os.path.join(index_dir, "chroma_db")
+    chroma_dir = resolve_chroma_dir(index_dir)
     chroma_client = chromadb.PersistentClient(path=chroma_dir)
     # เคลียร์คอลเลกชันเดิม
     try:
@@ -175,12 +192,7 @@ def delete_document_from_index(filename: str, index_dir=None, chroma_dir=None, r
                 retriever.bm25_chunks = remaining
 
     # ─ ChromaDB: persistent client ชี้ path เดียวกับที่ HybridRetriever.load() ใช้ ─
-    if chroma_dir is not None:
-        chroma_path = chroma_dir
-    elif sys.platform.startswith('win') or os.name == 'nt':
-        chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-    else:
-        chroma_path = os.path.join(index_dir, "chroma_db")
+    chroma_path = chroma_dir if chroma_dir is not None else resolve_chroma_dir(index_dir)
     if os.path.exists(chroma_path):
         try:
             import chromadb
@@ -262,15 +274,19 @@ class HybridRetriever:
         # 2. โหลดโมเดลเวกเตอร์หนาแน่นและ ChromaDB
         print(f"กำลังโหลดดัชนีเวกเตอร์สำหรับเทคโนโลยี: {self.embedding_tech}")
 
-        if sys.platform.startswith('win') or os.name == 'nt':
-            chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-        else:
-            chroma_path = os.path.join(self.index_dir, "chroma_db")
+        chroma_path = resolve_chroma_dir(self.index_dir)
+        print(f" ที่เก็บ ChromaDB: {chroma_path}")
         if os.path.exists(chroma_path):
             try:
                 import chromadb
                 self.chroma_client = chromadb.PersistentClient(path=chroma_path)
                 self.chroma_collection = self.chroma_client.get_collection("tuh_collection")
+                # ChromaDB กับ BM25 ต้องสร้างจากชุด chunk เดียวกัน ไม่งั้นเลข chunk_id ชี้คนละเนื้อหา
+                # (เช่นไปเปิด ChromaDB ชุดเก่าใน index_db/chroma_db เพราะไม่ได้ตั้ง CHROMA_DB_DIR)
+                n_dense, n_lex = self.chroma_collection.count(), len(self.bm25_chunks or [])
+                if n_lex and n_dense != n_lex:
+                    print(f" คำเตือน: ChromaDB มี {n_dense} chunk แต่ BM25 มี {n_lex} chunk — "
+                          f"อาจเปิด ChromaDB ผิดชุด ตรวจ CHROMA_DB_DIR ใน Backend/.env หรือสั่ง rebuild")
 
                 from sentence_transformers import SentenceTransformer
                 self.model = SentenceTransformer("BAAI/bge-m3")
