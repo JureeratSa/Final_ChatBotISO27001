@@ -25,6 +25,7 @@ from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form
 from app.services.rag_service import (
     get_retriever, query_rag, contains_profanity, is_chit_chat,
     build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
+    split_used_sources,
 )
 
 from app.core.security import safe_path
@@ -127,6 +128,8 @@ async def chat(
         history=body.history,
         forms=forms_list
     )
+    # ตัด tag [SOURCES: ...] ออกจากคำตอบ และเก็บเฉพาะชิ้นที่ LLM ใช้จริงไว้ทำ citation
+    answer, cited_results = split_used_sources(answer, rag_results)
 
     elapsed = time.time() - start_time
 
@@ -144,8 +147,8 @@ async def chat(
     citations: List[CitationInfo] = []
     form_links_out: List[FormLink] = []
 
-    if has_reliable_context(rag_results, used_rag) and not is_unanswered:
-        citation_dicts = await build_citations(db, rag_results)
+    if has_reliable_context(rag_results, used_rag) and not is_unanswered and cited_results:
+        citation_dicts = await build_citations(db, cited_results)
         citations = [CitationInfo(**c) for c in citation_dicts]
 
     # ─── 8. Form Links ─────────────────────────────────────────────────────

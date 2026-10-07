@@ -185,7 +185,8 @@ async def query_rag(
     context = ""
     if results:
         context_parts = []
-        for r in results:
+        # ใส่เลข [n] หน้าแต่ละชิ้น ให้ LLM บอกกลับมาได้ว่าใช้ชิ้นไหนตอบจริง (ดู split_used_sources)
+        for n, r in enumerate(results, start=1):
             source = r['metadata'].get('source', 'เอกสารอ้างอิง')
             page = r['metadata'].get('page', '')
             page_str = f" หน้า {page}" if page else ""
@@ -194,7 +195,7 @@ async def query_rag(
                 if r['metadata'].get('type') == 'table'
                 else r['content']
             )
-            context_parts.append(f"แหล่งที่มา: {source}{page_str}\nเนื้อหา: {content}")
+            context_parts.append(f"[{n}] แหล่งที่มา: {source}{page_str}\nเนื้อหา: {content}")
         context = "\n---\n".join(context_parts)
 
     # ─ System Prompt ─
@@ -222,6 +223,11 @@ async def query_rag(
 
     user_content = f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"
     user_content += "\n\nหากคุณใช้ข้อมูลจาก Context ให้ขึ้นต้นคำตอบด้วย [USE_RAG] ทันที"
+    if results:
+        user_content += (
+            "\nบรรทัดสุดท้ายของคำตอบ ให้ระบุเลขของข้อมูลอ้างอิงที่ใช้ตอบจริงเท่านั้น ในรูปแบบ [SOURCES: 1,3]"
+            " ถ้าไม่ได้ใช้ข้อมูลอ้างอิงข้อใดเลยให้เขียน [SOURCES: none]"
+        )
     messages.append({"role": "user", "content": user_content})
 
     # ─ Call OpenRouter API ─
@@ -339,6 +345,31 @@ def has_reliable_context(rag_results: List[Dict], used_rag: bool, min_dense_scor
 
 
 # ─── Citation Builder (ใช้ร่วมกันทั้ง /api/chat และ /api/search — DRY) ──────────
+
+_SOURCES_TAG = re.compile(r"\[\s*SOURCES?\s*:\s*([^\]]*)\]", re.IGNORECASE)
+
+
+def split_used_sources(answer: str, rag_results: List[Dict]) -> Tuple[str, List[Dict]]:
+    """ตัด tag [SOURCES: 1,3] ที่ LLM ต่อท้ายคำตอบออก แล้วคืน (คำตอบที่สะอาด, rag_results
+    เฉพาะชิ้นที่ LLM บอกว่าใช้ตอบจริง) — ใช้แทนการแนบทุกเอกสารที่ retriever ค้นเจอเป็น citation
+    ซึ่งเดิมทำให้เอกสารที่ค้นเจอแต่ไม่ได้ใช้ (เช่น Baseline Configuration ในคำถามเรื่องรหัสผ่าน)
+    โผล่เป็นแหล่งอ้างอิงด้วย
+    - ไม่มี tag (LLM ลืม / fallback answer / Ollama) → คืน rag_results ทั้งหมดเหมือนพฤติกรรมเดิม
+    - [SOURCES: none] หรือไม่มีเลข → คืนลิสต์ว่าง (ไม่แนบ citation)
+    - มีเลขแต่ไม่มีเลขไหนอยู่ในช่วง 1..len(rag_results) → ถือว่า LLM สับสน คืนทั้งหมด
+    """
+    if not answer:
+        return answer, rag_results
+    matches = list(_SOURCES_TAG.finditer(answer))
+    if not matches:
+        return answer, rag_results
+    cleaned = _SOURCES_TAG.sub("", answer).strip()
+    nums = {int(n) for n in re.findall(r"\d+", matches[-1].group(1))}
+    if not nums:
+        return cleaned, []
+    used = [r for i, r in enumerate(rag_results or [], start=1) if i in nums]
+    return cleaned, (used or rag_results)
+
 
 async def build_citations(db, rag_results: List[Dict]) -> List[Dict[str, Any]]:
     """สร้างรายการเอกสารอ้างอิง (citations) จาก rag_results โดย group ตาม source

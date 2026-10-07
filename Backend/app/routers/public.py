@@ -130,6 +130,7 @@ async def compatibility_search(
     from app.services.rag_service import (
         get_retriever, query_rag, contains_profanity, is_chit_chat,
         build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
+        split_used_sources,
     )
     from app.routers.chat import save_history, save_unanswered
 
@@ -194,6 +195,8 @@ async def compatibility_search(
             history=body.history,
             forms=forms_list
         )
+        # ตัด tag [SOURCES: ...] ออก และเก็บเฉพาะชิ้นที่ LLM ใช้จริงไว้ทำ citation (เหมือน chat.py)
+        answer, cited_results = split_used_sources(answer, rag_results)
 
         elapsed = time.time() - start_time
 
@@ -206,8 +209,8 @@ async def compatibility_search(
         # (ดูเหตุผลเต็มใน rag_service.has_reliable_context — retriever คืน top_k เสมอไม่ว่า
         # คำถามจะเกี่ยวกับเอกสารจริงหรือไม่ เช็คแค่ไม่ว่างเดิมจึงเกือบไม่มีความหมาย)
         citations = []
-        if has_reliable_context(rag_results, used_rag) and not is_unanswered:
-            citations = await build_citations(db, rag_results)
+        if has_reliable_context(rag_results, used_rag) and not is_unanswered and cited_results:
+            citations = await build_citations(db, cited_results)
 
         # Log history in background
         history_id = f"history-{int(time.time() * 1000)}"
