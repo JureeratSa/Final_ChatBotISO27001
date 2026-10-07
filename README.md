@@ -68,6 +68,15 @@ Local dev ไม่ต้องตั้งค่าอะไรเพิ่ม 
 static ของ React ที่ build เสร็จแล้วเท่านั้น ไม่ได้รัน Backend (Python) ให้** ต้องรัน Backend แยก
 ด้วย `python run_backend.py` เหมือนเดิมเสมอ ไม่ว่าจะใช้วิธี dev server หรือ XAMPP ก็ตาม
 
+### ทางลัด: แก้ด้วย dev server แล้วขึ้น XAMPP ด้วยคำสั่งเดียว
+
+1. ระหว่างแก้โค้ด รัน `python run_admin_web.py` (หรือ `run_user_web.py`) แล้วเปิด http://localhost:5174
+   (หรือ 5173) — แก้ไฟล์ใน Z: แล้วเห็นผลทันที (สคริปต์ sync โค้ดไปรัน dev บนไดรฟ์ C: ให้เอง)
+2. แก้เสร็จแล้ว รัน `python deploy_xampp.py admin` (หรือ `user` / `all`) — สคริปต์จะ build บนไดรฟ์ C:
+   สำรองเวอร์ชันเดิมไว้ที่ `C:\xampp\tuh_backups\` แล้ววางไฟล์ใหม่ลง htdocs ให้ (ทำขั้นที่ 2–3 ด้านล่างแทน)
+
+แก้โค้ดแล้ว XAMPP จะ**ไม่เปลี่ยนเอง** จนกว่าจะรันขั้นที่ 2
+
 ### 1. เปิด Apache ของ XAMPP
 
 Apache ของ XAMPP บนเครื่องนี้ตั้งค่าให้ฟัง **port 8080** (ไม่ใช่ 80 ค่า default — ดู
