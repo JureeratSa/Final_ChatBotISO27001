@@ -55,11 +55,11 @@ export const Sidebar = ({
         <div className="p-4 border-b border-slate-100 dark:border-tuh-purple/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <a
-              href="https://intranet.hospital.tu.ac.th/"
+              href="https://hospital.tu.ac.th/th"
               target="_blank"
               rel="noopener noreferrer"
               className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden p-0.5 border border-slate-100 dark:border-tuh-purple/10 shrink-0 group/logo cursor-pointer hover:shadow-md transition-all active:scale-95"
-              title="ไปยังหน้าอินทราเน็ตโรงพยาบาล"
+              title="ไปยังหน้าเว็บไซต์โรงพยาบาล"
             >
               <img src={logo} alt="TUH Logo" className="w-full h-full object-contain transition-transform duration-300 group-hover/logo:scale-110" />
             </a>
