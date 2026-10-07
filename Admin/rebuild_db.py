@@ -447,10 +447,12 @@ def rebuild():
             subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
             import chromadb
 
-        if sys.platform.startswith('win') or os.name == 'nt':
-            chroma_dir = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-        else:
-            chroma_dir = os.path.join(index_dir, "chroma_db")
+        # path เดียวกับที่ retriever อ่าน (CHROMA_DB_DIR ใน Backend/.env) — ดู emb.resolve_chroma_dir
+        try:
+            from Admin.emb import resolve_chroma_dir
+        except ImportError:
+            from emb import resolve_chroma_dir
+        chroma_dir = resolve_chroma_dir(index_dir)
         os.makedirs(chroma_dir, exist_ok=True)
         chroma_client = chromadb.PersistentClient(path=chroma_dir)
         try:

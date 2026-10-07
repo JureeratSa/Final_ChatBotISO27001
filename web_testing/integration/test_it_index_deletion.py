@@ -4,8 +4,8 @@ Integration Test — Index Deletion Mechanism (IT-02, ส่วนเสริ�
 ฟังก์ชันที่ปิดช่องว่าง "ลบเอกสารแล้ว ChromaDB ยังไม่ถูกลบจริง" ทำงานถูกต้องจริง ด้วย BM25 pickle +
 ChromaDB collection ของจริง (ไม่ mock) แต่ชี้ไปที่ tmp_path เท่านั้น
 
-**คำเตือนสำคัญ**: เครื่องนี้มี ChromaDB/BM25 ของจริงอยู่ 2 ชุด (path hardcode
-"C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db" ที่ HybridRetriever ใช้จริง กับ "<repo>/index_db/"
+**คำเตือนสำคัญ**: เครื่องนี้มี ChromaDB/BM25 ของจริงอยู่ 2 ชุด (ชุดที่ตั้งใน
+CHROMA_DB_DIR ของ Backend/.env ซึ่ง HybridRetriever ใช้จริง กับ "<repo>/index_db/"
 ที่เป็น default เวลาไม่ระบุ index_dir) ทั้งสองมีข้อมูลจริงอยู่ — เทสนี้จึงต้องส่ง index_dir และ
 chroma_dir แบบระบุตรงๆ เสมอ (ชี้ไปที่ tmp_path) ห้ามเรียกฟังก์ชันแบบไม่ระบุพารามิเตอร์เหล่านี้ที่นี่
 เด็ดขาด เพราะจะไป resolve เป็น path จริงที่มีข้อมูลจริงอยู่ (ดู web_testing/integration/

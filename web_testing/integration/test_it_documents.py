@@ -8,8 +8,8 @@ IT-02 (ลบเอกสาร) — เดิมการลบเชื่อ�
 Admin.emb.delete_document_from_index() ลบ chunk เฉพาะไฟล์ที่ถูกลบออกจาก BM25 + ChromaDB ทันที
 โดยตรง (ดู docstring ของฟังก์ชันนั้นสำหรับเหตุผลเต็ม)
 
-**คำเตือนสำคัญ**: เครื่องนี้มี ChromaDB/BM25 ของจริงอยู่ 2 ชุด (path hardcode
-"C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db" ที่ HybridRetriever ใช้จริง กับ "<repo>/index_db/"
+**คำเตือนสำคัญ**: เครื่องนี้มี ChromaDB/BM25 ของจริงอยู่ 2 ชุด (ชุดที่ตั้งใน
+CHROMA_DB_DIR ของ Backend/.env ซึ่ง HybridRetriever ใช้จริง กับ "<repo>/index_db/"
 ที่เป็น default เวลาไม่ระบุ index_dir) ทั้งสองมีข้อมูลจริงอยู่ — เทสในไฟล์นี้จึง "mock" ฟังก์ชัน
 delete_document_from_index() ทิ้งไปเลยตอนเทสผ่าน HTTP endpoint (กัน background task ไปแตะข้อมูล
 จริงโดยไม่ตั้งใจ) แล้วแยกไปเทส delete_document_from_index() ตรงๆ ด้วย index_dir/chroma_dir ที่ชี้
