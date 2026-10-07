@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -86,7 +86,9 @@ async def download_form_file(filename: str):
 
 
 @router.get("/api/documents/serve/{filename}")
-async def main_serve_pdf(filename: str):
+async def main_serve_pdf(filename: str, hl: Optional[str] = None):
+    """เปิด PDF แบบ inline — ถ้ามี ?hl=<chunk_id,...> (ลิงก์จากแหล่งอ้างอิงในแชท) จะไฮไลท์สีฟ้าอ่อน
+    ส่วนที่ใช้ตอบลงในสำเนาที่ส่งกลับ (ดู services/pdf_highlight.py) ไม่มี hl = ส่งไฟล์เดิม"""
     try:
         file_path = safe_path(UPLOADS_DIR, filename)
     except Exception as e:
@@ -94,6 +96,19 @@ async def main_serve_pdf(filename: str):
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+
+    if hl:
+        from app.services.pdf_highlight import parse_chunk_ids, find_chunks, highlight_pdf
+        chunks = find_chunks(file_path.name, parse_chunk_ids(hl))
+        if chunks:
+            try:
+                loop = asyncio.get_event_loop()
+                data = await loop.run_in_executor(None, highlight_pdf, str(file_path), chunks)
+                return Response(content=data, media_type="application/pdf",
+                                headers={"Cache-Control": "no-store"})
+            except Exception as e:
+                # ไฮไลท์ไม่สำเร็จ ไม่ควรทำให้เปิดเอกสารไม่ได้ — ส่งไฟล์เดิมแทน
+                logger.warning("[PDF Highlight] %s: %s", filename, e)
     return FileResponse(str(file_path), media_type="application/pdf")
 
 

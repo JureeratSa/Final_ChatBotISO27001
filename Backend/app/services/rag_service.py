@@ -389,23 +389,29 @@ async def build_citations(db, rag_results: List[Dict]) -> List[Dict[str, Any]]:
     filename_to_display = {d.filename: d.display_name for d in docs if d.display_name}
 
     grouped: Dict[str, set] = {}
+    chunk_ids: Dict[str, List[int]] = {}
     for res in rag_results:
         source = res["metadata"].get("source", "เอกสาร")
         page = res["metadata"].get("page")
         if source not in grouped:
             grouped[source] = set()
+            chunk_ids[source] = []
         if page:
             try:
                 grouped[source].add(int(page))
             except (ValueError, TypeError):
                 pass
+        if isinstance(res.get("chunk_id"), int):
+            chunk_ids[source].append(res["chunk_id"])
 
     citations: List[Dict[str, Any]] = []
     for source, pages in grouped.items():
         display = filename_to_display.get(source, source.replace(".pdf", "").replace("_", " "))
+        # ?hl= = เลข chunk ที่ใช้ตอบ ให้ endpoint serve ไฮไลท์ส่วนนั้นใน PDF (ดู services/pdf_highlight.py)
+        hl = f"?hl={','.join(map(str, chunk_ids[source]))}" if chunk_ids[source] else ""
         pdf_url = (
-            f"/api/documents/serve/{quote(source)}#page={min(pages)}"
-            if pages else f"/api/documents/serve/{quote(source)}"
+            f"/api/documents/serve/{quote(source)}{hl}#page={min(pages)}"
+            if pages else f"/api/documents/serve/{quote(source)}{hl}"
         )
         citations.append({
             "source": source,
