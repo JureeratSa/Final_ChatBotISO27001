@@ -2,6 +2,22 @@
  * ActiveAnnouncementsPanel — รายการประกาศระบบที่ Active อยู่ตอนนี้ (สูงสุด 3 รายการ) ในหน้า
  * Dashboard แยกออกมาจาก DashboardPage.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
  */
+/**
+ * ลบแท็ก HTML ออกจากข้อความเพื่อแสดงผลเป็น Plain text สำหรับการ์ดตัวอย่าง
+ */
+const stripHtml = (html) => {
+  if (!html) return '';
+  if (typeof window !== 'undefined' && window.DOMParser) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return doc.body.textContent || '';
+    } catch {
+      // fallback
+    }
+  }
+  return html.replace(/<[^>]*>/g, '');
+};
+
 export default function ActiveAnnouncementsPanel({ activeAnns, onManageClick }) {
   return (
     <div className="tuh-glass-1 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-tuh-purple/10 flex flex-col justify-between">
@@ -36,7 +52,7 @@ export default function ActiveAnnouncementsPanel({ activeAnns, onManageClick }) 
                     Active
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{ann.content}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{stripHtml(ann.content)}</p>
                 <div className="mt-2.5 flex items-center justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 border-t border-slate-100/60 dark:border-tuh-purple/5 pt-2">
                   <span><i className="fa-regular fa-calendar-days"></i> วันที่เผยแพร่:</span>
                   <span>{new Date(ann.start_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - {new Date(ann.end_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span>
