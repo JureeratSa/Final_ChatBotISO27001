@@ -50,7 +50,8 @@ export function useHistoryState(API_URL, fetch, feedback) {
 
   const fetchHistory = () => {
     setLoadingHistory(true);
-    fetch(API_URL + '/api/admin/history')
+    // backend ตั้ง limit เริ่มต้นไว้ 100 — ขอเพิ่มให้ยอดตรงกับการ์ดหน้าภาพรวม (นับทั้งตาราง)
+    fetch(API_URL + '/api/admin/history?limit=5000')
       .then(r => r.json())
       .then(data => {
         const sortedData = (data || []).reverse();
