@@ -25,7 +25,7 @@ from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form
 from app.services.rag_service import (
     get_retriever, query_rag, contains_profanity, is_chit_chat,
     build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
-    split_used_sources,
+    split_used_sources, condense_question,
 )
 
 from app.core.security import safe_path
@@ -111,8 +111,10 @@ async def chat(
             retriever = get_retriever()
             if retriever:
                 top_k = config.get("top_k", 3)
+                # คำถามต่อเนื่องสั้นๆ ("มีแนะนำมั้ย") → เติมหัวข้อจากประวัติก่อนค้น (ใช้เฉพาะตอนค้นเอกสาร)
+                retrieval_query = await condense_question(query, body.history, config)
                 loop = asyncio.get_event_loop()
-                rag_results = await loop.run_in_executor(None, lambda: retriever.query(query, top_k=top_k))
+                rag_results = await loop.run_in_executor(None, lambda: retriever.query(retrieval_query, top_k=top_k))
         except Exception as e:
             logger.error("[RAG Error] %s", e)
 
