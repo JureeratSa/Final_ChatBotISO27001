@@ -124,11 +124,12 @@ export function useChatInput({
       timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // คัดแยกประวัติการสนทนาล่าสุด (ไม่เกิน 2 รอบ / 4 ข้อความ) เพื่อส่งเป็น Multi-turn context
+    // คัดแยกประวัติการสนทนาล่าสุด (ไม่เกิน 3 รอบ / 6 ข้อความ) เพื่อส่งเป็น Multi-turn context
+    // (backend ใช้ 6 ข้อความนี้ทั้งตอนเติมบริบทคำถามก่อนค้น และตอนส่งให้ LLM ตอบ)
     const sessionMessages = activeSession.messages || [];
     const startIndex = (sessionMessages.length > 0 && sessionMessages[0].sender === 'bot') ? 1 : 0;
     const candidates = sessionMessages.slice(startIndex);
-    const recentHistory = candidates.slice(-4).map(m => ({
+    const recentHistory = candidates.slice(-6).map(m => ({
       sender: m.sender,
       text: m.text
     }));
