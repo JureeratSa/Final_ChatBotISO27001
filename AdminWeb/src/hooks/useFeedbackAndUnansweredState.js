@@ -54,11 +54,12 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
       .catch(err => console.error("Error fetching unanswered:", err));
   };
 
-  const handleResolveUnanswered = (id, newStatus = "Resolved") => {
-    fetch(API_URL + '/api/admin/unanswered/' + id, {
+  // extra = { resolution_type, ignore_reason, note } — คืน Promise<boolean> ให้ modal รู้ผลก่อนปิดตัวเอง
+  const handleResolveUnanswered = (id, newStatus = "Resolved", extra = {}) => {
+    return fetch(API_URL + '/api/admin/unanswered/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
+      body: JSON.stringify({ status: newStatus, ...extra })
     })
       .then(r => {
         if (!r.ok) throw new Error('update failed');
@@ -68,47 +69,68 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
         showSuccess("อัปเดตสถานะล็อกคำถามเรียบร้อยแล้ว");
         fetchUnanswered();
         fetchStats();
+        return true;
       })
       .catch(err => {
         console.error(err);
         showError("ไม่สามารถอัปเดตสถานะได้");
+        return false;
       });
   };
 
-  const handleSubmitFaq = (e) => {
-    e.preventDefault();
-    if (!faqAnswer.trim()) return;
-
+  // เพิ่มคู่คำถาม-คำตอบลง settings.custom_faqs (บอทจับคู่ด้วย "ข้อความคำถาม FAQ อยู่ในคำถามผู้ใช้")
+  // ใช้ร่วมกันทั้ง AnswerFaqModal ของ Dashboard และ ResolveUnansweredModal ของหน้า Logs
+  const saveCustomFaq = (question, answer) => {
     const newFaq = {
       id: `faq-${Date.now()}`,
-      question: currentUnanswered.query,
-      answer: faqAnswer,
+      question: question.trim(),
+      answer: answer,
       timestamp: new Date().toLocaleDateString('th-TH')
     };
+    const updatedSettings = { ...settings, custom_faqs: [...(settings.custom_faqs || []), newFaq] };
 
-    // Update settings custom FAQs
-    const updatedFaqs = [...(settings.custom_faqs || []), newFaq];
-    const updatedSettings = { ...settings, custom_faqs: updatedFaqs };
-
-    fetch(API_URL + '/api/admin/settings', {
+    return fetch(API_URL + '/api/admin/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings)
     })
       .then(r => r.json())
       .then(data => {
-        if (data.success) {
-          showSuccess("ลงทะเบียนคู่มือคำตอบ (FAQ) สำเร็จ บอทจะตอบด้วยคำตอบนี้ในแชททันที");
-          setSettings(updatedSettings);
-          // Auto resolve the unanswered status
-          handleResolveUnanswered(currentUnanswered.id, "Resolved");
-          setShowFaqModal(false);
-          setCurrentUnanswered(null);
-        } else {
+        if (!data.success) {
           showError("เกิดข้อผิดพลาดในการลงทะเบียนคำตอบ");
+          return false;
         }
+        showSuccess("ลงทะเบียนคู่มือคำตอบ (FAQ) สำเร็จ บอทจะตอบด้วยคำตอบนี้ในแชททันที");
+        setSettings(updatedSettings);
+        return true;
       })
-      .catch(err => showError("เชื่อมต่อล้มเหลว"));
+      .catch(() => {
+        showError("เชื่อมต่อล้มเหลว");
+        return false;
+      });
+  };
+
+  const handleSubmitFaq = (e) => {
+    e.preventDefault();
+    if (!faqAnswer.trim()) return;
+    const target = currentUnanswered;
+    saveCustomFaq(target.query, faqAnswer).then(ok => {
+      if (!ok) return;
+      handleResolveUnanswered(target.id, "Resolved", { resolution_type: "custom_faq" });
+      setShowFaqModal(false);
+      setCurrentUnanswered(null);
+    });
+  };
+
+  // AI วิเคราะห์คำถาม (เป็นคำถามจริงไหม + คำค้นแนะนำ) — fallback เป็น null ถ้าเรียกไม่สำเร็จ
+  const analyzeUnansweredQuery = (query) => {
+    return fetch(API_URL + '/api/admin/unanswered/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null);
   };
 
   const handleOpenEditPredefinedFaqModal = (faq) => {
@@ -193,6 +215,8 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
     fetchFeedback,
     fetchUnanswered,
     handleResolveUnanswered,
+    saveCustomFaq,
+    analyzeUnansweredQuery,
     handleSubmitFaq,
     handleOpenEditPredefinedFaqModal,
     handleSavePredefinedFaq,
