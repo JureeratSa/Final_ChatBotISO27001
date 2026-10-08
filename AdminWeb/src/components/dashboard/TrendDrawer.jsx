@@ -1,6 +1,6 @@
 /**
  * TrendDrawer — slide-out panel แสดง Q&A เบื้องหลังจุดที่ถูกคลิกบนกราฟแนวโน้มของหน้า Dashboard
- * แยกออกมาจาก DashboardPage.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม (คืนค่า null ถ้าไม่มี
+ * แยกออกมาจาก DashboardPage.jsx เดิม (คืนค่า null ถ้าไม่มี
  * trendDrawer ที่จะแสดง เหมือนเงื่อนไข `{trendDrawer && (...)}` เดิม)
  */
 export default function TrendDrawer({ trendDrawer, onClose, chunksMap, API_URL }) {

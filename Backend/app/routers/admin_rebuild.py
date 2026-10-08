@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Rebuild
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 Business logic (_trigger_rebuild_background ฯลฯ) ย้ายไปที่ app/services/rebuild_service.py
 
 หมายเหตุ: test_rebuild_status.py monkeypatch `_trigger_rebuild_background` โดยแพตช์ที่

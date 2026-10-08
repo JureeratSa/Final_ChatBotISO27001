@@ -1,7 +1,7 @@
 """
 TUH Chatbot AI — Documents Service
-แยกจาก app/routers/admin_documents.py (ย้ายมาจาก Backend/app/routers/admin.py เดิม
-logic เหมือนทุกตัวอักษร ไม่ได้แก้ไข ยกเว้น run_approval_pipeline() ที่ดึงเนื้อหาของ
+แยกจาก app/routers/admin_documents.py (เดิมอยู่ใน Backend/app/routers/admin.py) —
+run_approval_pipeline() ที่ดึงเนื้อหาของ
 approve_document ส่วน clean→chunk ออกมาเป็นฟังก์ชันแยก — การ trigger rebuild background
 task (ตอนเข้าสถานะ Active) ยังอยู่ที่ router เพราะต้องใช้ BackgroundTasks ของ FastAPI)
 """

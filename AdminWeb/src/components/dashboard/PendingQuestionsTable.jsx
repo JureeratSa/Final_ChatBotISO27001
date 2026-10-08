@@ -1,7 +1,6 @@
 /**
  * PendingQuestionsTable — ตารางคำถามที่บอทตอบไม่ได้ล่าสุด (สูงสุด 5 รายการ) ในหน้า Dashboard
- * กดปุ่ม "เพิ่มใน FAQs" เพื่อเปิด AnswerFaqModal แยกออกมาจาก DashboardPage.jsx เดิมแบบ
- * verbatim ไม่เปลี่ยนพฤติกรรม
+ * กดปุ่ม "เพิ่มใน FAQs" เพื่อเปิด AnswerFaqModal แยกออกมาจาก DashboardPage.jsx เดิม
  */
 export default function PendingQuestionsTable({ items, onAnswerClick }) {
   return (

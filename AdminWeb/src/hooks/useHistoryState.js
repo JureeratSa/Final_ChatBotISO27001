@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 /**
  * useHistoryState — ประวัติการตอบของบอท (ChatHistory), การกรองตามช่วงเวลา/วันที่, ส่งออก CSV,
  * แผนที่ chunk→เอกสารต้นทาง (chunksMap) และสถิติความพึงพอใจแยกตามช่วงเวลาสำหรับหน้าสถิติ
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  *
  * รับ feedback array มาจาก useFeedbackAndUnansweredState เพราะ getSatisfactionStatsByPeriod
  * เดิมอยู่ใกล้กับ state ของ History ในไฟล์เดิม (จัดกลุ่มตามตำแหน่งเดิมในซอร์สโค้ด) แต่คำนวณจาก

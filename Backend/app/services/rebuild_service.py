@@ -1,7 +1,6 @@
 """
 TUH Chatbot AI — Rebuild Service
-แยกจาก app/routers/admin_rebuild.py / admin_documents.py (ย้ายมาจาก
-Backend/app/routers/admin.py เดิม logic เหมือนทุกตัวอักษร ไม่ได้แก้ไข)
+แยกจาก app/routers/admin_rebuild.py / admin_documents.py (เดิมอยู่ใน Backend/app/routers/admin.py)
 
 หมายเหตุสำคัญสำหรับเทส: test_rebuild_status.py และ test_documents_ownership.py
 monkeypatch ชื่อ _trigger_rebuild_background / _delete_from_search_index โดยแพตช์ที่

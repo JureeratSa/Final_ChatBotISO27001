@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Settings
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 ไม่แยก service layer (ตามแผน) — logic การอ่าน Authorization header เองแทนการใช้
 get_current_user คงไว้ตรงนี้พร้อมคอมเมนต์อธิบายเหตุผลเดิม
 """

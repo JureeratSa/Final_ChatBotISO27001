@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 /**
  * useSettingsState — การตั้งค่าระบบ AI แชทบอท (โมเดล/พรอมป์/FAQs ฯลฯ) ผ่าน
- * GET/POST /api/admin/settings แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * GET/POST /api/admin/settings แยกออกมาจาก App.jsx เดิม
  */
 export function useSettingsState(API_URL, fetch, showSuccess, showError) {
   const [settings, setSettings] = useState({

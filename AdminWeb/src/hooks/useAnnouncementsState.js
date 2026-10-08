@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 /**
  * useAnnouncementsState — ประกาศระบบ (Announcements) CRUD ทั้งหมด
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  *
  * รับ setDeleteModalState มาจาก App.jsx (state ของ modal ยืนยันลบที่ใช้ร่วมกันหลายโดเมน)
  * เพราะ handleDeleteAnnouncement ต้องปิด modal เองใน .finally() เหมือนโค้ดเดิมทุกประการ

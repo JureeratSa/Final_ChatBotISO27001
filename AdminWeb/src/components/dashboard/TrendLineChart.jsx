@@ -1,7 +1,7 @@
 /**
  * TrendLineChart — กราฟเส้น SVG แสดงแนวโน้มถามตอบย้อนหลัง 7 วัน (ตอบสำเร็จ vs ตอบไม่ได้)
  * ในหน้า Dashboard คลิกจุดบนกราฟเพื่อเปิด TrendDrawer ดู Q&A ของวันนั้น
- * แยกออกมาจาก DashboardPage.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม/การคำนวณ
+ * แยกออกมาจาก DashboardPage.jsx เดิม
  *
  * getTrendData()/getCoordinates()/อัลกอริทึมหลีกเลี่ยง marker ชนกัน ยังคงเป็น local helper
  * ภายใน component นี้ตามแผน (ไม่ยกเป็น utility ภายนอก) พร้อม comment ภาษาไทยเดิมทุกคำ

@@ -1,7 +1,6 @@
 """
 TUH Chatbot AI — Forms Service
-แยกจาก app/routers/admin_forms.py (ย้ายมาจาก Backend/app/routers/admin.py เดิม
-logic เหมือนทุกตัวอักษร ไม่ได้แก้ไข)
+แยกจาก app/routers/admin_forms.py (เดิมอยู่ใน Backend/app/routers/admin.py)
 """
 from typing import List
 

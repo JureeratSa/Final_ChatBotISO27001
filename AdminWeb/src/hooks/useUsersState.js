@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 /**
  * useUsersState — จัดการบัญชีแอดมิน (User Management) CRUD ทั้งหมด
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  */
 export function useUsersState(API_URL, fetch, showSuccess, showError) {
   const [users, setUsers] = useState([]);

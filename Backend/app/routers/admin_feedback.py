@@ -1,7 +1,7 @@
 """
 TUH Chatbot AI — Admin Router: Feedback
 แยกออกมาจาก Backend/app/routers/admin.py (เดิมรวมทุก domain ไว้ไฟล์เดียว 1549 บรรทัด)
-Endpoint/logic เหมือนเดิมทุกตัวอักษร — ย้ายที่อยู่และแยก business logic ไปที่
+แยก business logic ไปที่
 app/services/feedback_service.py เท่านั้น ไม่ได้เปลี่ยนพฤติกรรม
 """
 from typing import List

@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 /**
  * useProfile — ฟอร์มเปลี่ยนรหัสผ่านแอดมิน (หน้าโปรไฟล์) เรียก POST /api/admin/password/update
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  */
 export function useProfile(API_URL, fetch, showSuccess, showError) {
   const [newPassword, setNewPassword] = useState('');
