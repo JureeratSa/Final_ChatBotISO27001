@@ -9,12 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.routers.auth import get_current_user
 from app.models.models import User, UnansweredQuery
 from app.schemas.schemas import UnansweredResponse, UnansweredUpdate, UnansweredSubmit
-from app.services.unanswered_service import record_unanswered_query, analyze_query
+from app.services.unanswered_service import record_unanswered_query, analyze_query, apply_unanswered_update
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -23,17 +24,33 @@ class AnalyzeQueryRequest(BaseModel):
     query: str
 
 
+def _fmt(dt):
+    return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else None
+
+
+def _to_response(u: UnansweredQuery) -> UnansweredResponse:
+    return UnansweredResponse(
+        id=u.id, query=u.query, count=u.count, status=u.status,
+        timestamp=_fmt(u.timestamp) or "",
+        resolution_type=u.resolution_type,
+        ignore_reason=u.ignore_reason,
+        note=u.note,
+        resolved_by=u.resolver.display_name if u.resolver else None,
+        resolved_at=_fmt(u.resolved_at),
+    )
+
+
 @router.get("/unanswered", response_model=List[UnansweredResponse])
 async def get_unanswered(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(UnansweredQuery).order_by(UnansweredQuery.count.desc()))
-    items = result.scalars().all()
-    return [UnansweredResponse(
-        id=u.id, query=u.query, count=u.count, status=u.status,
-        timestamp=u.timestamp.strftime("%Y-%m-%d %H:%M:%S") if u.timestamp else ""
-    ) for u in items]
+    result = await db.execute(
+        select(UnansweredQuery)
+        .options(selectinload(UnansweredQuery.resolver))
+        .order_by(UnansweredQuery.count.desc())
+    )
+    return [_to_response(u) for u in result.scalars().all()]
 
 
 @router.post("/unanswered/submit", status_code=status.HTTP_201_CREATED)
@@ -50,17 +67,19 @@ async def update_unanswered(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(UnansweredQuery).where(UnansweredQuery.id == query_id))
+    result = await db.execute(
+        select(UnansweredQuery)
+        .options(selectinload(UnansweredQuery.resolver))
+        .where(UnansweredQuery.id == query_id)
+    )
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
-    item.status = body.status
+    apply_unanswered_update(item, body, current_user)
     await db.commit()
     await db.refresh(item)
-    return UnansweredResponse(
-        id=item.id, query=item.query, count=item.count, status=item.status,
-        timestamp=item.timestamp.strftime("%Y-%m-%d %H:%M:%S") if item.timestamp else ""
-    )
+    await db.refresh(item, attribute_names=["resolver"])
+    return _to_response(item)
 
 
 @router.delete("/unanswered/{query_id}", status_code=status.HTTP_204_NO_CONTENT)

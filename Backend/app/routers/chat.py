@@ -20,8 +20,8 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLink
-from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form
+from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLink, UnansweredSubmit
+from app.models.models import SystemSettings, ChatHistory, Form
 from app.services.rag_service import (
     get_retriever, query_rag, contains_profanity, is_chit_chat,
     build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
@@ -235,24 +235,9 @@ async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_
 async def save_unanswered(db, query):
     """บันทึกคำถามที่ตอบไม่ได้ (Background Task)"""
     try:
-        from sqlalchemy import update as sql_update, func
         from app.core.database import AsyncSessionLocal
+        from app.services.unanswered_service import record_unanswered_query
         async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(UnansweredQuery).where(
-                    UnansweredQuery.query.ilike(query.strip())
-                )
-            )
-            existing = result.scalar_one_or_none()
-            if existing:
-                existing.count += 1
-            else:
-                session.add(UnansweredQuery(
-                    id=f"unans-{int(time.time() * 1000)}",
-                    query=query.strip(),
-                    count=1,
-                    status="Pending"
-                ))
-            await session.commit()
+            await record_unanswered_query(session, UnansweredSubmit(query=query))
     except Exception as e:
         logger.error("[Unanswered Save Error] %s", e)

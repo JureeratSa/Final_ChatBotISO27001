@@ -5,13 +5,22 @@ logic เหมือนทุกตัวอักษร ไม่ได้แ�
 """
 import json
 import time
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models.models import UnansweredQuery
-from app.schemas.schemas import UnansweredSubmit
+from app.models.models import UnansweredQuery, User
+from app.schemas.schemas import UnansweredSubmit, UnansweredUpdate
+
+
+def _clear_resolution(item: UnansweredQuery) -> None:
+    item.resolution_type = None
+    item.ignore_reason = None
+    item.note = None
+    item.resolved_by_id = None
+    item.resolved_at = None
 
 
 async def record_unanswered_query(db: AsyncSession, body: UnansweredSubmit) -> None:
@@ -22,6 +31,11 @@ async def record_unanswered_query(db: AsyncSession, body: UnansweredSubmit) -> N
     existing = result.scalar_one_or_none()
     if existing:
         existing.count += 1
+        # ถูกถามซ้ำแล้วบอทยังตอบไม่ได้ทั้งที่แอดมินปิดว่า "แก้ไขแล้ว" = วิธีแก้ยังไม่ได้ผล
+        # เปิดรายการกลับเป็น Pending ให้แอดมินเห็นอีกครั้ง (Ignored ไม่เปิดคืน เพราะตั้งใจไม่แก้)
+        if existing.status == "Resolved":
+            existing.status = "Pending"
+            _clear_resolution(existing)
     else:
         db.add(UnansweredQuery(
             id=f"unans-{int(time.time() * 1000)}",
@@ -30,6 +44,19 @@ async def record_unanswered_query(db: AsyncSession, body: UnansweredSubmit) -> N
             status="Pending"
         ))
     await db.commit()
+
+
+def apply_unanswered_update(item: UnansweredQuery, body: UnansweredUpdate, user: User) -> None:
+    """เปลี่ยนสถานะรายการ + บันทึกว่าปิดด้วยวิธีไหน/เพราะอะไร (ตรวจความถูกต้องของ field แล้วใน schema)"""
+    item.status = body.status
+    if body.status == "Pending":
+        _clear_resolution(item)
+        return
+    item.resolution_type = body.resolution_type
+    item.ignore_reason = body.ignore_reason
+    item.note = (body.note or "").strip() or None
+    item.resolved_by_id = user.id
+    item.resolved_at = datetime.now(timezone.utc)
 
 
 async def analyze_query(query: str) -> dict:
