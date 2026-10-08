@@ -164,14 +164,30 @@ class UnansweredQuery(Base):
     """
     ตาราง unanswered: บันทึกคำถามที่ระบบตอบไม่ได้ หรือหาเอกสารอ้างอิงไม่เจอ
     - count: นับความถี่หากมีคำถามเดียวกันถูกถามซ้ำ
-    - status: 'Pending' (รอดำเนินการ) หรือ 'Resolved' (สร้าง FAQ แล้ว)
+    - status: 'Pending' (รอดำเนินการ), 'Resolved' (แก้ไขแล้ว) หรือ 'Ignored' (ไม่แก้ไข)
+    - resolution_type: วิธีที่แอดมินใช้แก้ ('custom_faq' / 'document_upload' / 'chunk_edit')
+    - ignore_reason / note: เหตุผลที่ไม่แก้ไข + หมายเหตุอิสระ เก็บไว้ทำสถิติภายหลัง
     """
     __tablename__ = "unanswered"
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True, comment="รหัสรายการคำถามค้างตอบ")
     query: Mapped[str] = mapped_column(Text, nullable=False, comment="ข้อความคำถามที่ตอบไม่ได้")
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="จำนวนครั้งที่คำถามนี้ถูกถามซ้ำ")
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="Pending", comment="สถานะ ('Pending' / 'Resolved')")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="Pending", comment="สถานะ ('Pending' / 'Resolved' / 'Ignored')")
+    resolution_type: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, comment="วิธีแก้ไข ('custom_faq' / 'document_upload' / 'chunk_edit')"
+    )
+    ignore_reason: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, comment="เหตุผลที่ไม่แก้ไข ('spam' / 'chit_chat' / 'out_of_scope' / 'other')"
+    )
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="หมายเหตุจากแอดมินตอนปิดรายการ")
+    resolved_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="รหัสผู้ใช้งานที่ปิดรายการ (Foreign Key เชื่อมกับ users.id)"
+    )
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="วันเวลาที่ปิดรายการ (Resolved/Ignored)"
+    )
+    resolver: Mapped[Optional["User"]] = relationship("User", foreign_keys=[resolved_by_id])
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), comment="วันเวลาที่ถูกถามครั้งแรก")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="วันเวลาที่ถูกถามล่าสุด"
