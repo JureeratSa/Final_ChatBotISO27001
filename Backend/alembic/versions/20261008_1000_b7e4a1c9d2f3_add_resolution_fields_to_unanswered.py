@@ -6,7 +6,7 @@ Create Date: 2026-10-08 10:00:00.000000+07:00
 
 เพิ่มข้อมูล "ปิดรายการอย่างไร" ให้ตาราง unanswered เพื่อรองรับ flow ใหม่ในหน้าคำถามที่บอทตอบไม่ได้
 (แก้ไข → เลือกวิธีแก้ / ไม่แก้ไข → ระบุเหตุผล):
-  - resolution_type  วิธีแก้ ('custom_faq' / 'document_upload' / 'chunk_edit')
+  - resolution_type  วิธีแก้ ('custom_faq' / 'document_upload' / 'chunk_hint')
   - ignore_reason    เหตุผลที่ไม่แก้ ('spam' / 'chit_chat' / 'out_of_scope' / 'other')
   - note             หมายเหตุอิสระ
   - resolved_by_id   FK -> users.id (SET NULL ถ้าบัญชีถูกลบ)
