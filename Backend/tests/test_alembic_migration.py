@@ -16,7 +16,7 @@ from sqlalchemy import create_engine, inspect
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 EXPECTED_TABLES = {
     "users", "documents", "settings", "history",
-    "feedback", "unanswered", "forms", "announcements",
+    "feedback", "unanswered", "forms", "announcements", "chunk_hints",
 }
 
 
