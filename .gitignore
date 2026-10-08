@@ -46,3 +46,8 @@ ENV/
 *.njsproj
 *.sln
 *.swp
+
+# testchatbotSPO: เก็บสคริปต์วัดผล + ชุดคำถาม แต่ไม่เก็บ cache ของ LLM judge และไฟล์ผลลัพธ์ที่สร้างใหม่ทุกครั้งที่รัน
+testchatbotSPO/*_cache.json
+testchatbotSPO/*.xlsx
+!testchatbotSPO/questions_dataset.xlsx
