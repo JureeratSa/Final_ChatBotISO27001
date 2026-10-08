@@ -239,7 +239,7 @@ class UnansweredUpdate(BaseModel):
     status=Ignored  → ต้องระบุ ignore_reason
     """
     status: Literal["Pending", "Resolved", "Ignored"]
-    resolution_type: Optional[Literal["custom_faq", "document_upload", "chunk_hint"]] = None
+    resolution_type: Optional[Literal["custom_faq", "document_upload", "chunk_edit"]] = None
     ignore_reason: Optional[Literal["spam", "chit_chat", "out_of_scope", "other"]] = None
     note: Optional[str] = Field(default=None, max_length=1000)
 
@@ -252,42 +252,6 @@ class UnansweredUpdate(BaseModel):
         if self.status != "Ignored" and self.ignore_reason:
             raise ValueError("ignore_reason ใช้ได้เฉพาะ status=Ignored")
         return self
-
-
-# ─── RAG Teaching (Chunk Hints) Schemas ────────────────────────────────────────
-
-class RagTestSearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=1000)
-
-
-class RagChunkSearchRequest(BaseModel):
-    keyword: str = Field(min_length=1, max_length=200)
-    source: Optional[str] = None
-
-
-class ChunkRef(BaseModel):
-    source: str = Field(min_length=1, max_length=255)
-    chunk_hash: str = Field(min_length=64, max_length=64)
-
-
-class ChunkHintSuggestRequest(ChunkRef):
-    query: str = Field(default="", max_length=1000)
-
-
-class ChunkHintSave(ChunkRef):
-    questions: List[str] = Field(min_length=1, max_length=10)
-    unanswered_id: Optional[str] = None
-    verify_query: Optional[str] = Field(default=None, max_length=1000)
-
-    @field_validator("questions")
-    @classmethod
-    def _check_questions(cls, v):
-        for q in v:
-            if not (q or "").strip():
-                raise ValueError("คำถามตัวอย่างต้องไม่ว่าง")
-            if len(q) > 300:
-                raise ValueError("คำถามตัวอย่างยาวเกิน 300 ตัวอักษร")
-        return v
 
 
 # ─── History Schemas ───────────────────────────────────────────────────────────

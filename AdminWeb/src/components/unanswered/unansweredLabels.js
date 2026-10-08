@@ -5,7 +5,7 @@
 export const RESOLUTION_LABELS = {
   custom_faq: 'สอนคำตอบ (FAQ)',
   document_upload: 'อัปโหลดเอกสารใหม่',
-  chunk_hint: 'ผูกคำถามกับเอกสาร',
+  chunk_edit: 'แก้ส่วนย่อยเอกสาร',
 };
 
 export const IGNORE_REASONS = [

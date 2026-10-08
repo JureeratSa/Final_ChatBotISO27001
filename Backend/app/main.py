@@ -23,7 +23,7 @@ from app.core.database import create_tables
 from app.core.security import hash_password
 from app.core.logging_config import setup_logging
 from app.routers import (
-    auth, chat, public, admin_feedback, admin_unanswered, admin_rag, admin_stats,
+    auth, chat, public, admin_feedback, admin_unanswered, admin_stats,
     admin_forms, admin_announcements, admin_history, admin_auth,
     admin_documents, admin_settings, admin_rebuild
 )
@@ -173,7 +173,6 @@ app.include_router(admin_settings.router)
 app.include_router(admin_rebuild.router)
 app.include_router(admin_feedback.router)
 app.include_router(admin_unanswered.router)
-app.include_router(admin_rag.router)
 app.include_router(admin_stats.router)
 app.include_router(admin_forms.router)
 app.include_router(admin_announcements.router)

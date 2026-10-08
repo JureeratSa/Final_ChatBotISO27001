@@ -133,35 +133,6 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
       .catch(() => null);
   };
 
-  // ─── สอนบอทผ่านเอกสาร (/api/admin/rag/*) — คืน Promise ของ JSON, throw Error(detail) ถ้าไม่สำเร็จ ───
-  const ragRequest = (path, method, body) => {
-    return fetch(API_URL + '/api/admin/rag' + path, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined
-    }).then(async r => {
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const detail = typeof data.detail === 'string' ? data.detail : 'เชื่อมต่อระบบค้นหาไม่สำเร็จ';
-        throw new Error(detail);
-      }
-      return data;
-    });
-  };
-
-  const ragTestSearch = (query) => ragRequest('/test-search', 'POST', { query });
-  const ragSearchChunks = (keyword) => ragRequest('/chunks/search', 'POST', { keyword });
-  const suggestChunkHints = (chunk, query) =>
-    ragRequest('/chunk-hints/suggest', 'POST', { source: chunk.source, chunk_hash: chunk.chunk_hash, query });
-  const saveChunkHint = (chunk, questions, unansweredId, verifyQuery) =>
-    ragRequest('/chunk-hints', 'PUT', {
-      source: chunk.source,
-      chunk_hash: chunk.chunk_hash,
-      questions,
-      unanswered_id: unansweredId,
-      verify_query: verifyQuery
-    });
-
   const handleOpenEditPredefinedFaqModal = (faq) => {
     setSelectedPredefinedFaq(faq);
     setPredefinedFaqQuestion(faq.question);
@@ -246,10 +217,6 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
     handleResolveUnanswered,
     saveCustomFaq,
     analyzeUnansweredQuery,
-    ragTestSearch,
-    ragSearchChunks,
-    suggestChunkHints,
-    saveChunkHint,
     handleSubmitFaq,
     handleOpenEditPredefinedFaqModal,
     handleSavePredefinedFaq,

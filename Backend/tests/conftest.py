@@ -20,7 +20,7 @@ from app.core.database import Base, get_db
 from app.core.security import hash_password, create_access_token
 from app.models.models import User
 from app.routers import (
-    auth, chat, public, admin_feedback, admin_unanswered, admin_rag, admin_stats,
+    auth, chat, public, admin_feedback, admin_unanswered, admin_stats,
     admin_forms, admin_announcements, admin_history, admin_auth,
     admin_documents, admin_settings, admin_rebuild
 )
@@ -63,7 +63,6 @@ async def app_instance(session_maker):
     application.include_router(admin_rebuild.router)
     application.include_router(admin_feedback.router)
     application.include_router(admin_unanswered.router)
-    application.include_router(admin_rag.router)
     application.include_router(admin_stats.router)
     application.include_router(admin_forms.router)
     application.include_router(admin_announcements.router)

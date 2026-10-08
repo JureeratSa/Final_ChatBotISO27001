@@ -1,7 +1,7 @@
 """
 TUH Chatbot AI — SQLAlchemy Models
 โครงสร้างตารางฐานข้อมูลทั้งหมดในระบบ TiDB Cloud (MySQL-compatible)
-ประกอบด้วย 9 ตารางหลัก:
+ประกอบด้วย 8 ตารางหลัก:
 1. users: บัญชีผู้ดูแลระบบ (Admin Accounts) และสิทธิ์การใช้งาน
 2. documents: ข้อมูลเอกสารสวัสดิการสำหรับระบบ RAG
 3. settings: การตั้งค่าพารามิเตอร์ AI และสถานะระบบ
@@ -10,12 +10,11 @@ TUH Chatbot AI — SQLAlchemy Models
 6. unanswered: รายการคำถามที่บอทหาคำตอบไม่พบ
 7. forms: รายการแบบฟอร์มสวัสดิการสำหรับดาวน์โหลด
 8. announcements: ข่าวประชาสัมพันธ์และ Pop-up หน้าเว็บ
-9. chunk_hints: คำถามตัวอย่างที่แอดมินผูกกับ chunk ของเอกสาร (สอนบอทผ่านเอกสาร)
 """
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
-    String, Text, Float, Integer, Boolean, DateTime, ForeignKey, JSON, UniqueConstraint
+    String, Text, Float, Integer, Boolean, DateTime, ForeignKey, JSON
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -166,7 +165,7 @@ class UnansweredQuery(Base):
     ตาราง unanswered: บันทึกคำถามที่ระบบตอบไม่ได้ หรือหาเอกสารอ้างอิงไม่เจอ
     - count: นับความถี่หากมีคำถามเดียวกันถูกถามซ้ำ
     - status: 'Pending' (รอดำเนินการ), 'Resolved' (แก้ไขแล้ว) หรือ 'Ignored' (ไม่แก้ไข)
-    - resolution_type: วิธีที่แอดมินใช้แก้ ('custom_faq' / 'document_upload' / 'chunk_hint')
+    - resolution_type: วิธีที่แอดมินใช้แก้ ('custom_faq' / 'document_upload' / 'chunk_edit')
     - ignore_reason / note: เหตุผลที่ไม่แก้ไข + หมายเหตุอิสระ เก็บไว้ทำสถิติภายหลัง
     """
     __tablename__ = "unanswered"
@@ -176,7 +175,7 @@ class UnansweredQuery(Base):
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="จำนวนครั้งที่คำถามนี้ถูกถามซ้ำ")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="Pending", comment="สถานะ ('Pending' / 'Resolved' / 'Ignored')")
     resolution_type: Mapped[Optional[str]] = mapped_column(
-        String(50), nullable=True, comment="วิธีแก้ไข ('custom_faq' / 'document_upload' / 'chunk_hint')"
+        String(50), nullable=True, comment="วิธีแก้ไข ('custom_faq' / 'document_upload' / 'chunk_edit')"
     )
     ignore_reason: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True, comment="เหตุผลที่ไม่แก้ไข ('spam' / 'chit_chat' / 'out_of_scope' / 'other')"
@@ -240,35 +239,3 @@ class Announcement(Base):
 
     creator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by_id])
 
-
-# ─── 9. Chunk Hints ───────────────────────────────────────────────────────────
-
-class ChunkHint(Base):
-    """
-    ตาราง chunk_hints: คำถามตัวอย่างที่แอดมินผูกกับ chunk ของเอกสาร PDF
-    ใช้กรณีเอกสารมีคำตอบอยู่แล้วแต่บอทค้นไม่เจอ — คำถามจะถูกต่อท้ายเฉพาะข้อความที่ใช้ทำดัชนีค้นหา
-    (ดู Admin/emb.py: apply_chunk_hints) เนื้อหา chunk ที่ส่งให้ LLM ยังเป็นของเดิมจาก PDF
-    - ผูกกับ chunk ด้วย (source, chunk_hash) แทน chunk_id เพราะ chunk_id เปลี่ยนทุกครั้งที่ rebuild
-    - content_preview: สำเนาเนื้อหา chunk ตอนบันทึก ไว้แสดงผลกรณีเอกสารถูกแก้จนหา chunk เดิมไม่เจอ
-    """
-    __tablename__ = "chunk_hints"
-    __table_args__ = (UniqueConstraint("source", "chunk_hash", name="uq_chunk_hints_source_hash"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="รหัส hint (Primary Key)")
-    source: Mapped[str] = mapped_column(String(255), nullable=False, comment="ชื่อไฟล์เอกสารต้นทางของ chunk")
-    chunk_hash: Mapped[str] = mapped_column(String(64), nullable=False, comment="SHA-256 ของเนื้อหา chunk")
-    page: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="เลขหน้าของ chunk ตอนบันทึก")
-    content_preview: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="สำเนาเนื้อหา chunk ตอนบันทึก")
-    questions: Mapped[str] = mapped_column(Text, nullable=False, comment="คำถามตัวอย่าง (JSON array of string)")
-    unanswered_id: Mapped[Optional[str]] = mapped_column(
-        String(255), ForeignKey("unanswered.id", ondelete="SET NULL"), nullable=True, comment="คำถามที่บอทตอบไม่ได้ซึ่งเป็นต้นเหตุ (Foreign Key)"
-    )
-    created_by_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="รหัสผู้ใช้งานที่บันทึก (Foreign Key)"
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), comment="วันเวลาที่สร้าง")
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="วันเวลาที่แก้ไขล่าสุด"
-    )
-
-    creator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by_id])
