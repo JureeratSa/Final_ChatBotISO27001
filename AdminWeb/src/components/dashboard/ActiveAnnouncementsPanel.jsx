@@ -1,6 +1,6 @@
 /**
  * ActiveAnnouncementsPanel — รายการประกาศระบบที่ Active อยู่ตอนนี้ (สูงสุด 3 รายการ) ในหน้า
- * Dashboard แยกออกมาจาก DashboardPage.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * Dashboard แยกออกมาจาก DashboardPage.jsx เดิม
  */
 /**
  * ลบแท็ก HTML ออกจากข้อความเพื่อแสดงผลเป็น Plain text สำหรับการ์ดตัวอย่าง

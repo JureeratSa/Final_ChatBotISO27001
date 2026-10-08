@@ -4,7 +4,7 @@ import { useState } from 'react';
  * useDashboardData — ดึงข้อมูลสถิติภาพรวม (GET /api/admin/stats) และ state ของ
  * slide-out panel "Trend Drawer" ที่เปิดจากการคลิกจุดบนกราฟแนวโน้มในหน้า Dashboard
  * (ตัวคำนวณ/render กราฟยังอยู่ใน component ของหน้า Dashboard เอง ตามแผน)
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  */
 export function useDashboardData(API_URL, fetch) {
   const [stats, setStats] = useState({

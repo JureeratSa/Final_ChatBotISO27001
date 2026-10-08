@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Unanswered Queries
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 ย้าย business logic ไปที่ app/services/unanswered_service.py
 """
 import json

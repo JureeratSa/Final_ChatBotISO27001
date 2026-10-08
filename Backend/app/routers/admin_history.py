@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: History
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 history_row_to_response() ย้ายไปที่ app/services/history_service.py
 """
 import json

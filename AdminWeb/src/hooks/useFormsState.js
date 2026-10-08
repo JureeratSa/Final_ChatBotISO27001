@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 /**
  * useFormsState — จัดการแบบฟอร์มสวัสดิการ (Welfare Forms) CRUD: รายการ, เพิ่ม/อัปโหลด PDF
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม (การลบยังคงอยู่ใน confirmDelete
+ * แยกออกมาจาก App.jsx เดิม (การลบยังคงอยู่ใน confirmDelete
  * ของ useDeleteConfirmation เหมือนเดิม เพราะใช้ modal ยืนยันร่วมกันหลายโดเมน)
  */
 export function useFormsState(API_URL, fetch, showSuccess, showError) {

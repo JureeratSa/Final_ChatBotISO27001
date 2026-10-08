@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
  * useDocumentsState — โดเมนที่ใหญ่ที่สุดของ AdminWeb: รายการเอกสาร PDF, การอัปโหลด,
  * pipeline อนุมัติ (raw → clean → chunk → active), พรีวิว/แก้ไขเนื้อหาแต่ละขั้นตอน,
  * แก้ไขรายละเอียดเอกสารและ chunk ทั้งหมด รวมถึงตาราง/ค้นหา/แบ่งหน้า
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  */
 export function useDocumentsState(API_URL, fetch, showSuccess, showError, fetchStats) {
   const [documents, setDocuments] = useState([]);
