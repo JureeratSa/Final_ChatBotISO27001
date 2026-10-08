@@ -7,20 +7,27 @@ import { IGNORE_REASONS } from './unansweredLabels';
  *
  * mode="resolve" (ปุ่ม "แก้ไข") แบ่งเป็นขั้นตอน:
  *   ask       → ถามว่าข้อมูลนี้มีในเอกสาร PDF แล้วหรือยัง
- *   in_pdf    → มีแล้วแต่บอทหาไม่เจอ: แนะนำวิธีสอน + คำค้นจาก AI แล้วลงทะเบียน Custom FAQ
+ *   in_pdf    → มีแล้วแต่บอทหาไม่เจอ: สอนคำค้นภาษาเอกสาร (AI เสนอ แอดมินเพิ่ม/ลบได้) — คำถามใหม่ที่
+ *               คล้ายคำถามนี้จะถูกเติมคำค้นเหล่านี้ตอนค้นเอกสาร (Backend: taught_keywords_service)
  *   upload    → ยังไม่มี: อัปโหลด PDF ใหม่ (ฟอร์มเดียวกับหน้าจัดการเอกสาร)
  *   uploaded  → อัปโหลดแล้ว: เตือนให้ไปอนุมัติ pipeline ในหน้าจัดการเอกสาร
  * mode="ignore" (ปุ่ม "ไม่แก้ไข") → เลือกเหตุผล + หมายเหตุ แล้วปิดรายการเป็น Ignored
- *
- * หมายเหตุ: ไม่มีทางเลือก "แก้ส่วนย่อย (chunk)" ใน flow นี้ เพราะการบันทึก chunk ในหน้าเอกสาร
- * เขียนแค่ไฟล์ .chunks.json แต่ยังไม่ถูกนำเข้า index ที่บอทใช้ค้นจริง
  */
+// รวมคำค้นแบบไม่ซ้ำ (ไม่สนตัวพิมพ์/ช่องว่างหัวท้าย) สูงสุด 10 คำ ตาม validation ของ backend
+const mergeKeywords = (current, incoming) => {
+  const merged = [...current];
+  incoming.forEach(raw => {
+    const kw = (raw || '').trim().replace(/\s+/g, ' ');
+    if (kw && !merged.some(m => m.toLowerCase() === kw.toLowerCase())) merged.push(kw);
+  });
+  return merged.slice(0, 10);
+};
+
 export default function ResolveUnansweredModal({ item, mode, onClose }) {
   const {
     analyzeUnansweredQuery,
     handleResolveUnanswered,
     handleTabClick,
-    saveCustomFaq,
     uploadFile,
     uploadProgress,
     uploading,
@@ -29,9 +36,9 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
   const [step, setStep] = useState(mode === 'ignore' ? 'ignore' : 'ask');
   const [submitting, setSubmitting] = useState(false);
 
-  // in_pdf
-  const [faqQuestion, setFaqQuestion] = useState(item.query);
-  const [faqAnswer, setFaqAnswer] = useState('');
+  // in_pdf — เริ่มจากคำค้นที่เคยสอนไว้ (กรณีรายการถูกเปิดกลับมาเพราะยังตอบไม่ได้) แล้วเติมคำที่ AI เสนอ
+  const [keywords, setKeywords] = useState(item.search_keywords || []);
+  const [newKeyword, setNewKeyword] = useState('');
   const [analysis, setAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
@@ -48,7 +55,9 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
     if (step !== 'in_pdf' || analysis || analysisLoading) return;
     setAnalysisLoading(true);
     analyzeUnansweredQuery(item.query).then(result => {
-      setAnalysis(result || { is_valid_query: true, suggested_keywords: [] });
+      const res = result || { is_valid_query: true, suggested_keywords: [] };
+      setAnalysis(res);
+      setKeywords(prev => mergeKeywords(prev, res.suggested_keywords || []));
       setAnalysisLoading(false);
     });
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -57,21 +66,21 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
     if (!submitting) onClose();
   };
 
-  const submitFaq = async (e) => {
+  const addKeyword = (e) => {
     e.preventDefault();
-    if (!faqQuestion.trim() || !faqAnswer.trim()) return;
+    setKeywords(prev => mergeKeywords(prev, [newKeyword]));
+    setNewKeyword('');
+  };
+
+  const submitKeywords = async () => {
+    if (!keywords.length) return;
     setSubmitting(true);
-    const ok = await saveCustomFaq(faqQuestion, faqAnswer);
-    if (ok) {
-      await handleResolveUnanswered(item.id, 'Resolved', {
-        resolution_type: 'custom_faq',
-        note: faqQuestion.trim() !== item.query.trim() ? `คำถาม FAQ: ${faqQuestion.trim()}` : undefined,
-      });
-      setSubmitting(false);
-      onClose();
-      return;
-    }
+    const ok = await handleResolveUnanswered(item.id, 'Resolved', {
+      resolution_type: 'search_keywords',
+      search_keywords: keywords,
+    });
     setSubmitting(false);
+    if (ok) onClose();
   };
 
   const submitUpload = async (e) => {
@@ -109,7 +118,7 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
 
   const title = {
     ask: 'แก้ไขคำถามที่บอทตอบไม่ได้',
-    in_pdf: 'สอนคำตอบให้บอท',
+    in_pdf: 'สอนคำค้นให้บอท',
     upload: 'อัปโหลดเอกสารใหม่',
     uploaded: 'อัปโหลดเอกสารแล้ว',
     ignore: 'ไม่แก้ไขคำถามนี้',
@@ -117,7 +126,7 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
 
   const icon = {
     ask: 'fa-screwdriver-wrench',
-    in_pdf: 'fa-feather',
+    in_pdf: 'fa-wand-magic-sparkles',
     upload: 'fa-file-circle-plus',
     uploaded: 'fa-circle-check',
     ignore: 'fa-ban',
@@ -169,7 +178,7 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
                     <i className="fa-solid fa-file-circle-check"></i> มีในเอกสารแล้ว
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
-                    แต่บอทหาไม่เจอ → สอนคำตอบให้บอท
+                    แต่บอทหาไม่เจอ → สอนคำค้นให้บอท
                   </div>
                 </button>
                 <button
@@ -192,77 +201,75 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
           )}
 
           {step === 'in_pdf' && (
-            <form onSubmit={submitFaq} className="space-y-4">
-              <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/20 text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
-                <div className="font-extrabold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                  <i className="fa-solid fa-lightbulb"></i> วิธีสอนบอท
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl border border-dashed border-tuh-purple/20 bg-slate-50 dark:bg-[#100220]/25 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <i className="fa-solid fa-wand-magic-sparkles text-tuh-rose"></i> คำค้นแนะนำโดย AI
+                  </span>
+                  {analysisLoading && (
+                    <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                      <i className="fa-solid fa-spinner animate-spin text-[10px]"></i> กำลังวิเคราะห์...
+                    </span>
+                  )}
                 </div>
-                <ol className="list-decimal pl-4 space-y-1">
-                  <li>เปิดเอกสาร PDF ที่มีคำตอบ แล้วสรุปคำตอบให้สั้น กระชับ ตรงประเด็น</li>
-                  <li>
-                    ตัด "คำถาม FAQ" ให้เหลือแค่แก่นของคำถาม — บอทจะตอบด้วย FAQ นี้เมื่อ
-                    <span className="text-tuh-rose"> ข้อความคำถาม FAQ ปรากฏอยู่ในคำถามของผู้ใช้</span>
-                    {' '}เช่น "ISMS คืออะไร" จะจับได้ทั้ง "ระบบ ISMS คืออะไร" และ "อยากรู้ว่า ISMS คืออะไรครับ"
-                  </li>
-                  <li>ระบุชื่อเอกสาร/หน้าอ้างอิงท้ายคำตอบ เพื่อให้ผู้ใช้ตามไปอ่านต่อได้</li>
-                </ol>
-              </div>
 
-              <div className="p-4 rounded-2xl border border-dashed border-tuh-purple/20 bg-slate-50 dark:bg-[#100220]/25 space-y-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <i className="fa-solid fa-wand-magic-sparkles text-tuh-rose"></i> คำค้นแนะนำโดย AI
-                </span>
-                {analysisLoading && (
-                  <div className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <i className="fa-solid fa-spinner animate-spin text-[10px]"></i> กำลังวิเคราะห์...
-                  </div>
-                )}
                 {analysis && analysis.is_valid_query === false && (
                   <div className="text-xs font-semibold text-rose-500 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
                     ⚠️ AI ประเมินว่าข้อความนี้อาจเป็นคำทักทายหรือข้อความขยะ — พิจารณาเลือก "ไม่แก้ไข" แทน
                   </div>
                 )}
-                {analysis && analysis.is_valid_query !== false && (
-                  analysis.suggested_keywords?.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {analysis.suggested_keywords.map((kw, i) => (
-                        <span key={i} className="px-2.5 py-1 text-xs font-bold rounded-lg bg-tuh-rose/10 text-tuh-rose">{kw}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-400 font-semibold">ไม่มีคำแนะนำ</div>
-                  )
-                )}
+
+                <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+                  {keywords.map(kw => (
+                    <span key={kw} className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 text-xs font-bold rounded-lg bg-tuh-rose/10 text-tuh-rose">
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => setKeywords(keywords.filter(k => k !== kw))}
+                        className="w-4 h-4 rounded flex items-center justify-center hover:bg-tuh-rose/20 transition"
+                        title="ลบคำนี้"
+                      >
+                        <i className="fa-solid fa-xmark text-[10px]"></i>
+                      </button>
+                    </span>
+                  ))}
+                  {!analysisLoading && keywords.length === 0 && (
+                    <span className="text-xs text-slate-400 font-semibold">ยังไม่มีคำค้น — พิมพ์เพิ่มด้านล่าง</span>
+                  )}
+                </div>
+
+                <form onSubmit={addKeyword} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newKeyword}
+                    maxLength={100}
+                    onChange={(e) => setNewKeyword(e.target.value)}
+                    placeholder="เพิ่มคำค้น เช่น คอมพิวเตอร์แบบพกพา"
+                    className="flex-1 min-w-0 tuh-glass-2 rounded-xl py-2 px-3 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newKeyword.trim() || keywords.length >= 10}
+                    className="px-3 rounded-xl bg-tuh-rose/10 text-tuh-rose font-bold text-xs hover:bg-tuh-rose/20 transition disabled:opacity-40"
+                  >
+                    <i className="fa-solid fa-plus mr-1"></i> เพิ่ม
+                  </button>
+                </form>
+
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                  💡 ใช้คำที่เขียนอยู่ในเอกสาร (ภาษาทางการ) ไม่ใช่คำที่ผู้ใช้พิมพ์ — เมื่อมีคนถามคำถามคล้ายกันนี้
+                  ระบบจะใช้คำเหล่านี้ช่วยค้นเอกสารให้เจอ
+                </div>
               </div>
 
-              <div>
-                <label className={labelClass}>คำถาม FAQ (ตัดให้เหลือแก่นของคำถาม)</label>
-                <input
-                  type="text"
-                  required
-                  value={faqQuestion}
-                  onChange={(e) => setFaqQuestion(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>คำตอบ (บอทจะตอบข้อความนี้ตรงๆ ทันที)</label>
-                <textarea
-                  rows="4"
-                  required
-                  placeholder="เขียนคำตอบที่สั้น กระชับ ตรงประเด็น พร้อมอ้างอิงเอกสาร..."
-                  value={faqAnswer}
-                  onChange={(e) => setFaqAnswer(e.target.value)}
-                  className={`${inputClass} text-sm leading-relaxed`}
-                ></textarea>
-              </div>
               <div className="flex justify-between gap-3 pt-2">
                 {backBtn}
-                <button type="submit" disabled={submitting} className={primaryBtnClass}>
-                  <i className={`fa-solid ${submitting ? 'fa-spinner animate-spin' : 'fa-save'} mr-1.5`}></i> ลงทะเบียนคำตอบและปิดรายการ
+                <button type="button" onClick={submitKeywords} disabled={submitting || !keywords.length} className={primaryBtnClass}>
+                  <i className={`fa-solid ${submitting ? 'fa-spinner animate-spin' : 'fa-save'} mr-1.5`}></i> บันทึกคำค้นและปิดรายการ
                 </button>
               </div>
-            </form>
+            </div>
           )}
 
           {step === 'upload' && (

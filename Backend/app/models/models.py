@@ -165,7 +165,9 @@ class UnansweredQuery(Base):
     ตาราง unanswered: บันทึกคำถามที่ระบบตอบไม่ได้ หรือหาเอกสารอ้างอิงไม่เจอ
     - count: นับความถี่หากมีคำถามเดียวกันถูกถามซ้ำ
     - status: 'Pending' (รอดำเนินการ), 'Resolved' (แก้ไขแล้ว) หรือ 'Ignored' (ไม่แก้ไข)
-    - resolution_type: วิธีที่แอดมินใช้แก้ ('custom_faq' / 'document_upload' / 'chunk_edit')
+    - resolution_type: วิธีที่แอดมินใช้แก้ ('custom_faq' / 'document_upload' / 'search_keywords')
+    - search_keywords: คำค้นภาษาเอกสารที่แอดมินสอน ใช้เมื่อ resolution_type='search_keywords' และ status=Resolved
+      (ดู app/services/taught_keywords_service.py)
     - ignore_reason / note: เหตุผลที่ไม่แก้ไข + หมายเหตุอิสระ เก็บไว้ทำสถิติภายหลัง
     """
     __tablename__ = "unanswered"
@@ -175,7 +177,10 @@ class UnansweredQuery(Base):
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="จำนวนครั้งที่คำถามนี้ถูกถามซ้ำ")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="Pending", comment="สถานะ ('Pending' / 'Resolved' / 'Ignored')")
     resolution_type: Mapped[Optional[str]] = mapped_column(
-        String(50), nullable=True, comment="วิธีแก้ไข ('custom_faq' / 'document_upload' / 'chunk_edit')"
+        String(50), nullable=True, comment="วิธีแก้ไข ('custom_faq' / 'document_upload' / 'search_keywords')"
+    )
+    search_keywords: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="คำค้นที่แอดมินสอน (JSON array) — เติมให้คำถามที่คล้ายกันตอนค้นเอกสาร"
     )
     ignore_reason: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True, comment="เหตุผลที่ไม่แก้ไข ('spam' / 'chit_chat' / 'out_of_scope' / 'other')"

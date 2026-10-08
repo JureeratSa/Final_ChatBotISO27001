@@ -3,6 +3,7 @@ TUH Chatbot AI — Admin Router: Unanswered Queries
 แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
 ย้าย business logic ไปที่ app/services/unanswered_service.py
 """
+import json
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,6 +17,7 @@ from app.routers.auth import get_current_user
 from app.models.models import User, UnansweredQuery
 from app.schemas.schemas import UnansweredResponse, UnansweredUpdate, UnansweredSubmit
 from app.services.unanswered_service import record_unanswered_query, analyze_query, apply_unanswered_update
+from app.services.taught_keywords_service import invalidate_cache as invalidate_taught_keywords
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -37,6 +39,7 @@ def _to_response(u: UnansweredQuery) -> UnansweredResponse:
         note=u.note,
         resolved_by=u.resolver.display_name if u.resolver else None,
         resolved_at=_fmt(u.resolved_at),
+        search_keywords=json.loads(u.search_keywords or "[]"),
     )
 
 
@@ -77,6 +80,7 @@ async def update_unanswered(
         raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
     apply_unanswered_update(item, body, current_user)
     await db.commit()
+    invalidate_taught_keywords()
     await db.refresh(item)
     await db.refresh(item, attribute_names=["resolver"])
     return _to_response(item)

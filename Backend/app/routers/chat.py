@@ -30,6 +30,7 @@ from app.services.rag_service import (
 
 from app.core.security import safe_path
 from app.core.rate_limit import rate_limit_dependency
+from app.services.taught_keywords_service import expand_retrieval_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -113,6 +114,8 @@ async def chat(
                 top_k = config.get("top_k", 3)
                 # คำถามต่อเนื่องสั้นๆ ("มีแนะนำมั้ย") → เติมหัวข้อจากประวัติก่อนค้น (ใช้เฉพาะตอนค้นเอกสาร)
                 retrieval_query = await condense_question(query, body.history, config)
+                # คำถามคล้ายคำถามที่แอดมินสอนคำค้นไว้ → เติมคำค้นภาษาเอกสาร (ใช้เฉพาะตอนค้น)
+                retrieval_query = await expand_retrieval_query(db, retriever, retrieval_query)
                 loop = asyncio.get_event_loop()
                 rag_results = await loop.run_in_executor(None, lambda: retriever.query(retrieval_query, top_k=top_k))
         except Exception as e:

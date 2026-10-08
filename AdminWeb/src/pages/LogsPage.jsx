@@ -138,6 +138,14 @@ export default function LogsPage() {
                     <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
                       <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-100">
                         {log.query}
+                        {log.status === 'Resolved' && log.resolution_type === 'search_keywords' && log.search_keywords?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5" title="คำถามที่คล้ายกันจะใช้คำค้นเหล่านี้ช่วยค้นเอกสาร">
+                            <i className="fa-solid fa-wand-magic-sparkles text-[10px] text-tuh-rose/70 mr-0.5"></i>
+                            {log.search_keywords.map(kw => (
+                              <span key={kw} className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-tuh-rose/10 text-tuh-rose">{kw}</span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center font-black">
                         {log.count} ครั้ง
