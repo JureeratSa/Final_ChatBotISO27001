@@ -227,6 +227,7 @@ class UnansweredResponse(BaseModel):
     note: Optional[str] = None
     resolved_by: Optional[str] = None  # display_name ของผู้ปิดรายการ
     resolved_at: Optional[str] = None
+    search_keywords: List[str] = []
 
     class Config:
         from_attributes = True
@@ -237,11 +238,28 @@ class UnansweredUpdate(BaseModel):
     status=Pending  → ย้อนสถานะ ล้างข้อมูลการปิดรายการทั้งหมด
     status=Resolved → resolution_type ไม่บังคับ (เผื่อ client เดิมที่ส่งแค่ status)
     status=Ignored  → ต้องระบุ ignore_reason
+    resolution_type=search_keywords → ต้องมี search_keywords อย่างน้อย 1 คำ
     """
     status: Literal["Pending", "Resolved", "Ignored"]
-    resolution_type: Optional[Literal["custom_faq", "document_upload", "chunk_edit"]] = None
+    resolution_type: Optional[Literal["custom_faq", "document_upload", "search_keywords"]] = None
     ignore_reason: Optional[Literal["spam", "chit_chat", "out_of_scope", "other"]] = None
     note: Optional[str] = Field(default=None, max_length=1000)
+    search_keywords: Optional[List[str]] = Field(default=None, max_length=10)
+
+    @field_validator("search_keywords")
+    @classmethod
+    def _clean_keywords(cls, v):
+        if v is None:
+            return v
+        cleaned, seen = [], set()
+        for kw in v:
+            kw = " ".join((kw or "").split())
+            if len(kw) > 100:
+                raise ValueError("คำค้นยาวเกิน 100 ตัวอักษร")
+            if kw and kw.lower() not in seen:
+                seen.add(kw.lower())
+                cleaned.append(kw)
+        return cleaned
 
     @model_validator(mode="after")
     def _check_status_fields(self):
@@ -251,6 +269,10 @@ class UnansweredUpdate(BaseModel):
             raise ValueError("resolution_type ใช้ได้เฉพาะ status=Resolved")
         if self.status != "Ignored" and self.ignore_reason:
             raise ValueError("ignore_reason ใช้ได้เฉพาะ status=Ignored")
+        if self.resolution_type == "search_keywords" and not self.search_keywords:
+            raise ValueError("ต้องระบุคำค้นอย่างน้อย 1 คำ")
+        if self.search_keywords and self.resolution_type != "search_keywords":
+            raise ValueError("search_keywords ใช้ได้เฉพาะ resolution_type=search_keywords")
         return self
 
 

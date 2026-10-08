@@ -148,6 +148,7 @@ async def compatibility_search(
         split_used_sources, condense_question,
     )
     from app.routers.chat import save_history, save_unanswered
+    from app.services.taught_keywords_service import expand_retrieval_query
 
     start_time = time.time()
     query = body.query.strip()
@@ -195,6 +196,7 @@ async def compatibility_search(
                     top_k = config.get("top_k", 3)
                     # เติมหัวข้อจากประวัติแชทให้คำถามต่อเนื่องสั้นๆ ก่อนค้น (เหมือน chat.py)
                     retrieval_query = await condense_question(query, body.history, config)
+                    retrieval_query = await expand_retrieval_query(db, retriever, retrieval_query)
                     loop = asyncio.get_event_loop()
                     rag_results = await loop.run_in_executor(None, lambda: retriever.query(retrieval_query, top_k=top_k))
             except Exception as e:
