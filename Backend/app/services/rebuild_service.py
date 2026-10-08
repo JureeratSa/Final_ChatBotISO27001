@@ -76,10 +76,6 @@ def _delete_from_search_index(filename: str):
 
         removed = delete_document_from_index(filename, retriever=get_retriever())
         logger.info("[Delete Index] ลบ %s chunk ของ '%s' ออกจากดัชนีค้นหาแล้ว", removed, filename)
-
-        # delete_document_from_index สร้าง BM25 ใหม่จากเนื้อหาเดิมล้วน — นำ chunk hints ของเอกสารอื่นกลับเข้า
-        from app.services.chunk_hint_service import sync_hints_to_index
-        sync_hints_to_index()
     except Exception as e:
         logger.error("[Delete Index Error] ลบ '%s' ออกจากดัชนีค้นหาไม่สำเร็จ: %s", filename, e)
 
@@ -99,10 +95,6 @@ def _trigger_rebuild_background():
 
         from app.services.rag_service import reload_retriever
         reload_retriever()
-
-        # rebuild ใช้ embedding จาก cache ที่ยังไม่มีคำถามตัวอย่าง — นำ chunk hints กลับเข้าดัชนี
-        from app.services.chunk_hint_service import sync_hints_to_index
-        sync_hints_to_index()
 
         duration = round(time.time() - start, 2)
         _sync_update_rebuild_status("success", f"Rebuild สำเร็จใน {duration} วินาที", duration=duration)
