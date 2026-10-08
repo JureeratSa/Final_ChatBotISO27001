@@ -226,7 +226,20 @@ def chunk_document_text(full_text, filename, start_chunk_id=1):
 
 # เรียกทุก def มาใช้งาน
 
-def rebuild():
+def rebuild(documents=None):
+    """
+    สร้างดัชนีค้นหา (ChromaDB + BM25) ใหม่ทั้งคลังจาก PDF ใน uploads/
+
+    documents: รายการเอกสารจาก TiDB [{"filename", "status", "exclude_pages": [int, ...]}]
+      ส่งมาจาก Backend (app/services/rebuild_service.py) — ใช้เฉพาะเอกสาร status="Active"
+      และละเว้นหน้าตาม exclude_pages ที่แอดมินตั้งไว้
+      เดิมอ่านจาก user/backend/db/db_documents.json ซึ่งเลิกใช้ไปแล้วหลังย้ายไป TiDB (ไฟล์ว่าง)
+      ทำให้ PDF ทุกไฟล์ถูกนำเข้า ไม่ว่าจะปิดใช้งาน/ยังไม่อนุมัติ และไม่เคยละเว้นหน้าที่แอดมินตั้งไว้
+      (ผลวัด 2026-10-08: 39/400 ของ context ที่ส่งให้ LLM มาจากหน้าที่ควรละเว้น เช่น ปก/สารบัญ)
+    None = โหมด CLI (python Admin/rebuild_db.py) อ่าน db_documents.json แบบเดิม
+
+    คืน {filename: {"chunking_duration", "embedding_duration"}} ให้ Backend บันทึกลง DB
+    """
     import time
     start_time = time.perf_counter()
     
@@ -248,23 +261,29 @@ def rebuild():
     
     if not os.path.exists(uploads_dir):
         print(f"Uploads directory not found: {uploads_dir}")
-        return
+        return {}
         
     pdf_files = [f for f in os.listdir(uploads_dir) if f.lower().endswith(".pdf")]
     print(f"Found {len(pdf_files)} PDF documents on disk.")
     
     db_docs_path = os.path.join(root_dir, "user", "backend", "db", "db_documents.json")
-    if os.path.exists(db_docs_path):
-        with open(db_docs_path, "r", encoding="utf-8") as f:
-            docs_db = json.load(f)
+    if documents is not None:
+        docs_db = documents
+        active_filenames = {d["filename"] for d in docs_db if d.get("status") == "Active"}
     else:
-        docs_db = []
-        
-    active_filenames = {d["filename"] for d in docs_db if d.get("status", "Active") in ["Active", "Processing"]}
-    if not docs_db:
-        # ถ้าไม่มีข้อมูลเปิดใช้งาน ให้สแกนทำทั้งหมด
-        active_filenames = set(pdf_files)
-        
+        print("คำเตือน: ไม่ได้รับรายการเอกสารจาก Backend — ใช้ db_documents.json (legacy)")
+        if os.path.exists(db_docs_path):
+            with open(db_docs_path, "r", encoding="utf-8") as f:
+                docs_db = json.load(f)
+        else:
+            docs_db = []
+
+        active_filenames = {d["filename"] for d in docs_db if d.get("status", "Active") in ["Active", "Processing"]}
+        if not docs_db:
+            # ถ้าไม่มีข้อมูลเปิดใช้งาน ให้สแกนทำทั้งหมด
+            active_filenames = set(pdf_files)
+    durations = {}
+
     combined_docs_data = []
     model = None
     
@@ -284,7 +303,7 @@ def rebuild():
         
         # ดึงการละเว้นหน้า
         doc_record = next((d for d in docs_db if d["filename"] == pdf), {})
-        exclude_pages = doc_record.get("exclude_pages", [])
+        exclude_pages = sorted(int(p) for p in (doc_record.get("exclude_pages") or []))
         
         # สร้างชื่อไฟล์ cache (กรองชื่อพิเศษให้ปลอดภัย)
         safe_name = re.sub(r'[^\w\u0e00-\u0e7f\.\-]', '_', pdf)
@@ -402,19 +421,22 @@ def rebuild():
                 "embeddings": embeddings_list
             })
 
-        # อัปเดตข้อมูลระยะเวลาลงใน docs_db
-        for d in docs_db:
-            if d["filename"] == pdf:
-                d["chunking_duration"] = round(chunking_duration, 4)
-                d["embedding_duration"] = round(embedding_duration, 4)
+        durations[pdf] = {
+            "chunking_duration": round(chunking_duration, 4),
+            "embedding_duration": round(embedding_duration, 4),
+        }
 
-    # บันทึกข้อมูลที่อัปเดตระยะเวลาลงใน db_documents.json
-    try:
-        with open(db_docs_path, "w", encoding="utf-8") as f:
-            json.dump(docs_db, f, ensure_ascii=False, indent=2)
-        print("💾 บันทึกเวลาสกัดคำและเวกเตอร์ลงใน db_documents.json เรียบร้อยแล้ว")
-    except Exception as e:
-        print(f"Error saving durations to db_documents.json: {e}")
+    if documents is None:
+        # โหมด CLI เดิม: บันทึกระยะเวลาลง db_documents.json (โหมด Backend คืนค่าให้ไปบันทึกลง TiDB เอง)
+        for d in docs_db:
+            if d["filename"] in durations:
+                d.update(durations[d["filename"]])
+        try:
+            with open(db_docs_path, "w", encoding="utf-8") as f:
+                json.dump(docs_db, f, ensure_ascii=False, indent=2)
+            print("💾 บันทึกเวลาสกัดคำและเวกเตอร์ลงใน db_documents.json เรียบร้อยแล้ว")
+        except Exception as e:
+            print(f"Error saving durations to db_documents.json: {e}")
             
     # รวบรวมข้อมูลทั้งหมด
     all_chunks = []
@@ -529,6 +551,8 @@ def rebuild():
             print("บันทึกเวลาการสร้างดัชนีลงใน db_settings.json เรียบร้อย")
         except Exception as e:
             print(f"ไม่สามารถบันทึกเวลาลงในไฟล์ได้: {e}")
+
+    return durations
 
 if __name__ == "__main__":
     rebuild()
