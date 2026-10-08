@@ -4,7 +4,6 @@ Tests: สอนบอทผ่านเอกสาร (chunk hints)
     (ใช้ดัชนีชั่วคราวใน tmp_path + โมเดลปลอม ไม่โหลด bge-m3 และไม่แตะ index_db จริง)
   - /api/admin/rag/*: ทดสอบค้นหา, ค้นหา chunk, บันทึก/ลบ hint (retriever ปลอม + mock การเขียนดัชนี)
 """
-import json
 import pickle
 import sys
 from pathlib import Path
@@ -17,7 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from Admin import emb  # noqa: E402
 from tests.conftest import auth_header  # noqa: E402
-from app.models.models import ChunkHint, SystemSettings  # noqa: E402
+from app.models.models import SystemSettings  # noqa: E402
 from app.services import chunk_hint_service as hint_svc  # noqa: E402
 from app.services import rag_service  # noqa: E402
 
@@ -215,6 +214,16 @@ async def test_suggest_falls_back_to_original_query_without_api_key(client, admi
     resp = await client.post("/api/admin/rag/chunk-hints/suggest", headers=auth_header(admin_user.username), json={
         "source": "mobile.pdf", "chunk_hash": emb.chunk_hash(CHUNKS[1]["content"]), "query": "ทบทวนนโยบายเมื่อไหร่"})
     assert resp.json() == {"questions": ["ทบทวนนโยบายเมื่อไหร่"]}
+
+
+async def test_suggest_puts_original_query_first_and_dedupes(client, admin_user, fake_rag, monkeypatch):
+    monkeypatch.setattr(type(hint_svc.settings), "LLM_API_KEY", property(lambda self: "test-key"))
+    llm_text = '["เอาโน้ตบุ๊กกลับบ้านได้ไหม", "ยืมโน้ตบุ๊กไปใช้นอกโรงพยาบาลได้ไหม"]'
+    monkeypatch.setattr(rag_service, "make_http_post",
+                        lambda *a, **k: {"choices": [{"message": {"content": llm_text}}]})
+    resp = await client.post("/api/admin/rag/chunk-hints/suggest", headers=auth_header(admin_user.username), json={
+        "source": "mobile.pdf", "chunk_hash": emb.chunk_hash(CHUNKS[1]["content"]), "query": "เอาโน้ตบุ๊กกลับบ้านได้ไหม"})
+    assert resp.json() == {"questions": ["เอาโน้ตบุ๊กกลับบ้านได้ไหม", "ยืมโน้ตบุ๊กไปใช้นอกโรงพยาบาลได้ไหม"]}
 
 
 async def test_rag_endpoints_require_auth(client, fake_rag):

@@ -108,17 +108,22 @@ def clean_questions(questions: List[str]) -> List[str]:
 
 async def suggest_questions(content: str, query: str) -> List[str]:
     """ให้ LLM เสนอคำถามตัวอย่าง 3-5 ข้อที่ chunk นี้ตอบได้ (แอดมินตรวจ/แก้ก่อนบันทึกเสมอ)
+    คำถามต้นเรื่องของผู้ใช้อยู่ข้อแรกเสมอ — ทดลองบนดัชนีจริง (2026-10-08) คำถามที่ LLM เสนอมักเป็น
+    ภาษาทางการตามเอกสาร ("คอมพิวเตอร์แบบพกพา") ไม่มีคำที่ผู้ใช้พิมพ์จริง ("โน้ตบุ๊ก", "กลับบ้าน")
+    จึงไม่ช่วยให้ค้นเจอ แต่ใส่คำถามต้นเรื่องแล้ว chunk ขึ้นจากนอก 10 อันดับเป็นอันดับ 1
     ไม่มี API key หรือเรียกไม่สำเร็จ → คืนคำถามต้นเรื่องอย่างเดียว ไม่ทำให้ UI พัง"""
-    from app.services.rag_service import make_http_post
+    from app.services import rag_service
 
-    fallback = clean_questions([query]) if query else []
+    fallback = clean_questions([query[:300]]) if query else []
     if not settings.LLM_API_KEY:
         return fallback
     prompt = (
         "คุณช่วยแอดมินระบบแชทบอทของโรงพยาบาล ให้เขียน 'คำถามตัวอย่าง' ที่ผู้ใช้น่าจะพิมพ์ถาม "
         "แล้วเนื้อหาด้านล่างตอบได้ เพื่อช่วยให้ระบบค้นหาเจอเนื้อหานี้\n"
-        "กฎ: 3-5 คำถาม ภาษาไทยแบบที่คนทั่วไปพิมพ์ สั้น ใช้คำสำคัญจากทั้งคำถามต้นเรื่องและเนื้อหา "
-        "ห้ามถามเรื่องที่เนื้อหาไม่ได้ตอบ ตอบกลับเป็น JSON array ของ string เท่านั้น\n\n"
+        "กฎ: 3-5 คำถาม ภาษาไทยแบบภาษาพูดที่คนทั่วไปพิมพ์ สั้น ใช้คำแบบเดียวกับคำถามต้นเรื่อง "
+        "(เช่น ผู้ใช้พิมพ์ 'โน้ตบุ๊ก' ให้ใช้ 'โน้ตบุ๊ก' ไม่ใช่แค่ 'คอมพิวเตอร์แบบพกพา' ตามเอกสาร) "
+        "และใส่คำพ้องความหมายที่คนมักใช้ ห้ามถามเรื่องที่เนื้อหาไม่ได้ตอบ "
+        "ตอบกลับเป็น JSON array ของ string เท่านั้น\n\n"
         f"คำถามต้นเรื่องที่บอทตอบไม่ได้: {query}\n\nเนื้อหา:\n{content[:3000]}"
     )
     payload = {
@@ -137,13 +142,13 @@ async def suggest_questions(content: str, query: str) -> List[str]:
         import asyncio
         loop = asyncio.get_event_loop()
         res = await loop.run_in_executor(
-            None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload, headers, 20
+            None, rag_service.make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload, headers, 20
         )
         text = res.get("choices", [{}])[0].get("message", {}).get("content", "")
         match = re.search(r"\[.*\]", text, re.DOTALL)
         parsed = json.loads(match.group(0)) if match else []
-        questions = clean_questions([str(q)[:300] for q in parsed if isinstance(q, str)])[:5]
-        return questions or fallback
+        suggested = [str(q)[:300] for q in parsed if isinstance(q, str)][:5]
+        return clean_questions(fallback + suggested)
     except Exception as e:
         logger.error("[Chunk Hint Suggest Error] %s", e)
         return fallback
