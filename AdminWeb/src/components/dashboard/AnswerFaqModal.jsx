@@ -1,19 +1,16 @@
 /**
  * AnswerFaqModal — modal ลงทะเบียนคำตอบตอบกลับ FAQ เปิดจากปุ่ม "เพิ่มใน FAQs" ของ
- * PendingQuestionsTable ในหน้า Dashboard แยกออกมาจาก DashboardPage.jsx เดิมแบบ verbatim
- * ไม่เปลี่ยนพฤติกรรม (คืนค่า null ถ้า show=false เหมือนเงื่อนไข `{showFaqModal && (...)}` เดิม)
+ * PendingQuestionsTable ในหน้า Dashboard แยกออกมาจาก DashboardPage.jsx เดิม
+ * (คืนค่า null ถ้า show=false เหมือนเงื่อนไข `{showFaqModal && (...)}` เดิม)
  */
 export default function AnswerFaqModal({
   show,
   currentUnanswered,
   setCurrentUnanswered,
-  analysisLoading,
-  analysisResult,
   faqAnswer,
   setFaqAnswer,
   onClose,
   onSubmit,
-  showSuccess,
 }) {
   if (!show) return null;
 
@@ -53,55 +50,6 @@ export default function AnswerFaqModal({
                 onChange={(e) => setCurrentUnanswered({ ...currentUnanswered, query: e.target.value })}
                 className="w-full tuh-glass-2 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold"
               />
-            </div>
-          )}
-
-          {/* AI Query Analysis Recommendations */}
-          {(analysisLoading || analysisResult) && (
-            <div className="p-4 rounded-2xl border border-dashed border-tuh-purple/20 bg-slate-50 dark:bg-[#100220]/25 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <i className="fa-solid fa-wand-magic-sparkles text-tuh-rose animate-pulse"></i>
-                  วิเคราะห์ประโยคและคำค้นหาแนะนำโดย AI
-                </span>
-                {analysisLoading && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                    <i className="fa-solid fa-spinner animate-spin text-[10px]"></i> กำลังวิเคราะห์...
-                  </span>
-                )}
-              </div>
-
-              {analysisResult && (
-                <div className="space-y-2">
-                  {analysisResult.is_valid_query === false ? (
-                    <div className="text-xs font-semibold text-rose-500 dark:text-rose-455 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
-                      ⚠️ AI ประเมินว่าเป็นข้อความขยะหรือคำทักทายทั่วไป (ไม่ใช่คำถามเกี่ยวกับสวัสดิการ)
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {analysisResult.suggested_keywords && analysisResult.suggested_keywords.map((kw, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(kw);
-                              showSuccess(`คัดลอกคำว่า "${kw}" แล้ว`);
-                            }}
-                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-tuh-rose/10 text-tuh-rose hover:bg-tuh-rose/20 transition active:scale-95 flex items-center gap-1"
-                          >
-                            {kw}
-                            <i className="fa-regular fa-copy text-[10px] opacity-60"></i>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-450 font-semibold">
-                        💡 คลิกที่คำสำคัญแนะนำด้านบนเพื่อคัดลอกและนำไปใช้ในการแต่งประโยค FAQ เพื่อการค้นหาที่แม่นยำขึ้น
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 

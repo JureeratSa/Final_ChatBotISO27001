@@ -18,8 +18,6 @@ import AnswerFaqModal from '../components/dashboard/AnswerFaqModal';
 export default function DashboardPage() {
   const {
     API_URL,
-    analysisLoading,
-    analysisResult,
     announcements,
     chunksMap,
     currentUnanswered,
@@ -36,7 +34,6 @@ export default function DashboardPage() {
     setTrendDrawer,
     settings,
     showFaqModal,
-    showSuccess,
     stats,
     trendDrawer,
     unanswered,
@@ -196,13 +193,10 @@ export default function DashboardPage() {
         show={showFaqModal}
         currentUnanswered={currentUnanswered}
         setCurrentUnanswered={setCurrentUnanswered}
-        analysisLoading={analysisLoading}
-        analysisResult={analysisResult}
         faqAnswer={faqAnswer}
         setFaqAnswer={setFaqAnswer}
         onClose={() => { setShowFaqModal(false); setCurrentUnanswered(null); }}
         onSubmit={handleSubmitFaq}
-        showSuccess={showSuccess}
       />
     </>
   );

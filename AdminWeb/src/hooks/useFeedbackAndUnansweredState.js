@@ -3,15 +3,9 @@ import { useState } from 'react';
 /**
  * useFeedbackAndUnansweredState — ความพึงพอใจ (feedback), คำถามที่บอทตอบไม่ได้ (unanswered),
  * และ flow ลงทะเบียนคำตอบ FAQ (ทั้งจากคำถามที่ตอบไม่ได้ และแก้ไข FAQ ที่ตั้งไว้ล่วงหน้า)
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
  *
  * รับ settings/setSettings มาจาก useSettingsState เพราะ handleSubmitFaq/handleSavePredefinedFaq
  * ต้องแก้ settings.custom_faqs / settings.predefined_faqs แล้วยิง POST /api/admin/settings เหมือนเดิม
- *
- * หมายเหตุ: analysisLoading/analysisResult ยังคงอยู่ (มี consumer คือ AnswerFaqModal ในหน้า
- * Dashboard) แต่ setter ของ 2 ตัวนี้เดิมมีอยู่เฉพาะใน handleOpenFaqModal ซึ่งเป็นโค้ดตายที่ไม่มี
- * ใครเรียกใช้เลย (ตรวจสอบด้วย grep แล้ว) จึงถูกลบทิ้งไปตามแผน — สถานะทั้งสองจึงจะเป็นค่าเริ่มต้น
- * (false / null) เสมอ ซึ่งเป็นพฤติกรรมเดิมที่มีอยู่แล้วก่อนการแยกไฟล์นี้ ไม่ได้เปลี่ยนแปลงเพิ่มเติม
  */
 export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showError, settings, setSettings, fetchStats) {
   const [feedback, setFeedback] = useState([]);
@@ -20,10 +14,6 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [currentUnanswered, setCurrentUnanswered] = useState(null);
   const [faqAnswer, setFaqAnswer] = useState('');
-
-  // AI Query Analysis States
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
 
   // Predefined FAQs Edit States
   const [showEditPredefinedFaqModal, setShowEditPredefinedFaqModal] = useState(false);
@@ -193,8 +183,6 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
     setCurrentUnanswered,
     faqAnswer,
     setFaqAnswer,
-    analysisLoading,
-    analysisResult,
     showEditPredefinedFaqModal,
     setShowEditPredefinedFaqModal,
     selectedPredefinedFaq,
