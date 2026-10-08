@@ -294,10 +294,11 @@ export function useDocumentsState(API_URL, fetch, showSuccess, showError, fetchS
       });
   };
 
-  // PDF File Upload Handler
-  const uploadFile = (file, excludePagesText = '', displayNameText = '') => {
+  // PDF File Upload Handler — คืน Promise<boolean> (หน้า Logs ใช้รู้ว่าอัปโหลดสำเร็จก่อนปิดรายการคำถาม)
+  const uploadFile = (file, excludePagesText = '', displayNameText = '') => new Promise((resolve) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       showError("ระบบสนับสนุนการอัปโหลดไฟล์นามสกุล .pdf เท่านั้น");
+      resolve(false);
       return;
     }
 
@@ -306,6 +307,12 @@ export function useDocumentsState(API_URL, fetch, showSuccess, showError, fetchS
 
     const reader = new FileReader();
     reader.readAsArrayBuffer(file);
+    reader.onerror = () => {
+      showError("ไม่สามารถอ่านไฟล์ที่เลือกได้");
+      setUploading(false);
+      setUploadProgress(0);
+      resolve(false);
+    };
     reader.onload = () => {
       setUploadProgress(40);
       const arrayBuffer = reader.result;
@@ -334,14 +341,16 @@ export function useDocumentsState(API_URL, fetch, showSuccess, showError, fetchS
           // Poll for update
           setTimeout(fetchDocuments, 2000);
           setTimeout(fetchDocuments, 8000);
+          resolve(true);
         })
         .catch(err => {
           showError(`เกิดข้อผิดพลาดในการอัปโหลด: ${err.message}`);
           setUploading(false);
           setUploadProgress(0);
+          resolve(false);
         });
     };
-  };
+  });
 
   const handleDrop = (e) => {
     e.preventDefault();

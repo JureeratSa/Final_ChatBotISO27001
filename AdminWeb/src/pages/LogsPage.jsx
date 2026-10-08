@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { useAdminContext } from '../context/AdminContext';
+import ResolveUnansweredModal from '../components/unanswered/ResolveUnansweredModal';
+import { RESOLUTION_LABELS, IGNORE_REASON_LABELS } from '../components/unanswered/unansweredLabels';
 
 /**
  * LogsPage — แท็บ "คำถามที่บอทตอบไม่ได้" ตารางรายการคำถามค้างพร้อมตัวกรองช่วงวันที่และการเรียงลำดับ
- * และปุ่มติ๊กแก้ไข/ไม่แก้ไข
+ * ปุ่ม "แก้ไข" / "ไม่แก้ไข" เปิด ResolveUnansweredModal ที่พาแอดมินแก้จริง (สอน FAQ / อัปโหลดเอกสาร)
+ * หรือบันทึกเหตุผลที่ไม่แก้ — รายการที่ปิดแล้วกด "ย้อนกลับ" เพื่อเปิดใหม่เป็น Pending ได้
  */
 export default function LogsPage() {
   const {
@@ -16,6 +20,9 @@ export default function LogsPage() {
     unansweredSortOrder,
     unansweredStartDate,
   } = useAdminContext();
+
+  // { item, mode: 'resolve' | 'ignore' } ของรายการที่กำลังเปิด modal อยู่
+  const [modalState, setModalState] = useState(null);
 
   return (
     <div className="space-y-6 animate-slide-in">
@@ -145,32 +152,58 @@ export default function LogsPage() {
                             รอการตรวจเช็ค
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500 whitespace-nowrap">
-                            <i className="fa-solid fa-circle-check"></i>
-                            ตรวจเช็คเรียบร้อย
-                          </span>
+                          <div className="inline-flex flex-col items-center gap-1" title={log.note || undefined}>
+                            {log.status === 'Ignored' ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <i className="fa-solid fa-ban"></i>
+                                ไม่แก้ไข
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500 whitespace-nowrap">
+                                <i className="fa-solid fa-circle-check"></i>
+                                แก้ไขแล้ว
+                              </span>
+                            )}
+                            {(log.resolution_type || log.ignore_reason) && (
+                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                {log.status === 'Ignored'
+                                  ? IGNORE_REASON_LABELS[log.ignore_reason]
+                                  : RESOLUTION_LABELS[log.resolution_type]}
+                                {log.note && <i className="fa-regular fa-note-sticky ml-1"></i>}
+                              </span>
+                            )}
+                            {log.resolved_by && (
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap">โดย {log.resolved_by}</span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center gap-4 whitespace-nowrap">
-                          <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={log.status === 'Resolved'}
-                              onChange={() => handleResolveUnanswered(log.id, "Resolved")}
-                              className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
-                            />
-                            แก้ไข
-                          </label>
-                          <label className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={log.status === 'Ignored'}
-                              onChange={() => handleResolveUnanswered(log.id, "Ignored")}
-                              className="w-4 h-4 rounded accent-slate-400 cursor-pointer"
-                            />
-                            ไม่แก้ไข
-                          </label>
+                        <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                          {isPending ? (
+                            <>
+                              <button
+                                onClick={() => setModalState({ item: log, mode: 'resolve' })}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition active:scale-95"
+                              >
+                                <i className="fa-solid fa-screwdriver-wrench"></i> แก้ไข
+                              </button>
+                              <button
+                                onClick={() => setModalState({ item: log, mode: 'ignore' })}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-500/10 text-slate-500 dark:text-slate-400 hover:bg-slate-500/20 transition active:scale-95"
+                              >
+                                <i className="fa-solid fa-ban"></i> ไม่แก้ไข
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleResolveUnanswered(log.id, 'Pending')}
+                              title="เปิดรายการนี้กลับเป็นรอการตรวจเช็ค"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition active:scale-95"
+                            >
+                              <i className="fa-solid fa-rotate-left"></i> ย้อนกลับ
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -181,6 +214,15 @@ export default function LogsPage() {
           </table>
         </div>
       </div>
+
+      {modalState && (
+        <ResolveUnansweredModal
+          key={modalState.item.id + modalState.mode}
+          item={modalState.item}
+          mode={modalState.mode}
+          onClose={() => setModalState(null)}
+        />
+      )}
     </div>
   );
 }
