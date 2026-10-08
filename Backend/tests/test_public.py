@@ -35,19 +35,25 @@ async def test_compatibility_search_empty_query(client):
 # ให้ผู้ใช้กดเปิด PDF ไปหน้าที่ตรงได้ เหมือนที่ /api/chat มีอยู่แล้ว) ──────────────
 
 class _StubRetriever:
+    """dense_score 0.8 = เนื้อหาเกี่ยวข้องจริง (ผ่านเกณฑ์ has_reliable_context ที่ 0.42)"""
+    def __init__(self, dense_score=0.8):
+        self.dense_score = dense_score
+
     def query(self, query, top_k=3):
         return [
             {
                 "chunk_id": 1,
                 "content": "ติดต่อ ISO ที่เบอร์ 8470",
                 "metadata": {"source": "iso27001.pdf", "page": 5},
+                "dense_score": self.dense_score,
             }
         ]
 
 
 async def test_compatibility_search_returns_citations_for_rag_answer(client, db_session, monkeypatch):
     """เคสหลักที่ผู้ใช้รายงาน: ตอบจากเอกสารจริงแต่ไม่มีลิงก์อ้างอิงแนบมา — ต้องมี citations แล้ว
-    แม้ LLM จะลืมใส่ tag [USE_RAG] ก็ตาม (used_rag=False) เพราะเราไม่ยึด tag นั้นอีกต่อไป"""
+    แม้ LLM จะลืมใส่ tag [USE_RAG] ก็ตาม (used_rag=False) โดยใช้ dense score ของผลค้นหาอันดับต้น
+    ตัดสินแทน (ดู rag_service.has_reliable_context)"""
     monkeypatch.setattr(rag_service_module, "get_retriever", lambda: _StubRetriever())
 
     async def _fake_query_rag(query, results, config, history, forms=None):
@@ -68,7 +74,8 @@ async def test_compatibility_search_returns_citations_for_rag_answer(client, db_
     assert body["citations"][0]["source"] == "iso27001.pdf"
     assert body["citations"][0]["display_name"] == "คู่มือ ISO 27001"
     assert body["citations"][0]["pages"] == [5]
-    assert body["citations"][0]["url"] == "/api/documents/serve/iso27001.pdf#page=5"
+    # ?hl=1 = chunk_id ที่ใช้ตอบ ให้ endpoint serve ไฮไลท์ส่วนนั้นใน PDF (services/pdf_highlight.py)
+    assert body["citations"][0]["url"] == "/api/documents/serve/iso27001.pdf?hl=1#page=5"
 
 
 async def test_compatibility_search_omits_citations_when_answer_is_unanswered(client, db_session, monkeypatch):
@@ -82,6 +89,23 @@ async def test_compatibility_search_omits_citations_when_answer_is_unanswered(cl
     monkeypatch.setattr(rag_service_module, "query_rag", _fake_query_rag)
 
     resp = await client.post("/api/search", json={"query": "คำถามที่ไม่มีในระบบ"})
+    assert resp.status_code == 200
+    assert resp.json()["citations"] == []
+
+
+async def test_compatibility_search_omits_citations_for_low_relevance_results(client, db_session, monkeypatch):
+    """retriever คืน top_k เสมอแม้ไม่เกี่ยวกับคำถาม — ถ้า LLM ไม่ได้บอกว่าใช้ context ([USE_RAG])
+    และ dense score ต่ำกว่าเกณฑ์ ต้องไม่แนบ PDF ที่ไม่เกี่ยวข้องเป็นแหล่งอ้างอิง"""
+    monkeypatch.setattr(rag_service_module, "get_retriever", lambda: _StubRetriever(dense_score=0.2))
+
+    async def _fake_query_rag(query, results, config, history, forms=None):
+        return ("ตอบจากความรู้ทั่วไป ไม่ได้ใช้เอกสาร", False, "mocked-llm")
+
+    monkeypatch.setattr(rag_service_module, "query_rag", _fake_query_rag)
+    db_session.add(Document(filename="iso27001.pdf", display_name="คู่มือ ISO 27001"))
+    await db_session.commit()
+
+    resp = await client.post("/api/search", json={"query": "คำถามทั่วไป"})
     assert resp.status_code == 200
     assert resp.json()["citations"] == []
 
