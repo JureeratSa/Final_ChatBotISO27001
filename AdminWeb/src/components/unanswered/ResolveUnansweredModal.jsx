@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useAdminContext } from '../../context/AdminContext';
 import { IGNORE_REASONS } from './unansweredLabels';
+import TeachFromDocumentPanel from './TeachFromDocumentPanel';
 
 /**
  * ResolveUnansweredModal — modal ปิดรายการคำถามที่บอทตอบไม่ได้ในหน้า Logs
  *
  * mode="resolve" (ปุ่ม "แก้ไข") แบ่งเป็นขั้นตอน:
  *   ask       → ถามว่าข้อมูลนี้มีในเอกสาร PDF แล้วหรือยัง
- *   in_pdf    → มีแล้วแต่บอทหาไม่เจอ: แนะนำวิธีสอน + คำค้นจาก AI แล้วลงทะเบียน Custom FAQ
+ *   teach     → มีแล้วแต่บอทหาไม่เจอ: สอนบอทผ่านเอกสาร (TeachFromDocumentPanel) — ผูกคำถามตัวอย่าง
+ *               กับส่วนของเอกสารที่มีคำตอบ ไม่ต้องเพิ่ม FAQ
+ *   faq       → ทางเลือกสำรอง: ลงทะเบียน Custom FAQ (คำตอบตายตัว)
  *   upload    → ยังไม่มี: อัปโหลด PDF ใหม่ (ฟอร์มเดียวกับหน้าจัดการเอกสาร)
  *   uploaded  → อัปโหลดแล้ว: เตือนให้ไปอนุมัติ pipeline ในหน้าจัดการเอกสาร
  * mode="ignore" (ปุ่ม "ไม่แก้ไข") → เลือกเหตุผล + หมายเหตุ แล้วปิดรายการเป็น Ignored
- *
- * หมายเหตุ: ไม่มีทางเลือก "แก้ส่วนย่อย (chunk)" ใน flow นี้ เพราะการบันทึก chunk ในหน้าเอกสาร
- * เขียนแค่ไฟล์ .chunks.json แต่ยังไม่ถูกนำเข้า index ที่บอทใช้ค้นจริง
  */
 export default function ResolveUnansweredModal({ item, mode, onClose }) {
   const {
@@ -29,7 +29,7 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
   const [step, setStep] = useState(mode === 'ignore' ? 'ignore' : 'ask');
   const [submitting, setSubmitting] = useState(false);
 
-  // in_pdf
+  // faq (ทางเลือกสำรอง)
   const [faqQuestion, setFaqQuestion] = useState(item.query);
   const [faqAnswer, setFaqAnswer] = useState('');
   const [analysis, setAnalysis] = useState(null);
@@ -45,7 +45,7 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
   const [note, setNote] = useState('');
 
   useEffect(() => {
-    if (step !== 'in_pdf' || analysis || analysisLoading) return;
+    if (step !== 'faq' || analysis || analysisLoading) return;
     setAnalysisLoading(true);
     analyzeUnansweredQuery(item.query).then(result => {
       setAnalysis(result || { is_valid_query: true, suggested_keywords: [] });
@@ -109,7 +109,8 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
 
   const title = {
     ask: 'แก้ไขคำถามที่บอทตอบไม่ได้',
-    in_pdf: 'สอนคำตอบให้บอท',
+    teach: 'สอนบอทผ่านเอกสาร',
+    faq: 'ลงทะเบียนคำตอบ FAQ',
     upload: 'อัปโหลดเอกสารใหม่',
     uploaded: 'อัปโหลดเอกสารแล้ว',
     ignore: 'ไม่แก้ไขคำถามนี้',
@@ -117,7 +118,8 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
 
   const icon = {
     ask: 'fa-screwdriver-wrench',
-    in_pdf: 'fa-feather',
+    teach: 'fa-graduation-cap',
+    faq: 'fa-feather',
     upload: 'fa-file-circle-plus',
     uploaded: 'fa-circle-check',
     ignore: 'fa-ban',
@@ -135,7 +137,7 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto tuh-glass-1 tuh-border-glass-strong rounded-3xl shadow-2xl animate-slide-in">
+      <div className={`w-full ${step === 'teach' ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto tuh-glass-1 tuh-border-glass-strong rounded-3xl shadow-2xl animate-slide-in`}>
         <div className="p-6 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center bg-slate-50 dark:bg-tuh-navy/55">
           <h3 className="font-extrabold text-lg text-tuh-navy dark:text-white flex items-center gap-2">
             <i className={`fa-solid ${icon} text-tuh-rose`}></i> {title}
@@ -162,14 +164,14 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setStep('in_pdf')}
+                  onClick={() => setStep('teach')}
                   className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-left transition active:scale-[0.98]"
                 >
                   <div className="font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
                     <i className="fa-solid fa-file-circle-check"></i> มีในเอกสารแล้ว
                   </div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
-                    แต่บอทหาไม่เจอ → สอนคำตอบให้บอท
+                    แต่บอทหาไม่เจอ → สอนบอทผ่านเอกสาร
                   </div>
                 </button>
                 <button
@@ -191,7 +193,17 @@ export default function ResolveUnansweredModal({ item, mode, onClose }) {
             </>
           )}
 
-          {step === 'in_pdf' && (
+          {step === 'teach' && (
+            <TeachFromDocumentPanel
+              item={item}
+              onBack={() => setStep('ask')}
+              onUseFaq={() => setStep('faq')}
+              onDone={onClose}
+              setBusy={setSubmitting}
+            />
+          )}
+
+          {step === 'faq' && (
             <form onSubmit={submitFaq} className="space-y-4">
               <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/20 text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed space-y-1.5">
                 <div className="font-extrabold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
