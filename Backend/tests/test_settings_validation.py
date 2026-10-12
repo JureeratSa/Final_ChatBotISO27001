@@ -43,3 +43,21 @@ async def test_update_settings_rejects_out_of_bound_values(client, admin_user, p
 async def test_chat_rejects_query_over_max_length(client):
     resp = await client.post("/api/chat", json={"query": "ก" * 2001})
     assert resp.status_code == 422
+
+
+# ─── LLM endpoint (GDCC LiteLLM) ───────────────────────────────────────────────
+
+def test_llm_chat_url_is_built_from_litellm_url(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "LITELLM_URL", "https://llm.example/v1/")
+    assert settings.LLM_CHAT_URL == "https://llm.example/v1/chat/completions"
+    monkeypatch.setattr(settings, "LITELLM_URL", None)
+    assert settings.LLM_CHAT_URL == ""
+
+
+def test_llm_api_key_comes_from_litellm_key(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "LITELLM_API_KEY", "abc")
+    assert settings.LLM_API_KEY == "abc"
+    monkeypatch.setattr(settings, "LITELLM_API_KEY", None)
+    assert settings.LLM_API_KEY == ""

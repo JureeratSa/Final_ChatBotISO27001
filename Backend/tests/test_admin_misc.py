@@ -75,8 +75,10 @@ async def test_non_owner_staff_cannot_update_details_of_someone_elses_document(
 async def test_analyze_query_without_llm_key_returns_neutral_result(client, admin_user, monkeypatch):
     """ไม่มี LLM API key ตั้งไว้ (ค่าปกติในสภาพแวดล้อมเทส) — ต้องไม่ error ต้องคืนค่ากลางๆ ให้ UI ใช้ต่อได้"""
     from app.core.config import settings
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
-    monkeypatch.setattr(settings, "OPENROUTER_API_KEY", None)
+    monkeypatch.setattr(settings, "LITELLM_API_KEY", None)
+    # ของเดิม (OpenRouter):
+    # monkeypatch.setattr(settings, "GEMINI_API_KEY", None)
+    # monkeypatch.setattr(settings, "OPENROUTER_API_KEY", None)
 
     resp = await client.post(
         "/api/admin/unanswered/analyze",
