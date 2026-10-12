@@ -1,7 +1,7 @@
 """
 TUH Chatbot AI — Chat Router (RAG Core)
 Endpoints: POST /api/chat, GET /api/chat/settings
-คง Pipeline เดิม: ChromaDB + BM25 + Weighted RRF + OpenRouter (Gemini/Ollama)
+คง Pipeline เดิม: ChromaDB + BM25 + Weighted RRF + LLM (GDCC LiteLLM endpoint; เดิมคือ OpenRouter)
 """
 import os
 import re
@@ -49,7 +49,7 @@ async def chat(
     """
     Main Chat Endpoint — ประมวลผลคำถามผ่าน RAG Pipeline
     Flow: Custom FAQs / Predefined FAQs (เฉพาะข้อที่ตั้งคำตอบตายตัวไว้) → HybridRetriever
-    (ChromaDB+BM25) → Weighted RRF → OpenRouter/Ollama
+    (ChromaDB+BM25) → Weighted RRF → LLM (GDCC LiteLLM endpoint)
     """
     start_time = time.time()
     query = body.query.strip()
