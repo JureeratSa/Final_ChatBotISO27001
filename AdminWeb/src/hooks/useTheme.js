@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 /**
  * useTheme — จัดการสถานะ dark mode ของ AdminWeb ทั้งหมด (toggle + sync กับ <html> class
- * + persist ลง localStorage) แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * + persist ลง localStorage) แยกออกมาจาก App.jsx เดิม
  */
 export function useTheme() {
   const [isDarkMode, setIsDarkMode] = useState(() => {

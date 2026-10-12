@@ -1,7 +1,7 @@
 /**
  * LoginPage — หน้าจอเข้าสู่ระบบแอดมิน แสดงก่อน login สำเร็จ จึงรับค่าทุกอย่างผ่าน props
  * โดยตรงจาก App.jsx (ไม่ผ่าน AdminContext เพราะ context นั้น gate อยู่หลัง login แล้วเท่านั้น)
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม/หน้าตา
+ * แยกออกมาจาก App.jsx เดิม
  */
 export default function LoginPage({
   successMsg,

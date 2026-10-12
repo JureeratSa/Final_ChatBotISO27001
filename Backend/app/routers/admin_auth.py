@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Auth (login / password update)
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 
 หมายเหตุ: ชื่อ "Legacy" เดิมทำให้เข้าใจผิดว่าเป็นโค้ดเก่าที่ไม่ได้ใช้แล้ว แต่จริงๆ แล้ว
 POST /login คือ endpoint ล็อกอินจริงที่ AdminWeb เรียกใช้อยู่ (ยืนยันจาก AdminWeb/src/App.jsx)

@@ -1,7 +1,7 @@
 """
 TUH Chatbot AI — Feedback Service
 แยกจาก app/routers/admin_feedback.py — เก็บ business rule ของการ upsert feedback ไว้ที่เดียว
-(ย้ายมาจาก Backend/app/routers/admin.py เดิม logic เหมือนทุกตัวอักษร ไม่ได้แก้ไข)
+(เดิมอยู่ใน Backend/app/routers/admin.py)
 """
 import time
 

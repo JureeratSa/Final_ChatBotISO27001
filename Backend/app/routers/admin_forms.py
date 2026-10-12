@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Forms
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 _parse_pages() ย้ายไปที่ app/services/form_service.py
 """
 import time

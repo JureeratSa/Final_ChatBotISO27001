@@ -1,7 +1,7 @@
 /**
  * useDeleteConfirmation — ตัว "จ่ายงาน" (dispatcher) ของ modal ยืนยันการลบที่ใช้ร่วมกันทุกแท็บ
  * (เอกสาร/แบบฟอร์ม/ประกาศ/ผู้ใช้) โดยดูจาก deleteModalState.type แล้วเรียก endpoint ลบที่ถูกต้อง
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  *
  * หมายเหตุ (การตัดสินใจทางวิศวกรรม): deleteModalState/setDeleteModalState เอง ยังคงเป็น state
  * เล็กๆ ที่ประกาศตรงใน App.jsx (ไม่มี effect ของตัวเอง ใช้ร่วมกันหลายโดเมน) เพราะ

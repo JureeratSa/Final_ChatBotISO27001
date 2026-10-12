@@ -1,7 +1,6 @@
 """
 TUH Chatbot AI — History Service
-แยกจาก app/routers/admin_history.py (ย้ายมาจาก Backend/app/routers/admin.py เดิม
-logic เหมือนทุกตัวอักษร ไม่ได้แก้ไข)
+แยกจาก app/routers/admin_history.py (เดิมอยู่ใน Backend/app/routers/admin.py)
 """
 import json
 

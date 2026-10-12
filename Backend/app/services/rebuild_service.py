@@ -1,7 +1,6 @@
 """
 TUH Chatbot AI — Rebuild Service
-แยกจาก app/routers/admin_rebuild.py / admin_documents.py (ย้ายมาจาก
-Backend/app/routers/admin.py เดิม logic เหมือนทุกตัวอักษร ไม่ได้แก้ไข)
+แยกจาก app/routers/admin_rebuild.py / admin_documents.py (เดิมอยู่ใน Backend/app/routers/admin.py)
 
 หมายเหตุสำคัญสำหรับเทส: test_rebuild_status.py และ test_documents_ownership.py
 monkeypatch ชื่อ _trigger_rebuild_background / _delete_from_search_index โดยแพตช์ที่
@@ -80,6 +79,43 @@ def _delete_from_search_index(filename: str):
         logger.error("[Delete Index Error] ลบ '%s' ออกจากดัชนีค้นหาไม่สำเร็จ: %s", filename, e)
 
 
+def _sync_load_documents() -> list:
+    """รายการเอกสาร (สถานะ + หน้าที่ละเว้น) จาก TiDB ส่งให้ Admin.rebuild_db.rebuild() — แทน
+    db_documents.json เดิมที่เลิกใช้แล้ว (ว่างเปล่า) ซึ่งทำให้ rebuild นำเข้า PDF ทุกไฟล์รวมที่ปิดใช้งาน
+    และไม่ละเว้นหน้าที่แอดมินตั้งไว้ — โหลดไม่ได้ให้ล้มทั้ง rebuild แทนการนำเข้าทุกไฟล์แบบเงียบๆ"""
+    from sqlalchemy import create_engine
+    from app.models.models import Document
+    from app.services.document_service import _parse_exclude_pages
+
+    sync_engine = create_engine(settings.DATABASE_URL_SYNC)
+    try:
+        with sync_engine.connect() as conn:
+            rows = conn.execute(
+                select(Document.filename, Document.status, Document.exclude_pages)
+            ).all()
+    finally:
+        sync_engine.dispose()
+    return [{"filename": f, "status": s, "exclude_pages": _parse_exclude_pages(ex)} for f, s, ex in rows]
+
+
+def _sync_save_durations(durations: dict) -> None:
+    """บันทึกเวลาสกัดคำ/ทำ embedding ของแต่ละเอกสารลง documents (เดิมเขียนลง db_documents.json)"""
+    if not durations:
+        return
+    from sqlalchemy import create_engine, update as sql_update
+    from app.models.models import Document
+
+    sync_engine = create_engine(settings.DATABASE_URL_SYNC)
+    try:
+        with sync_engine.begin() as conn:
+            for filename, values in durations.items():
+                conn.execute(sql_update(Document.__table__).where(Document.filename == filename).values(**values))
+    except Exception as e:
+        logger.error("[Rebuild Durations Write Error] %s", e)
+    finally:
+        sync_engine.dispose()
+
+
 def _trigger_rebuild_background():
     """Background thread สำหรับ Rebuild Index"""
     start = time.time()
@@ -91,7 +127,8 @@ def _trigger_rebuild_background():
 
         from Admin.rebuild_db import rebuild
         _sync_update_rebuild_status("processing", "กำลัง rebuild index...")
-        rebuild()
+        durations = rebuild(documents=_sync_load_documents())
+        _sync_save_durations(durations or {})
 
         from app.services.rag_service import reload_retriever
         reload_retriever()

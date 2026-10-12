@@ -132,6 +132,71 @@ def make_http_post(url: str, payload: dict, headers: dict = None, timeout: int =
         return json.loads(response.read().decode("utf-8"))
 
 
+# ─── Condense Question (แปลงคำถามตามบริบทก่อนค้นเอกสาร) ──────────────────────────
+# ผู้ใช้มักถามต่อสั้นๆ เช่น "มีแนะนำมั้ย" หลังคุยเรื่องรหัสผ่าน — ถ้าเอาคำถามนี้ไปค้นตรงๆ retriever
+# จะไม่รู้ว่าหมายถึงรหัสผ่าน (เคยดึงนโยบายเข้ารหัสมาตอบเรื่อง WPA3/TLS) ฟังก์ชันนี้ให้ LLM เขียนคำถาม
+# ใหม่ให้สมบูรณ์จากประวัติแชท ใช้เฉพาะตอนค้นเอกสาร — การตอบยังส่งคำถามจริงของผู้ใช้ + ประวัติให้ LLM
+
+_CONDENSE_PROMPT = """คุณมีหน้าที่เติมคำถามล่าสุดของผู้ใช้ให้เข้าใจได้โดยไม่ต้องอ่านบทสนทนาก่อนหน้า เพื่อใช้ค้นหาเอกสาร
+- ถ้าคำถามล่าสุดมีหัวข้อเรื่องชัดเจนอยู่แล้ว หรือเปลี่ยนไปถามเรื่องใหม่ ให้ตอบคำถามเดิมกลับมาตามเดิมทุกตัวอักษร
+- ถ้าคำถามกำกวม ให้เติมเฉพาะหัวข้อเรื่องสั้นๆ ที่ผู้ใช้หมายถึง (เช่น รหัสผ่าน, การสำรองข้อมูล, การทำงานจากที่บ้าน) คงถ้อยคำเดิมของผู้ใช้ไว้
+- ห้ามเติมชื่อนโยบายเต็ม ห้ามเติมชื่อโรงพยาบาล ห้ามเติมคำอธิบาย ห้ามเปลี่ยนสิ่งที่ผู้ใช้ถาม
+- ห้ามตอบคำถาม ตอบกลับเฉพาะคำถาม 1 บรรทัด
+ตัวอย่าง: คุยเรื่องการตั้งรหัสผ่าน แล้วผู้ใช้ถาม "มีแนะนำมั้ย" → "มีคำแนะนำการตั้งรหัสผ่านมั้ย\""""
+
+
+def _history_lines(history: List, max_messages: int = 6, max_chars: int = 500) -> List[str]:
+    lines = []
+    for msg in (history or [])[-max_messages:]:
+        sender = msg.sender if hasattr(msg, "sender") else msg.get("sender")
+        text = msg.text if hasattr(msg, "text") else msg.get("text", "")
+        text = clean_appended_metadata(text or "")[:max_chars]
+        if text:
+            lines.append(f"{'ผู้ใช้' if sender == 'user' else 'บอท'}: {text}")
+    return lines
+
+
+async def condense_question(query: str, history: List, config: Dict) -> str:
+    """คืนคำถามที่เขียนใหม่ให้สมบูรณ์จากประวัติแชท สำหรับใช้ค้นเอกสาร
+    ไม่มีประวัติฝั่งผู้ใช้ / ไม่มี API key / เรียก LLM ไม่สำเร็จ / ผลแปลกๆ → คืนคำถามเดิมเสมอ"""
+    lines = _history_lines(history)
+    if not any(l.startswith("ผู้ใช้:") for l in lines):
+        return query
+    api_key = config.get("gemini_api_key", "") or settings.LLM_API_KEY or ""
+    if not api_key:
+        return query
+    payload = {
+        "model": config.get("model_name") or settings.DEFAULT_LLM_MODEL,
+        "messages": [
+            {"role": "system", "content": _CONDENSE_PROMPT},
+            {"role": "user", "content": "บทสนทนา:\n" + "\n".join(lines)
+             + f"\n\nคำถามล่าสุด: {query}\nคำถามที่เขียนใหม่:"},
+        ],
+        "temperature": 0.0,
+        "max_tokens": 150,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "HTTP-Referer": "http://localhost:8000",
+        "X-Title": "TUH Chatbot v2",
+    }
+    try:
+        loop = asyncio.get_event_loop()
+        res = await loop.run_in_executor(
+            None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload, headers, 15
+        )
+        text = (res.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
+    except Exception as e:
+        logger.warning("[Condense] fallback to original query: %s", e)
+        return query
+    rewritten = text.strip().split("\n")[0].strip().strip('"“”').replace("คำถามที่เขียนใหม่:", "").strip()
+    if not rewritten or len(rewritten) > 300:
+        return query
+    logger.info("[Condense] %r -> %r", query, rewritten)
+    return rewritten
+
+
 # ─── Context Cleaner ──────────────────────────────────────────────────────────
 
 def clean_appended_metadata(text: str) -> str:
@@ -185,7 +250,8 @@ async def query_rag(
     context = ""
     if results:
         context_parts = []
-        for r in results:
+        # ใส่เลข [n] หน้าแต่ละชิ้น ให้ LLM บอกกลับมาได้ว่าใช้ชิ้นไหนตอบจริง (ดู split_used_sources)
+        for n, r in enumerate(results, start=1):
             source = r['metadata'].get('source', 'เอกสารอ้างอิง')
             page = r['metadata'].get('page', '')
             page_str = f" หน้า {page}" if page else ""
@@ -194,7 +260,7 @@ async def query_rag(
                 if r['metadata'].get('type') == 'table'
                 else r['content']
             )
-            context_parts.append(f"แหล่งที่มา: {source}{page_str}\nเนื้อหา: {content}")
+            context_parts.append(f"[{n}] แหล่งที่มา: {source}{page_str}\nเนื้อหา: {content}")
         context = "\n---\n".join(context_parts)
 
     # ─ System Prompt ─
@@ -222,6 +288,11 @@ async def query_rag(
 
     user_content = f"ข้อมูลอ้างอิง (Context):\n{context}\n\nคำถามจากผู้ใช้: {query}"
     user_content += "\n\nหากคุณใช้ข้อมูลจาก Context ให้ขึ้นต้นคำตอบด้วย [USE_RAG] ทันที"
+    if results:
+        user_content += (
+            "\nบรรทัดสุดท้ายของคำตอบ ให้ระบุเลขของข้อมูลอ้างอิงที่ใช้ตอบจริงเท่านั้น ในรูปแบบ [SOURCES: 1,3]"
+            " ถ้าไม่ได้ใช้ข้อมูลอ้างอิงข้อใดเลยให้เขียน [SOURCES: none]"
+        )
     messages.append({"role": "user", "content": user_content})
 
     # ─ Call OpenRouter API ─
@@ -340,6 +411,31 @@ def has_reliable_context(rag_results: List[Dict], used_rag: bool, min_dense_scor
 
 # ─── Citation Builder (ใช้ร่วมกันทั้ง /api/chat และ /api/search — DRY) ──────────
 
+_SOURCES_TAG = re.compile(r"\[\s*SOURCES?\s*:\s*([^\]]*)\]", re.IGNORECASE)
+
+
+def split_used_sources(answer: str, rag_results: List[Dict]) -> Tuple[str, List[Dict]]:
+    """ตัด tag [SOURCES: 1,3] ที่ LLM ต่อท้ายคำตอบออก แล้วคืน (คำตอบที่สะอาด, rag_results
+    เฉพาะชิ้นที่ LLM บอกว่าใช้ตอบจริง) — ใช้แทนการแนบทุกเอกสารที่ retriever ค้นเจอเป็น citation
+    ซึ่งเดิมทำให้เอกสารที่ค้นเจอแต่ไม่ได้ใช้ (เช่น Baseline Configuration ในคำถามเรื่องรหัสผ่าน)
+    โผล่เป็นแหล่งอ้างอิงด้วย
+    - ไม่มี tag (LLM ลืม / fallback answer / Ollama) → คืน rag_results ทั้งหมดเหมือนพฤติกรรมเดิม
+    - [SOURCES: none] หรือไม่มีเลข → คืนลิสต์ว่าง (ไม่แนบ citation)
+    - มีเลขแต่ไม่มีเลขไหนอยู่ในช่วง 1..len(rag_results) → ถือว่า LLM สับสน คืนทั้งหมด
+    """
+    if not answer:
+        return answer, rag_results
+    matches = list(_SOURCES_TAG.finditer(answer))
+    if not matches:
+        return answer, rag_results
+    cleaned = _SOURCES_TAG.sub("", answer).strip()
+    nums = {int(n) for n in re.findall(r"\d+", matches[-1].group(1))}
+    if not nums:
+        return cleaned, []
+    used = [r for i, r in enumerate(rag_results or [], start=1) if i in nums]
+    return cleaned, (used or rag_results)
+
+
 async def build_citations(db, rag_results: List[Dict]) -> List[Dict[str, Any]]:
     """สร้างรายการเอกสารอ้างอิง (citations) จาก rag_results โดย group ตาม source
     (รวมเลขหน้าทั้งหมดของ source เดียวกัน) และ map display_name จากตาราง Document
@@ -358,23 +454,29 @@ async def build_citations(db, rag_results: List[Dict]) -> List[Dict[str, Any]]:
     filename_to_display = {d.filename: d.display_name for d in docs if d.display_name}
 
     grouped: Dict[str, set] = {}
+    chunk_ids: Dict[str, List[int]] = {}
     for res in rag_results:
         source = res["metadata"].get("source", "เอกสาร")
         page = res["metadata"].get("page")
         if source not in grouped:
             grouped[source] = set()
+            chunk_ids[source] = []
         if page:
             try:
                 grouped[source].add(int(page))
             except (ValueError, TypeError):
                 pass
+        if isinstance(res.get("chunk_id"), int):
+            chunk_ids[source].append(res["chunk_id"])
 
     citations: List[Dict[str, Any]] = []
     for source, pages in grouped.items():
         display = filename_to_display.get(source, source.replace(".pdf", "").replace("_", " "))
+        # ?hl= = เลข chunk ที่ใช้ตอบ ให้ endpoint serve ไฮไลท์ส่วนนั้นใน PDF (ดู services/pdf_highlight.py)
+        hl = f"?hl={','.join(map(str, chunk_ids[source]))}" if chunk_ids[source] else ""
         pdf_url = (
-            f"/api/documents/serve/{quote(source)}#page={min(pages)}"
-            if pages else f"/api/documents/serve/{quote(source)}"
+            f"/api/documents/serve/{quote(source)}{hl}#page={min(pages)}"
+            if pages else f"/api/documents/serve/{quote(source)}{hl}"
         )
         citations.append({
             "source": source,

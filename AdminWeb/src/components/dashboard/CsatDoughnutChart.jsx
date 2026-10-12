@@ -1,6 +1,6 @@
 /**
  * CsatDoughnutChart — โดนัทชาร์ต SVG แสดงสัดส่วนความพึงพอใจ (like vs dislike) ในหน้า Dashboard
- * แยกออกมาจาก DashboardPage.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม/การคำนวณ
+ * แยกออกมาจาก DashboardPage.jsx เดิม
  *
  * นับเฉพาะคำตอบที่มีคนกด like/dislike จริงเท่านั้น (ไม่รวมคำถามที่ไม่มีใครกด feedback เลย
  * เพื่อให้ตรงกับตัวเลข CSAT กลางวงและ subtitle ของการ์ด)

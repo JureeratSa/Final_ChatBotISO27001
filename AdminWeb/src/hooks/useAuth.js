@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 /**
  * useAuth — สถานะ login/logout, adminUser, และ authenticated fetch wrapper (แนบ JWT
  * token + auto-logout เมื่อโดน 401) รวมถึง auto-logout เมื่อไม่มีการใช้งานเกิน 10 นาที
- * แยกออกมาจาก App.jsx เดิมแบบ verbatim ไม่เปลี่ยนพฤติกรรม
+ * แยกออกมาจาก App.jsx เดิม
  *
  * fetchWithAuth ถูกคืนกลับมาในชื่อ `fetch` (shadow ชื่อ global fetch โดยตั้งใจ เหมือนโค้ดเดิม)
  * เพื่อให้ hook อื่นๆ ที่รับพารามิเตอร์นี้ไปเรียกใช้ ไม่ต้องแก้ไขชื่อฟังก์ชันภายใน handler เดิมเลย

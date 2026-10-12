@@ -1,27 +1,35 @@
+/**
+ * TUH Chatbot AI — useWelcomeSettings Custom Hook
+ * โหลดการตั้งค่าระบบจาก Backend ('/api/admin/settings'):
+ * 1. ข้อความต้อนรับหน้าหลัก (welcome_message)
+ * 2. ข้อความทักทายเมื่อเปิดห้องแชทใหม่ (chat_greeting)
+ * 3. รายการคำถามที่พบบ่อย (predefined_faqs)
+ * 4. Patch ข้อมูลที่โหลดได้เข้าสู่ Session เริ่มต้นทันทีแบบ Reactive
+ */
 import { useState, useEffect } from 'react';
 import { API_URL, DEFAULT_WELCOME_MESSAGE, DEFAULT_GREETING } from '../utils/chatUtils';
 
-// ข้อความต้อนรับ, คำทักทายในฝั่งแชท และรายการ FAQ ที่กำหนดเอง — โหลดจาก /api/admin/settings ตอน mount
-// (แยกออกมาจาก effect รวม 3 fetch เดิมของ App.jsx — เป็น fire-and-forget GET ที่เป็นอิสระจาก 2 fetch
-// อื่น จึงแยก effect ได้โดยไม่กระทบพฤติกรรม) ต้องรับ setSessions จาก useChatSessions เข้ามาด้วย เพราะ
-// callback ของ fetch นี้ต้อง patch ข้อความต้อนรับ/คำทักทายลงใน session ที่ยังเป็นข้อความเริ่มต้นอยู่
 export function useWelcomeSettings({ setSessions }) {
+  // ข้อความต้อนรับบนหน้าแรก (Welcome Screen)
   const [welcomeMessage, setWelcomeMessage] = useState(() => {
     return localStorage.getItem('tuh_welcome_message') || DEFAULT_WELCOME_MESSAGE;
   });
 
+  // ข้อความทักทายเริ่มต้นของบอทในห้องแชทใหม่
   const [chatGreeting, setChatGreeting] = useState(() => {
     return localStorage.getItem('tuh_chat_greeting') || DEFAULT_GREETING;
   });
 
+  // รายการคำถามที่พบบ่อย (FAQs)
   const [faqsList, setFaqsList] = useState([]);
 
-  // โหลดข้อความต้อนรับแบบกำหนดเองและการตั้งค่าเมื่อเริ่มต้นระบบ
+  // ดึงข้อมูลการตั้งค่าจาก API ตอนเริ่มต้นระบบ
   useEffect(() => {
     fetch(API_URL + '/api/admin/settings')
       .then(r => r.json())
       .then(data => {
         if (data) {
+          // อัปเดตข้อความต้อนรับหน้าแรก
           if (data.welcome_message) {
             setWelcomeMessage(data.welcome_message);
             localStorage.setItem('tuh_welcome_message', data.welcome_message);
@@ -38,6 +46,8 @@ export function useWelcomeSettings({ setSessions }) {
               return s;
             }));
           }
+
+          // อัปเดตข้อความทักทายของห้องแชท
           if (data.chat_greeting) {
             setChatGreeting(data.chat_greeting);
             localStorage.setItem('tuh_chat_greeting', data.chat_greeting);
@@ -54,6 +64,8 @@ export function useWelcomeSettings({ setSessions }) {
               return s;
             }));
           }
+
+          // อัปเดตรายการคำถามที่พบบ่อย (FAQs)
           if (data.predefined_faqs && data.predefined_faqs.length > 0) {
             const mappedFaqs = data.predefined_faqs.map(item => ({
               ...item,
@@ -68,3 +80,4 @@ export function useWelcomeSettings({ setSessions }) {
 
   return { welcomeMessage, chatGreeting, faqsList };
 }
+
