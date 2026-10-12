@@ -163,10 +163,12 @@ async def condense_question(query: str, history: List, config: Dict) -> str:
     if not any(l.startswith("ผู้ใช้:") for l in lines):
         return query
     api_key = config.get("gemini_api_key", "") or settings.LLM_API_KEY or ""
-    if not api_key:
+    if not api_key or not settings.LLM_CHAT_URL:
         return query
     payload = {
-        "model": config.get("model_name") or settings.DEFAULT_LLM_MODEL,
+        # ชื่อโมเดลมาจากโค้ด/.env เท่านั้น — ค่า model_name ในตาราง settings อาจเป็นชื่อของผู้ให้บริการเดิม
+        "model": settings.DEFAULT_LLM_MODEL,
+        # "model": config.get("model_name") or settings.DEFAULT_LLM_MODEL,
         "messages": [
             {"role": "system", "content": _CONDENSE_PROMPT},
             {"role": "user", "content": "บทสนทนา:\n" + "\n".join(lines)
@@ -178,13 +180,15 @@ async def condense_question(query: str, history: List, config: Dict) -> str:
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "http://localhost:8000",
-        "X-Title": "TUH Chatbot v2",
+        # header เฉพาะของ OpenRouter (เลิกใช้):
+        # "HTTP-Referer": "http://localhost:8000",
+        # "X-Title": "TUH Chatbot v2",
     }
     try:
         loop = asyncio.get_event_loop()
         res = await loop.run_in_executor(
-            None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload, headers, 15
+            None, make_http_post, settings.LLM_CHAT_URL, payload, headers, 15
+            # None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload, headers, 15
         )
         text = (res.get("choices") or [{}])[0].get("message", {}).get("content", "") or ""
     except Exception as e:
@@ -227,7 +231,7 @@ async def query_rag(
     forms: List = None
 ) -> Tuple[str, bool, str]:
     """
-    สร้างคำตอบด้วย OpenRouter API (หรือ Ollama fallback)
+    สร้างคำตอบด้วย LLM ที่ settings.LLM_CHAT_URL (ถ้าไม่ได้ตั้ง key/URL จะลอง Ollama ในเครื่อง)
     Returns: (answer_text, used_rag_bool, model_name)
     """
     # ─ ตรวจ Profanity ─
@@ -295,19 +299,21 @@ async def query_rag(
         )
     messages.append({"role": "user", "content": user_content})
 
-    # ─ Call OpenRouter API ─
+    # ─ Call LLM API (GDCC LiteLLM endpoint — เดิมคือ OpenRouter) ─
     api_key = config.get("gemini_api_key", "") or settings.LLM_API_KEY or ""
-    model_name = config.get("model_name") or settings.DEFAULT_LLM_MODEL
+    model_name = settings.DEFAULT_LLM_MODEL
+    # model_name = config.get("model_name") or settings.DEFAULT_LLM_MODEL  # ของเดิม: อ่านจากตาราง settings
     temperature = float(config.get("temperature", 0.4))
     max_tokens = max(int(config.get("max_tokens", 1000)), 1000)
 
     ans = None
     model_used = model_name
 
-    if api_key:
+    if api_key and settings.LLM_CHAT_URL:
         for attempt in range(2):
             try:
-                url = "https://openrouter.ai/api/v1/chat/completions"
+                url = settings.LLM_CHAT_URL
+                # url = "https://openrouter.ai/api/v1/chat/completions"  # ของเดิม (OpenRouter)
                 payload = {
                     "model": model_name,
                     "messages": messages,
@@ -317,8 +323,9 @@ async def query_rag(
                 headers = {
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "http://localhost:8000",
-                    "X-Title": "TUH Chatbot v2"
+                    # header เฉพาะของ OpenRouter (เลิกใช้):
+                    # "HTTP-Referer": "http://localhost:8000",
+                    # "X-Title": "TUH Chatbot v2"
                 }
                 # รัน HTTP call ใน thread pool (non-blocking)
                 loop = asyncio.get_event_loop()
@@ -330,7 +337,7 @@ async def query_rag(
                         ans = content
                         break
             except Exception as e:
-                logger.error("[OpenRouter Error attempt %d] %s", attempt + 1, e)
+                logger.error("[LLM Error attempt %d] %s", attempt + 1, e)
                 if attempt == 1:
                     ans = get_fallback_vector_answer(results)
                     model_used = "fallback"
