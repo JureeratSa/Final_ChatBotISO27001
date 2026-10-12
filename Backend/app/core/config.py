@@ -58,15 +58,29 @@ class Settings(BaseSettings):
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
 
-    # AI / LLM
-    GEMINI_API_KEY: Optional[str] = None
-    OPENROUTER_API_KEY: Optional[str] = None
-    DEFAULT_LLM_MODEL: str = "google/gemma-4-26b-a4b-it"
+    # AI / LLM — ใช้ endpoint ของ GDCC (LiteLLM, รูปแบบ OpenAI /v1/chat/completions) ตั้งแต่ 2026-10
+    # LITELLM_URL = base URL ที่ลงท้ายด้วย /v1 ; ชื่อโมเดลต้องตรงกับที่ endpoint นั้นให้บริการ
+    LITELLM_URL: Optional[str] = None
+    LITELLM_API_KEY: Optional[str] = None
+    DEFAULT_LLM_MODEL: str = "google/gemma-4-31B-it"
+
+    # ── ของเดิม (OpenRouter) เลิกใช้แล้ว เก็บไว้อ้างอิง ยังไม่ลบ ──
+    # GEMINI_API_KEY: Optional[str] = None
+    # OPENROUTER_API_KEY: Optional[str] = None
+    # DEFAULT_LLM_MODEL: str = "google/gemma-4-26b-a4b-it"
 
     @property
     def LLM_API_KEY(self) -> str:
-        """ดึง API key สำหรับ LLM — ใช้ GEMINI_API_KEY หรือ OPENROUTER_API_KEY ตัวใดก็ได้ที่มีค่า"""
-        return self.GEMINI_API_KEY or self.OPENROUTER_API_KEY or ""
+        """API key สำหรับเรียก LLM (LITELLM_API_KEY ใน .env)"""
+        return self.LITELLM_API_KEY or ""
+        # ของเดิม (OpenRouter):
+        # return self.GEMINI_API_KEY or self.OPENROUTER_API_KEY or ""
+
+    @property
+    def LLM_CHAT_URL(self) -> str:
+        """URL เต็มของ chat completions — ทุกจุดที่เรียก LLM ใช้ค่านี้ที่เดียว ("" ถ้ายังไม่ตั้ง LITELLM_URL)"""
+        base = (self.LITELLM_URL or "").strip().rstrip("/")
+        return f"{base}/chat/completions" if base else ""
 
     # File Storage (ปรับใช้ path ให้สามารถรันได้ทั้ง local และ docker)
     #

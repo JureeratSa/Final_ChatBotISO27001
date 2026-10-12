@@ -64,7 +64,8 @@ async def get_settings(
         gemini_key = api_key_source if is_admin else "***masked***"
 
     return SettingsResponse(
-        model_name=cfg.model_name or settings.DEFAULT_LLM_MODEL,
+        model_name=settings.DEFAULT_LLM_MODEL,  # แสดงโมเดลที่ใช้จริง (มาจากโค้ด/.env)
+        # model_name=cfg.model_name or settings.DEFAULT_LLM_MODEL,  # ของเดิม: ค่าในตารางอาจค้างชื่อโมเดลเก่า
         temperature=cfg.temperature,
         max_tokens=cfg.max_tokens,
         top_k=cfg.top_k,
