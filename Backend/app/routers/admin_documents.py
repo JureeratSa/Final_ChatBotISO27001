@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Documents
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 Business logic ย้ายไปที่ app/services/document_service.py (ownership check, response
 mapping, exclude-pages parsing, approval pipeline) และ app/services/rebuild_service.py
 (_trigger_rebuild_background, _delete_from_search_index)

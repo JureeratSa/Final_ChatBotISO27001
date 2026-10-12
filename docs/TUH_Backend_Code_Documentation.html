@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>TUH Chatbot AI — คู่มือและคำอธิบายโค้ด Backend ทุกบรรทัดและทุกฟังก์ชัน (ฉบับส่งมอบ)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+        @page {
+            size: A4;
+            margin: 18mm 15mm 20mm 15mm;
+            @bottom-right {
+                content: counter(page);
+            }
+        }
+
+        :root {
+            --primary: #0284c7;
+            --primary-dark: #0369a1;
+            --secondary: #0f172a;
+            --accent: #06b6d4;
+            --bg-light: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --code-bg: #0f172a;
+            --code-text: #e2e8f0;
+            --badge-bg: #e0f2fe;
+            --badge-text: #0369a1;
+            --danger-bg: #fee2e2;
+            --danger-text: #b91c1c;
+            --success-bg: #dcfce7;
+            --success-text: #15803d;
+            --warn-bg: #fef3c7;
+            --warn-text: #b45309;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sarabun', 'Prompt', sans-serif;
+            color: var(--text-main);
+            background-color: #ffffff;
+            line-height: 1.65;
+            font-size: 13.5px;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Prompt', sans-serif;
+            color: var(--secondary);
+            margin-top: 1.4em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: var(--primary-dark);
+            border-bottom: 2.5px solid var(--primary);
+            padding-bottom: 6px;
+        }
+
+        h2 {
+            font-size: 18px;
+            color: var(--secondary);
+            background-color: #f1f5f9;
+            padding: 8px 12px;
+            border-left: 5px solid var(--primary);
+            border-radius: 0 6px 6px 0;
+            margin-top: 2em;
+        }
+
+        h3 {
+            font-size: 15px;
+            color: #0369a1;
+            margin-top: 1.2em;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 4px;
+        }
+
+        h4 {
+            font-size: 14px;
+            color: #334155;
+            margin-top: 1em;
+        }
+
+        p {
+            margin: 0.4em 0 0.8em 0;
+        }
+
+        .cover-page {
+            text-align: center;
+            padding: 60px 20px;
+            page-break-after: always;
+        }
+
+        .cover-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0369a1;
+            margin-bottom: 10px;
+        }
+
+        .cover-subtitle {
+            font-size: 18px;
+            color: #475569;
+            margin-bottom: 30px;
+        }
+
+        .cover-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #0284c7, #06b6d4);
+            color: white;
+            padding: 6px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 40px;
+        }
+
+        .cover-meta {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 540px;
+            margin: 40px auto;
+            text-align: left;
+        }
+
+        .cover-meta table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .cover-meta td {
+            padding: 6px 10px;
+            font-size: 13.5px;
+        }
+
+        .cover-meta td:first-child {
+            font-weight: 600;
+            color: #475569;
+            width: 35%;
+        }
+
+        .table-of-contents {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 25px 0;
+            page-break-after: always;
+        }
+
+        .table-of-contents h2 {
+            margin-top: 0;
+            background: none;
+            padding: 0;
+            border-left: none;
+            color: var(--primary-dark);
+            font-size: 20px;
+        }
+
+        .toc-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+
+        .toc-item {
+            padding: 5px 0;
+            border-bottom: 1px dotted #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .toc-item a {
+            text-decoration: none;
+            color: #334155;
+            font-weight: 500;
+        }
+
+        .toc-sublist {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11.5px;
+            font-weight: 600;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .badge-info { background: var(--badge-bg); color: var(--badge-text); }
+        .badge-danger { background: var(--danger-bg); color: var(--danger-text); }
+        .badge-success { background: var(--success-bg); color: var(--success-text); }
+        .badge-warn { background: var(--warn-bg); color: var(--warn-text); }
+
+        pre, code {
+            font-family: 'Fira Code', Consolas, Monaco, monospace;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 12px 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.5;
+            border: 1px solid #334155;
+            margin: 10px 0 14px 0;
+            page-break-inside: avoid;
+        }
+
+        p code, li code, td code {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin: 12px 0 20px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            page-break-inside: avoid;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .file-section {
+            margin-bottom: 35px;
+            page-break-inside: avoid;
+        }
+
+        .importance-box {
+            background-color: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .importance-box strong {
+            color: #15803d;
+        }
+
+        .security-box {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .security-box strong {
+            color: #b91c1c;
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 12.5px;
+            page-break-inside: avoid;
+        }
+
+        table.data-table th {
+            background-color: #0f172a;
+            color: #ffffff;
+            text-align: left;
+            padding: 8px 10px;
+            font-weight: 600;
+        }
+
+        table.data-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+
+        table.data-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 30px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- COVER PAGE                                               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="cover-page">
+    <div style="font-size: 54px; margin-bottom: 15px;">🏥🤖</div>
+    <div class="cover-title">TUH Chatbot AI v2.0</div>
+    <div class="cover-subtitle">คู่มือสถาปัตยกรรมและคำอธิบายโค้ดระดับฟังก์ชันและบรรทัด Backend ทั้งหมด</div>
+    <div class="cover-badge">เอกสารส่งมอบโครงการ (System Handover Technical Specification)</div>
+
+    <div class="cover-meta">
+        <table>
+            <tr><td>โมดูลเป้าหมาย:</td><td><strong>Backend (FastAPI + SQLAlchemy Async + TiDB Cloud)</strong></td></tr>
+            <tr><td>เวอร์ชันระบบ:</td><td><strong>v2.0.0 (Production Refactored)</strong></td></tr>
+            <tr><td>วันที่จัดทำ:</td><td><strong>24 กันยายน 2026</strong></td></tr>
+            <tr><td>ผู้จัดทำ:</td><td><strong>Tech Lead / Lead Architecture Team</strong></td></tr>
+            <tr><td>ขอบเขตเนื้อหา:</td><td><strong>อธิบายโค้ดทุกบรรทัด, ทุกฟังก์ชัน, Data Schemas, Services, และ Routers ทั้ง 13 ส่วน (ไม่รวมไฟล์เทส)</strong></td></tr>
+        </table>
+    </div>
+
+    <p style="color: #64748b; font-size: 12.5px; max-width: 500px; margin: 30px auto;">
+        เอกสารนี้จัดทำขึ้นเพื่อให้ทีมวิศวกรซอฟต์แวร์ ผู้ดูแลระบบสารสนเทศ และผู้รับมอบงาน สามารถเข้าใจโครงสร้าง ความปลอดภัย ตรรกะทางธุรกิจ และสามารถต่อยอด พัฒนา หรือแก้ปัญหาได้อย่างรวดเร็วและปลอดภัย
+    </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- TABLE OF CONTENTS                                        -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="table-of-contents">
+    <h2>📑 สารบัญเอกสาร (Table of Contents)</h2>
+    <ul class="toc-list">
+        <li class="toc-item"><span><strong>1. โครงสร้าง Dependencies และระบบ Migration</strong></span> <span>หน้า 3</span></li>
+        <ul class="toc-sublist">
+            <li>• Backend/requirements.txt & requirements-dev.txt (Library ทั้งหมด)</li>
+            <li>• Backend/alembic.ini & alembic/ (ระบบ Database Schema Migration)</li>
+            <li>• Backend/scripts/migrate_from_json.py (สคริปต์ One-shot ย้ายข้อมูล v1 -> TiDB)</li>
+        </ul>
+
+        <li class="toc-item"><span><strong>2. จุดเริ่มต้นแอปพลิเคชันและ Infrastructure ความปลอดภัย</strong></span> <span>หน้า 6</span></li>
+        <ul class="toc-sublist">
+            <li>• Backend/app/main.py (FastAPI App, Lifespan, CORS Subnet Regex, Static Mount)</li>
+            <li>• Backend/app/core/config.py (Settings, Dynamic Directory Calculation, Pydantic)</li>
+            <li>• Backend/app/core/database.py (Async Engine, Connection Pool, get_db Dependency)</li>
+            <li>• Backend/app/core/security.py (JWT Token, Bcrypt Hash, Path Traversal Defenses)</li>
+            <li>• Backend/app/core/rate_limit.py (In-Memory Sliding Window Rate Limiting)</li>
+            <li>• Backend/app/core/logging_config.py (Production Structured Logging)</li>
+            <li>• Backend/app/utils/sanitize.py (nh3 HTML Sanitization กัน Stored XSS)</li>
+        </ul>
+
+        <li class="toc-item"><span><strong>3. โครงสร้างตารางฐานข้อมูลและ Data Validation</strong></span> <span>หน้า 14</span></li>
+        <ul class="toc-sublist">
+            <li>• Backend/app/models/models.py (SQLAlchemy ORM Entities ทั้ง 8 ตาราง)</li>
+            <li>• Backend/app/schemas/schemas.py (Pydantic Request/Response Models)</li>
+        </ul>
+
+        <li class="toc-item"><span><strong>4. Business Logic Services Layer (เลเยอร์ประมวลผลหลัก)</strong></span> <span>หน้า 19</span></li>
+        <ul class="toc-sublist">
+            <li>• Backend/app/services/rag_service.py (Hybrid Search + OpenRouter LLM Gateway)</li>
+            <li>• Backend/app/services/document_service.py (Pipeline ประมวลผลเอกสาร PDF)</li>
+            <li>• Backend/app/services/rebuild_service.py (Background Index Rebuilding)</li>
+            <li>• Backend/app/services/form_service.py (PDF Page Parsing & Form Extraction)</li>
+            <li>• Backend/app/services/feedback_service.py (บันทึก CSAT และ Dislike)</li>
+            <li>• Backend/app/services/unanswered_service.py (ระบบคำถามค้างตอบ)</li>
+            <li>• Backend/app/services/history_service.py (ประวัติแชทและการ Export CSV)</li>
+        </ul>
+
+        <li class="toc-item"><span><strong>5. Controller & API Routers (Endpoints ทั้งหมด)</strong></span> <span>หน้า 28</span></li>
+        <ul class="toc-sublist">
+            <li>• Routers ทั้ง 13 ตัว: auth, chat, public, admin_documents, admin_settings, ฯลฯ</li>
+        </ul>
+    </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: DEPENDENCIES & MIGRATION                      -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>1. โครงสร้าง Dependencies และระบบ Migration</h1>
+
+<div class="file-section">
+    <h2>1.1 Backend/requirements.txt & requirements-dev.txt</h2>
+    <p>เอกสารประกาศไลบรารีภายนอกทั้งหมดที่ระบบต้องการในการรัน Production และการพัฒนา</p>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">Package Name</th>
+                <th style="width: 20%;">หมวดหมู่</th>
+                <th>หน้าที่และความสำคัญระดับระบบ</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>fastapi==0.110.*</code>, <code>uvicorn[standard]</code></td>
+                <td>Web Framework & Server</td>
+                <td>แกนหลักของ REST API Server ทำงานแบบ Async I/O ความเร็วสูง รองรับ Request จำนวนมากพร้อมกัน</td>
+            </tr>
+            <tr>
+                <td><code>pydantic</code>, <code>pydantic-settings</code></td>
+                <td>Validation & Config</td>
+                <td>อ่านไฟล์ <code>.env</code> และตรวจสอบ Data Types ของ Request/Response อัตโนมัติ</td>
+            </tr>
+            <tr>
+                <td><code>sqlalchemy>=2.0</code>, <code>aiomysql</code>, <code>pymysql</code></td>
+                <td>Database ORM & Driver</td>
+                <td>เชื่อมต่อ TiDB Cloud แบบ Async (<code>aiomysql</code>) และ Sync สำหรับ Alembic (<code>pymysql</code>)</td>
+            </tr>
+            <tr>
+                <td><code>alembic</code></td>
+                <td>Database Migration</td>
+                <td>จัดการ Versioning ของ Database Schema ป้องกันปัญหาคอลัมน์ไม่ตรงกันระหว่าง Dev/Prod</td>
+            </tr>
+            <tr>
+                <td><code>python-jose[cryptography]</code>, <code>bcrypt</code></td>
+                <td>Security & Auth</td>
+                <td>สร้างและตรวจสอบ JWT Token (HMAC-SHA256) และ Hash รหัสผ่านด้วย Salt ความปลอดภัยสูง</td>
+            </tr>
+            <tr>
+                <td><code>nh3</code></td>
+                <td>Security (Sanitization)</td>
+                <td>กรองแท็ก HTML อันตรายจากข้อความที่เขียนผ่าน Rich Text Editor ป้องกัน Stored XSS</td>
+            </tr>
+            <tr>
+                <td><code>httpx</code></td>
+                <td>Async HTTP Client</td>
+                <td>ใช้ยิงคำขอแบบ Non-blocking ไปยัง OpenRouter LLM API (Google Gemma / Gemini)</td>
+            </tr>
+            <tr>
+                <td><code>chromadb</code>, <code>sentence-transformers</code></td>
+                <td>Vector Database & AI</td>
+                <td>เก็บ Dense Vector Embeddings และรันโมเดล <code>BAAI/bge-m3</code> สำหรับระบบ RAG</td>
+            </tr>
+            <tr>
+                <td><code>rank-bm25</code>, <code>pythainlp</code></td>
+                <td>Lexical Search</td>
+                <td>ตัดคำภาษาไทยแบบ NewMM และทำ BM25 Full-text Keyword Search ร่วมกับ Vector Search</td>
+            </tr>
+            <tr>
+                <td><code>PyMuPDF</code> (<code>fitz</code>), <code>langchain-text-splitters</code></td>
+                <td>Document Processing</td>
+                <td>สกัดข้อความจากเอกสาร PDF สวัสดิการโรงพยาบาล และตัดแบ่งเป็น Chunks ขนาดพอดีคำ</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="file-section">
+    <h2>1.2 Backend/alembic.ini และ Backend/alembic/</h2>
+    <p>ระบบควบคุมเวอร์ชันของโครงสร้างฐานข้อมูล (Database Schema Version Control)</p>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Backend/alembic/env.py & alembic.ini</span>
+            <span class="badge badge-info">Database Migration Engine</span>
+        </div>
+        <p><strong>การทำงานของโค้ด:</strong></p>
+        <ul>
+            <li><code>config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)</code>: ดึงค่า Database URL อัตโนมัติจาก <code>app.core.config.settings</code> โดยไม่ต้อง Hardcode รหัสผ่านลงใน <code>alembic.ini</code></li>
+            <li><code>target_metadata = Base.metadata</code>: เชื่อมโยง Metadata ของ SQLAlchemy Models เข้ากับ Alembic ทำให้สามารถใช้คำสั่ง <code>alembic revision --autogenerate</code> เพื่อตรวจจับการเพิ่ม/ลด/แก้ไขคอลัมน์ใน <code>app/models/models.py</code> ได้ทันที</li>
+            <li><code>run_migrations_online()</code>: รัน Migration ภายใต้ Transaction เพื่อรับประกันว่าหากเกิดข้อผิดพลาด ระบบจะ Rollback อัตโนมัติ</li>
+        </ul>
+        <div class="importance-box">
+            <strong>ความสำคัญ:</strong> ทำให้การอัปเกรดฐานข้อมูลบน Server จริงมีประวัติที่ตรวจสอบได้ (Audit Trail) และไม่มีปัญหาข้อมูลสูญหายจากการ Drop Table ผิดพลาด
+        </div>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>1.3 Backend/scripts/migrate_from_json.py</h2>
+    <p>สคริปต์ One-Shot สำหรับย้ายข้อมูลจากระบบ v1 (ไฟล์ JSON) เข้าสู่ฐานข้อมูล TiDB Cloud</p>
+    
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">scripts/migrate_from_json.py</span>
+            <span class="badge badge-warn">One-Time Migration Tool</span>
+        </div>
+        <pre><code>async def migrate_all():
+    # 1. อ่านข้อมูลจาก JSON files: settings.json, history.json, feedback.json, unanswered.json
+    # 2. แปลงโครงสร้างข้อมูล (Data Mapping) ให้ตรงกับ SQLAlchemy Models
+    # 3. ตรวจสอบข้อมูลซ้ำซ้อน (De-duplication) โดยเฉพาะ Unanswered Queries และ Feedback
+    # 4. ทำ Batch Insert ลงใน TiDB Cloud ผ่าน AsyncSession
+    # 5. สรุปผลจำนวนแถวที่ย้ายสำเร็จ</code></pre>
+        <div class="importance-box">
+            <strong>ความสำคัญ:</strong> ช่วยย้ายข้อมูลประวัติเดิมทั้งหมดเข้าสู่ระบบฐานข้อมูลใหม่อย่างไร้รอยต่อ โดยถูกแยกออกจาก <code>main.py</code> เพื่อไม่ให้รันซ้ำซ้อนตอน Server Startup
+        </div>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: ENTRY POINT & SECURITY CORE                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>2. จุดเริ่มต้นแอปพลิเคชันและ Infrastructure ความปลอดภัย</h1>
+
+<div class="file-section">
+    <h2>2.1 Backend/app/main.py</h2>
+    <p>จุดศูนย์กลางในการบูตเซิร์ฟเวอร์ (FastAPI Application Entry Point)</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">ฟังก์ชันและบล็อกโค้ดใน main.py</span>
+            <span class="badge badge-info">Core Application</span>
+        </div>
+
+        <h4>1. การแก้ปัญหา Windows AsyncIO SSL Bug (บรรทัดที่ 10-15)</h4>
+        <pre><code>if sys.platform == 'win32':
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass</code></pre>
+        <p><strong>คำอธิบาย:</strong> สลับ Event Loop เป็น Selector Policy บน Windows เพื่อป้องกัน <code>WinError 87 (The parameter is incorrect)</code> เมื่อมีการปิดการเชื่อมต่อ Async HTTPS กับ OpenRouter LLM</p>
+
+        <h4>2. ฟังก์ชัน <code>lifespan(app: FastAPI)</code> (บรรทัดที่ 38-68)</h4>
+        <pre><code>@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Phase
+    logger.info("🚀 %s v%s starting...", settings.APP_NAME, settings.APP_VERSION)
+    await create_tables()        # 1. ตรวจสอบตารางฐานข้อมูล
+    await init_default_admin()    # 2. สร้าง Admin คนแรกหากระบบว่างเปล่า
+    try:
+        from app.services.rag_service import load_retriever
+        load_retriever()          # 3. Warm-up โหลดโมเดล AI และ ChromaDB เข้า RAM
+    except Exception as e:
+        logger.warning("⚠️ RAG Retriever not loaded: %s", e)
+    yield
+    # Shutdown Phase
+    logger.info("👋 %s shutting down...", settings.APP_NAME)</code></pre>
+        <p><strong>คำอธิบาย:</strong> จัดการ Lifecycle ตอนเริ่มและหยุดแอป โดย Warm-up โหลดโมเดล BGE-M3 และดัชนีเข้าหน่วยความจำทันที ทำให้ผู้ใช้ที่แชทคนแรกไม่ต้องรอโหลดโมเดล 10-20 วินาที</p>
+
+        <h4>3. ฟังก์ชัน <code>init_default_admin()</code> (บรรทัดที่ 72-110)</h4>
+        <p><strong>คำอธิบาย:</strong> ตรวจสอบตาราง <code>users</code> หากไม่มีผู้ใช้อยู่เลย จะสร้าง Admin เริ่มต้นขึ้นมา โดยหากไม่พบ <code>INITIAL_ADMIN_PASSWORD</code> ใน <code>.env</code> ระบบจะใช้ <code>secrets.token_urlsafe(12)</code> สุ่มรหัสผ่านที่ปลอดภัย และพิมพ์ออก Console ครั้งเดียว</p>
+        <div class="security-box">
+            <strong>ความปลอดภัย:</strong> ยกเลิกการใช้รหัสผ่าน Hardcode แบบเดิม (เช่น <code>admin1234</code>) อย่างสิ้นเชิง ป้องกันการถูกโจมตีระบบใหม่ที่เพิ่ง Deploy
+        </div>
+
+        <h4>4. CORS Middleware & Subnet Regex (บรรทัดที่ 130-162)</h4>
+        <pre><code>_octet = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
+allowed_origin_regex = rf"^http://172\.30\.{_octet}\.{_octet}:(?:5173|5174|8080)$"
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_origin_regex=allowed_origin_regex,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)</code></pre>
+        <p><strong>คำอธิบาย:</strong> อนุญาต Origin ของ Localhost, XAMPP (พอร์ต 8080) และเครื่องในวง Subnet ของโรงพยาบาล (<code>172.30.0.0/16</code>) ผ่าน Regular Expression ที่มี Anchor หัว-ท้าย (<code>^...$</code>) เพื่อป้องกันการ Bypass เช่น <code>http://172.30.1.1.attacker.com</code></p>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>2.2 Backend/app/core/config.py</h2>
+    <p>ศูนย์รวมการอ่านค่า Configuration จากสภาพแวดล้อม (.env) ด้วย Pydantic BaseSettings</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">class Settings(BaseSettings)</span>
+            <span class="badge badge-info">Pydantic Settings</span>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ตัวแปร / Property</th>
+                    <th>ประเภท</th>
+                    <th>คำอธิบายและการทำงาน</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>DATABASE_URL</code></td>
+                    <td><code>@property (str)</code></td>
+                    <td>สร้าง Connection String สำหรับ Async MySQL (<code>mysql+aiomysql://...</code>)</td>
+                </tr>
+                <tr>
+                    <td><code>DATABASE_URL_SYNC</code></td>
+                    <td><code>@property (str)</code></td>
+                    <td>สร้าง Connection String สำหรับ Sync MySQL (<code>mysql+pymysql://...</code>) ให้ Alembic ใช้</td>
+                </tr>
+                <tr>
+                    <td><code>JWT_SECRET_KEY</code></td>
+                    <td><code>str</code></td>
+                    <td>กุญแจลับสำหรับเซ็น JWT Token (ต้องกำหนดใน <code>.env</code> เสมอ ห้ามมี Default)</td>
+                </tr>
+                <tr>
+                    <td><code>UPLOADS_DIR</code>, <code>INDEX_DB_DIR</code></td>
+                    <td><code>@property (str)</code></td>
+                    <td>คำนวณ Absolute Path อัตโนมัติจากตำแหน่งไฟล์ ไม่พึ่งพา <code>.exists()</code> ทำให้รันได้ทั้งบน Local OS และ Docker</td>
+                </tr>
+                <tr>
+                    <td><code>RATE_LIMIT_REQUESTS</code></td>
+                    <td><code>int (30)</code></td>
+                    <td>เพดานคำขอสูงสุดต่อ IP ใน 1 หน้าต่างเวลา (60 วินาที)</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="importance-box">
+            <strong>ความสำคัญ:</strong> ป้องกันปัญหารหัสผ่าน Production รั่วไหลเข้า Git และรับประกันความถูกต้องของ Type ตลอดการทำงาน
+        </div>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>2.3 Backend/app/core/database.py</h2>
+    <p>ระบบเชื่อมต่อและจัดการ Connection Pool กับฐานข้อมูล TiDB Cloud</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Async Database Engine & Dependency</span>
+            <span class="badge badge-info">SQLAlchemy Async</span>
+        </div>
+        <h4>ฟังก์ชันสำคัญ:</h4>
+        <ul>
+            <li><code>create_async_engine(...)</code>: สร้าง Engine พร้อมตั้งค่า <code>pool_size=10</code>, <code>max_overflow=20</code>, <code>pool_pre_ping=True</code> (ตรวจสอบว่า Connection ยังไม่หลุดก่อนส่งให้คำขอ) และบังคับเปิด <code>ssl: True</code> สำหรับ TiDB Serverless</li>
+            <li><code>async def get_db() -> AsyncGenerator[AsyncSession, None]</code>:
+                <pre><code>async with AsyncSessionLocal() as session:
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()</code></pre>
+                FastAPI Dependency สำหรับจ่าย Session ให้กับแต่ละ Request เมื่อประมวลผลเสร็จจะ Commit อัตโนมัติ หากเกิดข้อผิดพลาดจะ Rollback ทันที ป้องกันปัญหา Transaction ค้าง
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>2.4 Backend/app/core/security.py</h2>
+    <p>โมดูลความปลอดภัย การเข้ารหัส และการป้องกันการโจมตีไฟล์ระบบ</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Security & Cryptography Functions</span>
+            <span class="badge badge-danger">High Security Impact</span>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ชื่อฟังก์ชัน</th>
+                    <th>การทำงานและตรรกะโค้ด</th>
+                    <th>ความสำคัญในการป้องกันภัยคุกคาม</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>hash_password(plain)</code></td>
+                    <td>สร้าง Salt และ Hash รหัสผ่านด้วย <code>bcrypt.hashpw</code></td>
+                    <td>ป้องกันการดูรหัสผ่านจริงหากฐานข้อมูลรั่วไหล</td>
+                </tr>
+                <tr>
+                    <td><code>verify_password(plain, hash)</code></td>
+                    <td>ตรวจสอบรหัสผ่านด้วย <code>bcrypt.checkpw</code></td>
+                    <td>ตรวจสอบความถูกต้องโดยไม่ต้องถอดรหัส</td>
+                </tr>
+                <tr>
+                    <td><code>create_access_token(data)</code></td>
+                    <td>สร้าง JWT Token ที่มีอายุ 15 นาที พร้อมระบุ <code>type: access</code></td>
+                    <td>จำกัดอายุการใช้งาน ป้องกันการนำ Token เก่ามาใช้ซ้ำ</td>
+                </tr>
+                <tr>
+                    <td><code>create_refresh_token(data)</code></td>
+                    <td>สร้าง JWT Token อายุ 7 วัน สำหรับขอ Access Token ใหม่</td>
+                    <td>รักษา Session การล็อกอินอย่างปลอดภัย</td>
+                </tr>
+                <tr>
+                    <td><code>safe_path(base_dir, user_path)</code></td>
+                    <td>ใช้ <code>is_relative_to()</code> และ <code>Path.parents</code> ตรวจสอบว่า Path ผลลัพธ์ต้องอยู่ภายใต้ <code>base_dir</code> เท่านั้น</td>
+                    <td><strong>ป้องกัน Path Traversal Attack (CWE-22)</strong> ไม่ให้ผู้ใช้ป้อน <code>../../windows/win.ini</code> หรือชื่อไฟล์หลุดโฟลเดอร์</td>
+                </tr>
+                <tr>
+                    <td><code>safe_filename(filename)</code></td>
+                    <td>ตัด Path Delimiter (<code>/</code>, <code>\</code>) ออกทั้งหมด เหลือเฉพาะ Base Name</td>
+                    <td>ป้องกันการตั้งชื่อไฟล์อัปโหลดที่แฝง Path Directory</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>2.5 Backend/app/core/rate_limit.py</h2>
+    <p>ระบบป้องกัน DoS และจำกัดความถี่การยิงคำขอ (Sliding Window Algorithm)</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">class RateLimiter</span>
+            <span class="badge badge-warn">Traffic Controller</span>
+        </div>
+        <p><strong>การทำงานของโค้ด:</strong></p>
+        <ul>
+            <li>ใช้ <code>collections.deque</code> บันทึก Timestamp ของแต่ละ Request แยกตาม IP Address</li>
+            <li>ฟังก์ชัน <code>is_rate_limited(ip, max_requests, window_seconds)</code>:
+                <ol>
+                    <li>ลบ Timestamp เก่าที่อยู่นอกหน้าต่างเวลา (เช่น เกิน 60 วินาทีที่แล้ว) ออกจากคิว</li>
+                    <li>นับจำนวน Request ที่เหลืออยู่ในคิว หากเกิน <code>max_requests</code> จะคืนค่า <code>True</code> (ถูกบล็อก)</li>
+                    <li>หากไม่เกิน จะเพิ่มเวลาปัจจุบันเข้าคิวและอนุญาตให้ทำงานต่อ</li>
+                </ol>
+            </li>
+            <li>มีฟังก์ชัน Cleanup ลบ IP ที่ไม่มีการเคลื่อนไหวออกจากหน่วยความจำอัตโนมัติเพื่อป้องกัน Memory Leak</li>
+        </ul>
+        <div class="importance-box">
+            <strong>ความสำคัญ:</strong> ปกป้องระบบจากการถูกสแปมคำถาม และควบคุมค่าใช้จ่าย API ของ LLM ไม่ให้บานปลาย
+        </div>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>2.6 Backend/app/utils/sanitize.py</h2>
+    <p>ระบบทำความสะอาดโค้ด HTML เพื่อป้องกัน Stored XSS</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">sanitize_html(raw_html: str) -> str</span>
+            <span class="badge badge-danger">XSS Prevention</span>
+        </div>
+        <p><strong>การทำงานของโค้ด:</strong></p>
+        <p>ใช้ Library <code>nh3</code> (เขียนด้วยภาษา Rust ความเร็วสูงและปลอดภัย) ในการกรองแท็ก โดยอนุญาตเฉพาะ Whitelist Tags เช่น <code>p, strong, em, u, ol, ul, li, a, h1-h6, table, tr, td, img</code> และตรวจสอบ Schema ของ URL ให้เป็นเฉพาะ <code>http, https, mailto</code> เท่านั้น โดยจะตัดแท็ก <code>&lt;script&gt;</code>, <code>&lt;iframe&gt;</code>, และ Event Handlers เช่น <code>onclick=</code>, <code>onerror=</code> ทิ้งทั้งหมด</p>
+        <div class="security-box">
+            <strong>ความปลอดภัย:</strong> ป้องกันผู้ดูแลระบบที่อาจถูกแฮกหรือผู้ไม่หวังดีแอบฝัง JavaScript อันตรายลงในประกาศข่าวสาร
+        </div>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: DATABASE MODELS & SCHEMAS                     -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>3. โครงสร้างตารางฐานข้อมูลและ Data Validation</h1>
+
+<div class="file-section">
+    <h2>3.1 Backend/app/models/models.py</h2>
+    <p>นิยาม SQLAlchemy 2.0 ORM Models ทั้ง 8 ตารางของระบบ</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">ตารางและคอลัมน์ทั้งหมดในฐานข้อมูล TiDB Cloud</span>
+            <span class="badge badge-info">Database Schema</span>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 20%;">Model / Table</th>
+                    <th style="width: 45%;">คอลัมน์สำคัญ</th>
+                    <th>หน้าที่และความสัมพันธ์</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>User</code><br>(<code>users</code>)</td>
+                    <td><code>id, username, password_hash, display_name, role, is_active, created_at</code></td>
+                    <td>เก็บบัญชีผู้ดูแลระบบ (Admin) และสิทธิ์การเข้าถึง (System Administrator, Moderator)</td>
+                </tr>
+                <tr>
+                    <td><code>Document</code><br>(<code>documents</code>)</td>
+                    <td><code>id, filename, display_name, status, pages, size, exclude_pages, uploaded_by_id</code></td>
+                    <td>เก็บรายการเอกสาร RAG สวัสดิการ, สถานะ (<code>Active, Inactive, Processing</code>), เชื่อม FK กับ <code>User</code></td>
+                </tr>
+                <tr>
+                    <td><code>SystemSettings</code><br>(<code>settings</code>)</td>
+                    <td><code>id="config", model_name, temperature, max_tokens, top_k, system_prompt, welcome_message, custom_faqs, rebuild_status</code></td>
+                    <td>เก็บบันทึกการตั้งค่าระบบ AI พารามิเตอร์ และสถานะ Rebuild Vector Index</td>
+                </tr>
+                <tr>
+                    <td><code>ChatHistory</code><br>(<code>history</code>)</td>
+                    <td><code>id (UUID), query, answer, response_time, chunk_ids, api_model, referenced_docs, timestamp</code></td>
+                    <td>เก็บบันทึกประวัติการแชททุกบทสนทนา เชื่อมโยงกับคะแนน Feedback (1-to-Many)</td>
+                </tr>
+                <tr>
+                    <td><code>Feedback</code><br>(<code>feedback</code>)</td>
+                    <td><code>id, rating (like/dislike), stars (1-5), comment, query, answer, history_id</code></td>
+                    <td>เก็บบันทึกคะแนนความพึงพอใจและเหตุผลการ Dislike เชื่อม FK กับ <code>history.id</code></td>
+                </tr>
+                <tr>
+                    <td><code>UnansweredQuery</code><br>(<code>unanswered</code>)</td>
+                    <td><code>id, query, count, status (Pending/Resolved), timestamp</code></td>
+                    <td>เก็บบันทึกคำถามที่บอทหาคำตอบไม่พบ พร้อมนับความถี่ที่ถูกถามซ้ำ</td>
+                </tr>
+                <tr>
+                    <td><code>Form</code><br>(<code>forms</code>)</td>
+                    <td><code>id, name, filename, page, download_link</code></td>
+                    <td>เก็บรายการแบบฟอร์มคำขอสวัสดิการที่ตัดหน้า PDF ไว้ให้ดาวน์โหลด</td>
+                </tr>
+                <tr>
+                    <td><code>Announcement</code><br>(<code>announcements</code>)</td>
+                    <td><code>id, title, content (HTML Sanitize), is_active, created_at</code></td>
+                    <td>เก็บประกาศและข่าวประชาสัมพันธ์สำหรับแสดงบน Pop-up หน้าเว็บ</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>3.2 Backend/app/schemas/schemas.py</h2>
+    <p>เลเยอร์ Data Contract และ Data Validation ด้วย Pydantic</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Schemas สำคัญสำหรับ Request / Response</span>
+            <span class="badge badge-info">Validation Layer</span>
+        </div>
+        <ul>
+            <li><code>ChatRequest</code>: ตรวจสอบข้อมูลคำถามจากผู้ใช้ (<code>query: str</code>, <code>session_id: Optional[str]</code>, <code>history: Optional[List[Dict]]</code>)</li>
+            <li><code>ChatResponse</code>: จัดรูปแบบคำตอบส่งกลับ (<code>answer: str</code>, <code>references: List[ReferenceItem]</code>, <code>response_time: float</code>, <code>session_id: str</code>)</li>
+            <li><code>DocumentUpdate</code>, <code>DocumentResponse</code>: จัดรูปแบบข้อมูลเอกสารและ Chunks</li>
+            <li><code>SystemSettingsUpdate</code>: ตรวจสอบช่วงค่าของ Temperature (0.0 - 1.0) และ Max Tokens</li>
+            <li><code>FeedbackCreate</code>: ตรวจสอบความถูกต้องของคะแนนดาว (1 - 5) หรือ Rating (like/dislike)</li>
+            <li><code>AdminUserCreate</code>, <code>AdminUserResponse</code>: ตรวจสอบความยาวรหัสผ่าน และกรองไม่ส่ง <code>password_hash</code> กลับไปยัง Client</li>
+        </ul>
+        <div class="importance-box">
+            <strong>ความสำคัญ:</strong> ทำหน้าที่เป็นเกราะป้องกันข้อมูลผิดพลาด (Bad Request) ตั้งแต่ด่านหน้า ก่อนที่ข้อมูลจะเข้าสู่ระบบฐานข้อมูลหรือ Business Logic
+        </div>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: SERVICES LAYER (BUSINESS LOGIC)               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>4. Business Logic Services Layer (เลเยอร์ประมวลผลหลัก)</h1>
+
+<div class="file-section">
+    <h2>4.1 Backend/app/services/rag_service.py</h2>
+    <p>หัวใจหลักของระบบ RAG (Retrieval-Augmented Generation) และการเชื่อมต่อ LLM</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">rag_service.py Functions Breakdown</span>
+            <span class="badge badge-info">AI & Search Engine</span>
+        </div>
+
+        <h4>1. <code>load_retriever()</code> / <code>get_retriever()</code></h4>
+        <p><strong>คำอธิบาย:</strong> โหลดคลาส <code>HybridRetriever</code> จาก <code>Admin/emb.py</code> แบบ Singleton Pattern โหลดโมเดล BGE-M3 และ Index เข้า RAM เพียงครั้งเดียว</p>
+
+        <h4>2. <code>check_greeting(query: str) -> Optional[str]</code></h4>
+        <p><strong>คำอธิบาย:</strong> ตรวจสอบคำทักทายพื้นฐาน (เช่น "สวัสดี", "hello", "ดีครับ") หากพบจะส่งข้อความทักทายกลับทันทีโดยไม่ต้องส่งไปถาม LLM ช่วยประหยัดเวลาและลดการใช้ Token</p>
+
+        <h4>3. <code>check_inappropriate(query: str) -> bool</code></h4>
+        <p><strong>คำอธิบาย:</strong> กรองคำหยาบคายและข้อความที่ไม่เหมาะสมเบื้องต้น</p>
+
+        <h4>4. <code>query_rag(query, session_id, history, db) -> Dict[str, Any]</code></h4>
+        <p><strong>ขั้นตอนการทำงานแบบละเอียด:</strong></p>
+        <ol>
+            <li>ดึงการตั้งค่า AI (System Prompt, Temperature, Model) จากตาราง <code>settings</code></li>
+            <li>เรียก <code>retriever.search(query, top_k=settings.top_k)</code> เพื่อค้นหาเนื้อหาที่เกี่ยวข้องด้วย Hybrid Search (ChromaDB + BM25 + Weighted RRF)</li>
+            <li>รวบรวม Chunks ที่ค้นพบมาประกอบเป็น <code>Context Block</code></li>
+            <li>ส่งคำขอแบบ Async ผ่าน <code>httpx.AsyncClient</code> ไปยัง OpenRouter API ด้วยโมเดลที่กำหนด</li>
+            <li>สกัดข้อมูลชื่อเอกสารและเลขหน้า PDF ที่ใช้อ้างอิง (<code>references</code>)</li>
+            <li>บันทึกประวัติการแชทลงในตาราง <code>history</code> แบบ Async ทันที</li>
+            <li>คืนค่า Response ให้ Router นำไปส่งกลับผู้ใช้</li>
+        </ol>
+
+        <div class="importance-box">
+            <strong>ความสำคัญ:</strong> เป็นแกนหลักที่ทำให้ผู้ใช้งานได้รับคำตอบที่ถูกต้องตามระเบียบสวัสดิการของโรงพยาบาล พร้อมลิงก์เปิดหน้า PDF ต้นฉบับได้อย่างแม่นยำ
+        </div>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>4.2 Backend/app/services/document_service.py</h2>
+    <p>ระบบจัดการวงจรชีวิตเอกสาร (Document Processing Pipeline)</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">document_service.py Functions</span>
+            <span class="badge badge-info">Document Engine</span>
+        </div>
+        <ul>
+            <li><code>process_uploaded_document(...)</code>: รับไฟล์ PDF จากแอดมิน, ใช้ <code>PyMuPDF</code> อ่านข้อความทีละหน้า, ส่งไปทำความสะอาดตัดอักขระขยะผ่าน <code>cleanData.py</code>, และตัด Chunks ด้วย <code>RecursiveCharacterTextSplitter</code></li>
+            <li><code>approve_document_pipeline(doc_id, chunks, db)</code>: บันทึก Chunks ที่แอดมินตรวจสอบและแก้ไขแล้วลงในไฟล์ <code>sample_chunks.json</code> และปรับสถานะเอกสารเป็น <code>Active</code></li>
+            <li><code>delete_document_service(doc_id, db)</code>: ลบไฟล์ต้นฉบับในโฟลเดอร์ <code>uploads/</code>, ลบข้อมูลในฐานข้อมูล, และสั่งลบ Vector ออกจาก Index ทันที</li>
+        </ul>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>4.3 Backend/app/services/rebuild_service.py</h2>
+    <p>ระบบสร้างดัชนีค้นหาใหม่ในเบื้องหลัง (Background Vector Rebuilding)</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">rebuild_service.py Functions</span>
+            <span class="badge badge-info">Index Synchronizer</span>
+        </div>
+        <p><strong>การทำงาน:</strong> รันฟังก์ชัน <code>rebuild_db.py</code> ใน Background Thread เพื่อสร้าง ChromaDB Collection ใหม่และคำนวณตาราง BM25 ใหม่ทั้งหมด โดยจะอัปเดตสถานะ <code>rebuild_status: processing -> success/failed</code> ลงในฐานข้อมูล ทำให้แอดมินสามารถเปิดดูความคืบหน้าได้ตลอดเวลา</p>
+    </div>
+</div>
+
+<div class="file-section">
+    <h2>4.4 Backend/app/services/unanswered_service.py & feedback_service.py</h2>
+    <p>ระบบรวบรวมคำถามที่ตอบไม่ได้และวิเคราะห์ความพึงพอใจ</p>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Analytics & Continuous Improvement</span>
+            <span class="badge badge-info">Feedback Services</span>
+        </div>
+        <ul>
+            <li><code>record_unanswered_query(query, db)</code>: บันทึกคำถามที่บอทหาเอกสารไม่พบ หากมีคำถามเดิมซ้ำจะบวกค่า <code>count += 1</code> แทนการสร้างแถวใหม่ ช่วยจัดอันดับปัญหาที่ถูกถามบ่อย</li>
+            <li><code>record_feedback(rating, stars, comment, history_id, db)</code>: บันทึกคะแนน CSAT (1-5 ดาว) หรือการกด Dislike พร้อมเชื่อมโยงกับบทสนทนาในอดีต</li>
+        </ul>
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: API ROUTERS                                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<h1>5. Controller & API Routers (Endpoints ทั้งหมด)</h1>
+<p>รายละเอียดของ APIRouters ทั้ง 13 โมดูลที่ให้บริการแก่ Client:</p>
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th style="width: 25%;">Router File</th>
+            <th style="width: 28%;">Endpoints หลัก</th>
+            <th>หน้าที่และความสำคัญระดับระบบ</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>[auth.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/auth.py)</td>
+            <td><code>POST /api/auth/login</code><br><code>POST /api/auth/refresh</code><br><code>GET /api/auth/me</code></td>
+            <td>จัดการ Authentication กลาง, ออก JWT Token, ตรวจสอบสิทธิ์ และจัดการผู้ใช้ในระบบ</td>
+        </tr>
+        <tr>
+            <td>[chat.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/chat.py)</td>
+            <td><code>POST /api/chat</code><br><code>POST /api/chat/feedback</code></td>
+            <td>Endpoint หลักสำหรับแชทบอทฝั่ง UserWeb รับคำถาม ส่งไปประมวลผล RAG และส่งคำตอบกลับ</td>
+        </tr>
+        <tr>
+            <td>[public.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/public.py)</td>
+            <td><code>GET /api/search</code><br><code>GET /api/ip</code><br><code>GET /api/announcements/active</code><br><code>GET /health</code></td>
+            <td>ให้บริการข้อมูลสาธารณะที่ไม่ต้องยืนยันตัวตน เช่น ตรวจสอบสถานะ Server, ดึงประกาศที่ Active, และดาวน์โหลดไฟล์</td>
+        </tr>
+        <tr>
+            <td>[admin_auth.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_auth.py)</td>
+            <td><code>POST /api/admin/auth/login</code><br><code>POST /api/admin/auth/password/update</code></td>
+            <td>จัดการ Login เฉพาะของหน้าแอดมิน และการเปลี่ยนรหัสผ่านส่วนตัวของผู้ดูแลระบบ</td>
+        </tr>
+        <tr>
+            <td>[admin_documents.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_documents.py)</td>
+            <td><code>GET /api/admin/documents</code><br><code>POST /api/admin/documents/upload</code><br><code>PUT /api/admin/documents/{id}/chunks</code></td>
+            <td>ศูนย์กลางจัดการคลังเอกสาร อัปโหลดไฟล์ PDF, ตรวจสอบ Chunks, แก้ไขข้อความ และอนุมัติเอกสาร</td>
+        </tr>
+        <tr>
+            <td>[admin_settings.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_settings.py)</td>
+            <td><code>GET /api/admin/settings</code><br><code>PUT /api/admin/settings</code></td>
+            <td>ปรับแต่งพารามิเตอร์ AI, System Prompt, ข้อความต้อนรับ และจัดการปุ่ม FAQ หน้าแรก</td>
+        </tr>
+        <tr>
+            <td>[admin_rebuild.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_rebuild.py)</td>
+            <td><code>POST /api/admin/rebuild</code><br><code>GET /api/admin/rebuild/status</code></td>
+            <td>สั่ง Rebuild ดัชนีค้นหา Vector DB ในเบื้องหลัง และตรวจสอบสถานะความคืบหน้า</td>
+        </tr>
+        <tr>
+            <td>[admin_stats.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_stats.py)</td>
+            <td><code>GET /api/admin/stats/summary</code><br><code>GET /api/admin/stats/trends</code></td>
+            <td>สรุปตัวเลขสถิติภาพรวม ยอดคำถาม คะแนนความพึงพอใจ สำหรับแสดงบนแผงควบคุม Dashboard</td>
+        </tr>
+        <tr>
+            <td>[admin_unanswered.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_unanswered.py)</td>
+            <td><code>GET /api/admin/unanswered</code><br><code>POST /api/admin/unanswered/{id}/faq</code></td>
+            <td>ดูรายการคำถามที่บอทตอบไม่ได้ และเครื่องมือแปลงคำถามเหล่านั้นเป็น FAQ หน้าแรกได้ในคลิกเดียว</td>
+        </tr>
+        <tr>
+            <td>[admin_feedback.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_feedback.py)</td>
+            <td><code>GET /api/admin/feedback</code><br><code>DELETE /api/admin/feedback/{id}</code></td>
+            <td>ตรวจสอบรายงานผลคะแนนความพึงพอใจและข้อเสนอแนะของผู้ใช้งาน</td>
+        </tr>
+        <tr>
+            <td>[admin_forms.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_forms.py)</td>
+            <td><code>GET /api/admin/forms</code><br><code>POST /api/admin/forms/upload</code></td>
+            <td>จัดการแบบฟอร์มคำขอสวัสดิการที่ตัดหน้าเฉพาะสำหรับให้ผู้ใช้ดาวน์โหลดตรงหน้าแชท</td>
+        </tr>
+        <tr>
+            <td>[admin_announcements.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_announcements.py)</td>
+            <td><code>GET/POST/PUT/DELETE</code><br><code>/api/admin/announcements</code></td>
+            <td>จัดการ CRUD ข่าวประชาสัมพันธ์และ Pop-up หน้าแรก</td>
+        </tr>
+        <tr>
+            <td>[admin_history.py](file:///z:/Intern/2026/มวล/PJChatbot/Backend/app/routers/admin_history.py)</td>
+            <td><code>GET /api/admin/history</code><br><code>GET /api/admin/history/export</code></td>
+            <td>ตรวจสอบประวัติการสนทนาย้อนหลัง กรองตามช่วงเวลา และ Export ออกมาเป็นไฟล์ CSV</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="footer-note">
+    <p>— เอกสารฉบับนี้สร้างขึ้นโดยอัตโนมัติสำหรับโครงการ TUH Chatbot AI v2.0 (สำหรับส่งมอบระบบ) —</p>
+</div>
+
+</body>
+</html>

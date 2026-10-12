@@ -1,12 +1,18 @@
+/**
+ * TUH Chatbot AI — useUserIp Custom Hook
+ * ดึง IP Address ของเครื่องผู้ใช้งานผ่าน API '/api/ip':
+ * 1. ทำงานแบบ Fire-and-forget ตอน component mount
+ * 2. นำ IP ที่ได้ไปแสดงผลบน Topbar สำหรับการตรวจสอบและการติดต่อแจ้งปัญหา
+ */
 import { useState, useEffect } from 'react';
 import { API_URL } from '../utils/chatUtils';
 
-// IP ของผู้ใช้ — โหลดจาก /api/ip ตอน mount
-// (แยกออกมาจาก effect รวม 3 fetch เดิมของ App.jsx — เป็น fire-and-forget GET ที่เป็นอิสระจาก 2 fetch อื่น)
 export function useUserIp() {
+  // ค่า IP เริ่มต้นกรณีรอผลหรือเกิดข้อผิดพลาด
   const [userIp, setUserIp] = useState('127.0.0.1');
 
   useEffect(() => {
+    // ยิงคำขอไปยัง Backend เพื่อตรวจจับ Remote IP ของ Client
     fetch(API_URL + '/api/ip')
       .then(res => res.json())
       .then(data => {
@@ -19,3 +25,4 @@ export function useUserIp() {
 
   return userIp;
 }
+

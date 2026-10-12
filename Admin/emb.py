@@ -1,3 +1,10 @@
+"""
+TUH Chatbot AI — Hybrid Retrieval Engine (ChromaDB Vector + BM25 Lexical + Weighted RRF)
+หัวใจหลักของระบบ RAG:
+1. Dense Retrieval: ใช้โมเดล BAAI/bge-m3 (1024 มิติ) บันทึกลง ChromaDB เพื่อค้นหาเชิงความหมาย (Semantic Search)
+2. Lexical Retrieval: ใช้ PyThaiNLP (newmm) ตัดคำภาษาไทยเพื่อสร้าง BM25 Index ค้นหาคำศัพท์เฉพาะทาง
+3. Fusion Engine: ผสานผลลัพธ์ด้วย Weighted Reciprocal Rank Fusion (Dense 0.4 / Lexical 0.6)
+"""
 import os
 import sys
 import json
@@ -16,9 +23,28 @@ except ImportError:
     HAS_LEXICAL = False
 
 
+def resolve_chroma_dir(index_dir: str) -> str:
+    """ที่เก็บ ChromaDB ของทั้งระบบ (retriever, ลบเอกสาร, rebuild ใช้ฟังก์ชันนี้ร่วมกัน)
+    1. env var CHROMA_DB_DIR  2. CHROMA_DB_DIR ใน Backend/.env  3. <index_dir>/chroma_db
+    เดิม hardcode path ใต้โฟลเดอร์ผู้ใช้ของเครื่องพัฒนาไว้บน Windows — เครื่องอื่นที่ไม่มี path นั้น
+    จะหา ChromaDB ไม่เจอแล้วตกไปใช้ BM25 อย่างเดียวแบบเงียบๆ"""
+    path = os.getenv("CHROMA_DB_DIR")
+    if not path:
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Backend", ".env")
+        if os.path.exists(env_file):
+            try:
+                from dotenv import dotenv_values
+                path = dotenv_values(env_file).get("CHROMA_DB_DIR")
+            except ImportError:
+                pass
+    return path or os.path.join(index_dir, "chroma_db")
+
+
 def build_indices():
     """
-    ฟังก์ชันสำหรับอ่านไฟล์ chunks แล้วนำมาสร้างดัชนีค้นหาตามเทคโนโลยีที่ตั้งค่าไว้
+    ฟังก์ชันสำหรับอ่านไฟล์ sample_chunks.json แล้วนำมาสร้างดัชนีค้นหา:
+    1. สร้าง ChromaDB Collection ('tuh_collection') ด้วย Dense Embedding (BAAI/bge-m3)
+    2. สร้าง BM25 Okapi Index บันทึกเป็นไฟล์ bm25.pkl
     """
     # ตรวจสอบการติดตั้งไลบรารีที่จำเป็น
     missing = []
@@ -35,6 +61,7 @@ def build_indices():
     chunks_path = os.path.join(base_dir, "sample_chunks.json")
     index_dir = os.path.join(base_dir, "index_db")
     db_settings_path = os.path.join(base_dir, "user", "backend", "db", "db_settings.json")
+
 
     print(f"กำลังโหลดข้อมูล chunks จาก: {chunks_path}")
     if not os.path.exists(chunks_path):
@@ -76,7 +103,7 @@ def build_indices():
     dense_model = SentenceTransformer("BAAI/bge-m3")
     embeddings = dense_model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
 
-    chroma_dir = os.path.join(index_dir, "chroma_db")
+    chroma_dir = resolve_chroma_dir(index_dir)
     chroma_client = chromadb.PersistentClient(path=chroma_dir)
     # เคลียร์คอลเลกชันเดิม
     try:
@@ -165,12 +192,7 @@ def delete_document_from_index(filename: str, index_dir=None, chroma_dir=None, r
                 retriever.bm25_chunks = remaining
 
     # ─ ChromaDB: persistent client ชี้ path เดียวกับที่ HybridRetriever.load() ใช้ ─
-    if chroma_dir is not None:
-        chroma_path = chroma_dir
-    elif sys.platform.startswith('win') or os.name == 'nt':
-        chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-    else:
-        chroma_path = os.path.join(index_dir, "chroma_db")
+    chroma_path = chroma_dir if chroma_dir is not None else resolve_chroma_dir(index_dir)
     if os.path.exists(chroma_path):
         try:
             import chromadb
@@ -252,15 +274,19 @@ class HybridRetriever:
         # 2. โหลดโมเดลเวกเตอร์หนาแน่นและ ChromaDB
         print(f"กำลังโหลดดัชนีเวกเตอร์สำหรับเทคโนโลยี: {self.embedding_tech}")
 
-        if sys.platform.startswith('win') or os.name == 'nt':
-            chroma_path = "C:\\Users\\ITS\\tuh-chatbot-db\\chroma_db"
-        else:
-            chroma_path = os.path.join(self.index_dir, "chroma_db")
+        chroma_path = resolve_chroma_dir(self.index_dir)
+        print(f" ที่เก็บ ChromaDB: {chroma_path}")
         if os.path.exists(chroma_path):
             try:
                 import chromadb
                 self.chroma_client = chromadb.PersistentClient(path=chroma_path)
                 self.chroma_collection = self.chroma_client.get_collection("tuh_collection")
+                # ChromaDB กับ BM25 ต้องสร้างจากชุด chunk เดียวกัน ไม่งั้นเลข chunk_id ชี้คนละเนื้อหา
+                # (เช่นไปเปิด ChromaDB ชุดเก่าใน index_db/chroma_db เพราะไม่ได้ตั้ง CHROMA_DB_DIR)
+                n_dense, n_lex = self.chroma_collection.count(), len(self.bm25_chunks or [])
+                if n_lex and n_dense != n_lex:
+                    print(f" คำเตือน: ChromaDB มี {n_dense} chunk แต่ BM25 มี {n_lex} chunk — "
+                          f"อาจเปิด ChromaDB ผิดชุด ตรวจ CHROMA_DB_DIR ใน Backend/.env หรือสั่ง rebuild")
 
                 from sentence_transformers import SentenceTransformer
                 self.model = SentenceTransformer("BAAI/bge-m3")
@@ -405,64 +431,13 @@ class HybridRetriever:
         merge_results(dense_results, "dense", 0.4)
         merge_results(lexical_results, "lexical", 0.6)
 
-        # ให้คะแนนพิเศษเพิ่ม (Boost) สำหรับ Chunk ที่มีคำสำคัญเจาะจงเกี่ยวกับสวัสดิการที่ผู้ใช้ถาม
-        import re
-        benefit_keywords = [
-            "แว่น", "เลนส์", "เลสิก", "lasik", "ฟัน", "ทันตกรรม", "วัคซีน", "ตรวจสุขภาพ", 
-            "รองเท้า", "กีฬา", "ออกกำลังกาย", "ฟิตเนส", "นวด", "ยา", "วิตามิน", "พารา", 
-            "เครื่องวัดความดัน", "หน้ากาก", "แมส", "แมสก์", "เครื่องช่วยฟัง", "กายภาพบำบัด", 
-            "เบาะรองนั่ง", "หมวกกันน็อก", "หมวกนิรภัย", "เครื่องนวด", "ฉี่หนู"
-        ]
-        
-        matched_keywords = [kw for kw in benefit_keywords if kw in query_str.lower()]
-        
-        clean_query = query_str.lower()
-        clean_query = re.sub(r'<[^>]*>', '', clean_query)
-        clean_query = re.sub(r'[\s\-\_\(\)\,\.\/]+', '', clean_query)
-        for sw in ["เบอร์โทร", "เบอร์", "โทรศัพท์", "โทร", "ติดต่อ", "ขอ", "เบิก", "ได้", "ไหม", "มี", "อะไร", "บ้าง"]:
-            clean_query = clean_query.replace(sw, "")
-            
-        for chunk in (self.bm25_chunks or []):
-            cid = chunk["chunk_id"]
-            norm_content = chunk["content"].lower()
-            
-            # 1. เช็กความสอดคล้องของคำสำคัญเฉพาะเจาะจง (เจอบวก 10.0)
-            kw_match = False
-            if matched_keywords:
-                for kw in matched_keywords:
-                    if kw in norm_content:
-                        kw_match = True
-                        break
-            
-            # 2. เช็กความสอดคล้องของวลีคำถามที่คลีนแล้ว
-            phrase_match = False
-            if len(clean_query) >= 3:
-                norm_content_clean = re.sub(r'<[^>]*>', '', norm_content)
-                norm_content_clean = re.sub(r'[\s\-\_\(\)\,\.\/]+', '', norm_content_clean)
-                if clean_query in norm_content_clean:
-                    phrase_match = True
-            
-            if kw_match or phrase_match:
-                if cid not in rrf_scores:
-                    rrf_scores[cid] = 0.0
-                    chunk_map[cid] = {
-                        "chunk_id": chunk["chunk_id"],
-                        "content": chunk["content"],
-                        "metadata": chunk["metadata"],
-                        "dense_rank": None,
-                        "dense_score": None,
-                        "lexical_rank": None,
-                        "lexical_score": None
-                    }
-                rrf_scores[cid] += 10.0
+        # หมายเหตุ (2026-10-07): เอากลไก boost +10 คำสวัสดิการ/phrase match ออกแล้ว — คำว่า "ยา"
+        # ไปตรงกับ "โรงพยาบาล" แบบ substring ทำให้ 26/80 คำถามทดสอบโดน boost แล้วถูกตัดเหลือเฉพาะ
+        # chunk ที่มี "ยา" (165/310) ความแม่นตกจาก ~92% เหลือ ~81% และดัชนีปัจจุบันมีแต่เอกสาร ISO
+        # ไม่มีเอกสารสวัสดิการให้ boost อยู่แล้ว ถ้าจะกลับมาใช้ ให้เทียบเป็นคำเต็ม (ตัดคำด้วย PyThaiNLP)
 
         # จัดลำดับใหม่ทั้งหมดจากคะแนน RRF สูงสุด
         sorted_cids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
-
-        # หากมี chunk ที่ได้คะแนน boost (>= 10.0) ให้คัดกรองเอาเฉพาะกลุ่มที่ได้ boost เท่านั้น
-        has_boosted = any(rrf_scores[cid] >= 10.0 for cid in sorted_cids)
-        if has_boosted:
-            sorted_cids = [cid for cid in sorted_cids if rrf_scores[cid] >= 10.0]
 
         hybrid_results = []
         for idx, cid in enumerate(sorted_cids[:top_k], start=1):

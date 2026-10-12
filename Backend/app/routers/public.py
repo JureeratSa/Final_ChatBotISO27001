@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -86,7 +86,9 @@ async def download_form_file(filename: str):
 
 
 @router.get("/api/documents/serve/{filename}")
-async def main_serve_pdf(filename: str):
+async def main_serve_pdf(filename: str, hl: Optional[str] = None):
+    """เปิด PDF แบบ inline — ถ้ามี ?hl=<chunk_id,...> (ลิงก์จากแหล่งอ้างอิงในแชท) จะไฮไลท์สีฟ้าอ่อน
+    ส่วนที่ใช้ตอบลงในสำเนาที่ส่งกลับ (ดู services/pdf_highlight.py) ไม่มี hl = ส่งไฟล์เดิม"""
     try:
         file_path = safe_path(UPLOADS_DIR, filename)
     except Exception as e:
@@ -94,6 +96,19 @@ async def main_serve_pdf(filename: str):
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+
+    if hl:
+        from app.services.pdf_highlight import parse_chunk_ids, find_chunks, highlight_pdf
+        chunks = find_chunks(file_path.name, parse_chunk_ids(hl))
+        if chunks:
+            try:
+                loop = asyncio.get_event_loop()
+                data = await loop.run_in_executor(None, highlight_pdf, str(file_path), chunks)
+                return Response(content=data, media_type="application/pdf",
+                                headers={"Cache-Control": "no-store"})
+            except Exception as e:
+                # ไฮไลท์ไม่สำเร็จ ไม่ควรทำให้เปิดเอกสารไม่ได้ — ส่งไฟล์เดิมแทน
+                logger.warning("[PDF Highlight] %s: %s", filename, e)
     return FileResponse(str(file_path), media_type="application/pdf")
 
 
@@ -130,8 +145,10 @@ async def compatibility_search(
     from app.services.rag_service import (
         get_retriever, query_rag, contains_profanity, is_chit_chat,
         build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
+        split_used_sources, condense_question,
     )
     from app.routers.chat import save_history, save_unanswered
+    from app.services.taught_keywords_service import expand_retrieval_query
 
     start_time = time.time()
     query = body.query.strip()
@@ -177,8 +194,11 @@ async def compatibility_search(
                 retriever = get_retriever()
                 if retriever:
                     top_k = config.get("top_k", 3)
+                    # เติมหัวข้อจากประวัติแชทให้คำถามต่อเนื่องสั้นๆ ก่อนค้น (เหมือน chat.py)
+                    retrieval_query = await condense_question(query, body.history, config)
+                    retrieval_query = await expand_retrieval_query(db, retriever, retrieval_query)
                     loop = asyncio.get_event_loop()
-                    rag_results = await loop.run_in_executor(None, lambda: retriever.query(query, top_k=top_k))
+                    rag_results = await loop.run_in_executor(None, lambda: retriever.query(retrieval_query, top_k=top_k))
             except Exception as e:
                 logger.error("[Compatibility Search RAG Error] %s", e)
 
@@ -194,6 +214,8 @@ async def compatibility_search(
             history=body.history,
             forms=forms_list
         )
+        # ตัด tag [SOURCES: ...] ออก และเก็บเฉพาะชิ้นที่ LLM ใช้จริงไว้ทำ citation (เหมือน chat.py)
+        answer, cited_results = split_used_sources(answer, rag_results)
 
         elapsed = time.time() - start_time
 
@@ -206,8 +228,8 @@ async def compatibility_search(
         # (ดูเหตุผลเต็มใน rag_service.has_reliable_context — retriever คืน top_k เสมอไม่ว่า
         # คำถามจะเกี่ยวกับเอกสารจริงหรือไม่ เช็คแค่ไม่ว่างเดิมจึงเกือบไม่มีความหมาย)
         citations = []
-        if has_reliable_context(rag_results, used_rag) and not is_unanswered:
-            citations = await build_citations(db, rag_results)
+        if has_reliable_context(rag_results, used_rag) and not is_unanswered and cited_results:
+            citations = await build_citations(db, cited_results)
 
         # Log history in background
         history_id = f"history-{int(time.time() * 1000)}"

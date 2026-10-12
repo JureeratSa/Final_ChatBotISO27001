@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Stats
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 เป็น read-only aggregation ข้าม 4 model (ChatHistory, Feedback, UnansweredQuery, Document)
 ไม่แยก service layer เพราะไม่มี business rule ที่ซับซ้อนพอจะซ่อน แค่ query นับจำนวนตรงๆ
 """

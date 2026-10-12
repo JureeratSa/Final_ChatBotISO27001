@@ -1,6 +1,6 @@
 """
 TUH Chatbot AI — Admin Router: Announcements
-แยกออกมาจาก Backend/app/routers/admin.py — Endpoint/logic เหมือนเดิมทุกตัวอักษร
+แยกออกมาจาก Backend/app/routers/admin.py
 ไม่แยก service layer (ตามแผน) — sanitize_html import คงอยู่ตรงนี้เหมือนเดิม
 """
 from typing import Optional

@@ -20,15 +20,17 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLink
-from app.models.models import SystemSettings, ChatHistory, UnansweredQuery, Form
+from app.schemas.schemas import ChatRequest, ChatResponse, CitationInfo, FormLink, UnansweredSubmit
+from app.models.models import SystemSettings, ChatHistory, Form
 from app.services.rag_service import (
     get_retriever, query_rag, contains_profanity, is_chit_chat,
     build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
+    split_used_sources, condense_question,
 )
 
 from app.core.security import safe_path
 from app.core.rate_limit import rate_limit_dependency
+from app.services.taught_keywords_service import expand_retrieval_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -110,8 +112,12 @@ async def chat(
             retriever = get_retriever()
             if retriever:
                 top_k = config.get("top_k", 3)
+                # คำถามต่อเนื่องสั้นๆ ("มีแนะนำมั้ย") → เติมหัวข้อจากประวัติก่อนค้น (ใช้เฉพาะตอนค้นเอกสาร)
+                retrieval_query = await condense_question(query, body.history, config)
+                # คำถามคล้ายคำถามที่แอดมินสอนคำค้นไว้ → เติมคำค้นภาษาเอกสาร (ใช้เฉพาะตอนค้น)
+                retrieval_query = await expand_retrieval_query(db, retriever, retrieval_query)
                 loop = asyncio.get_event_loop()
-                rag_results = await loop.run_in_executor(None, lambda: retriever.query(query, top_k=top_k))
+                rag_results = await loop.run_in_executor(None, lambda: retriever.query(retrieval_query, top_k=top_k))
         except Exception as e:
             logger.error("[RAG Error] %s", e)
 
@@ -127,6 +133,8 @@ async def chat(
         history=body.history,
         forms=forms_list
     )
+    # ตัด tag [SOURCES: ...] ออกจากคำตอบ และเก็บเฉพาะชิ้นที่ LLM ใช้จริงไว้ทำ citation
+    answer, cited_results = split_used_sources(answer, rag_results)
 
     elapsed = time.time() - start_time
 
@@ -144,8 +152,8 @@ async def chat(
     citations: List[CitationInfo] = []
     form_links_out: List[FormLink] = []
 
-    if has_reliable_context(rag_results, used_rag) and not is_unanswered:
-        citation_dicts = await build_citations(db, rag_results)
+    if has_reliable_context(rag_results, used_rag) and not is_unanswered and cited_results:
+        citation_dicts = await build_citations(db, cited_results)
         citations = [CitationInfo(**c) for c in citation_dicts]
 
     # ─── 8. Form Links ─────────────────────────────────────────────────────
@@ -230,24 +238,9 @@ async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_
 async def save_unanswered(db, query):
     """บันทึกคำถามที่ตอบไม่ได้ (Background Task)"""
     try:
-        from sqlalchemy import update as sql_update, func
         from app.core.database import AsyncSessionLocal
+        from app.services.unanswered_service import record_unanswered_query
         async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(UnansweredQuery).where(
-                    UnansweredQuery.query.ilike(query.strip())
-                )
-            )
-            existing = result.scalar_one_or_none()
-            if existing:
-                existing.count += 1
-            else:
-                session.add(UnansweredQuery(
-                    id=f"unans-{int(time.time() * 1000)}",
-                    query=query.strip(),
-                    count=1,
-                    status="Pending"
-                ))
-            await session.commit()
+            await record_unanswered_query(session, UnansweredSubmit(query=query))
     except Exception as e:
         logger.error("[Unanswered Save Error] %s", e)

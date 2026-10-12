@@ -1,11 +1,18 @@
+/**
+ * TUH Chatbot AI — useChatSessions Custom Hook
+ * จัดการ Lifecycle และ State ของเซสชันการสนทนาทั้งหมด (Core State Management):
+ * 1. computeInitialSessionState: โหลดแชทเดิมจาก localStorage ('tuh_chats'), กรองข้อมูลเก่าเกิน 1 ชั่วโมง (Auto-expire)
+ * 2. Auto-expire Effect: ตรวจสอบและลบเซสชันที่หมดอายุ (เกิน 1 ชั่วโมง) ตามรอบนาฬิกา Real-time
+ * 3. handleNewChat: สร้างห้องสนทนาใหม่พร้อมข้อความทักทาย (Chat Greeting)
+ * 4. handleDeleteSession: ลบห้องสนทนาที่เลือก (ป้องกันการลบห้องปัจจุบันหรือลบจนหมด)
+ */
 import { useState, useRef, useEffect } from 'react';
 import { DEFAULT_WELCOME_MESSAGE, DEFAULT_GREETING } from '../utils/chatUtils';
 
-// คำนวณ sessions + activeSessionId เริ่มต้นแบบ pure function ในครั้งเดียว
-// เดิมใช้ window.__initialActiveSessionId เป็นช่องทางลับส่งค่าจาก useState initializer ของ sessions
-// ไปยัง useState initializer ของ activeSessionId ที่ประกาศถัดไปทันที (พึ่งพาลำดับการเรียก hook ของ React
-// ตรงๆ และเสี่ยงพังภายใต้ React StrictMode ที่เรียก initializer function ซ้ำสองครั้งใน dev mode) —
-// เปลี่ยนมาเป็นฟังก์ชันธรรมดาที่คืนค่าทั้งสองอย่างพร้อมกันในครั้งเดียว ไม่มี global state เลย
+/**
+ * ฟังก์ชันคำนวณ State เริ่มต้นของ Session และ Active Session ID
+ * @returns {{ sessions: Array, activeSessionId: string }}
+ */
 function computeInitialSessionState() {
   const saved = localStorage.getItem('tuh_chats');
   let loadedSessions = null;
@@ -13,12 +20,13 @@ function computeInitialSessionState() {
     try {
       loadedSessions = JSON.parse(saved);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to parse saved chats:", e);
     }
   }
 
   const savedWelcome = localStorage.getItem('tuh_welcome_message') || DEFAULT_WELCOME_MESSAGE;
 
+  // โครงสร้าง Session เริ่มต้น (Default Session)
   const defaultSession = {
     id: 'session-1',
     title: 'สอบถามข้อมูลเบื้องต้น',
@@ -33,11 +41,11 @@ function computeInitialSessionState() {
     ]
   };
 
-  // ตรวจสอบการไม่ใช้งาน 1 ชั่วโมง
+  // ตรวจสอบเวลาการใช้งานล่าสุด (ถ้าไม่ได้ใช้งานเกิน 1 ชั่วโมง ให้เคลียร์ประวัติเก่า)
   const lastChatTime = localStorage.getItem('tuh_last_chat_time');
   const now = Date.now();
-  const oneHourInMs = 60 * 60 * 1000;
-  // ตั้งค่าเวลาสำหรับทดสอบการล็อกเอาต์อัตโนมัติภายใน 1 นาที
+  const oneHourInMs = 60 * 60 * 1000; // 1 ชั่วโมง = 3,600,000 มิลลิวินาที
+
   if (lastChatTime) {
     const elapsed = now - parseInt(lastChatTime, 10);
     if (elapsed > oneHourInMs) {
@@ -51,9 +59,8 @@ function computeInitialSessionState() {
     return { sessions: [defaultSession], activeSessionId: defaultSession.id };
   }
 
-  // กรองข้อมูลแชทที่เก่าเกิน 1 ชั่วโมง (1 * 60 * 60 * 1000 = 3,600,000 ms)
+  // กรองข้อมูลเซสชันที่ไม่หมดอายุ (<= 1 ชั่วโมง)
   const validSessions = loadedSessions.map(session => {
-    // ถ้า session ไม่มี createdAt ให้ลอง parse จาก ID, หรือใช้ค่าปัจจุบัน
     if (!session.createdAt) {
       if (session.id && session.id.startsWith('session-')) {
         const timestampStr = session.id.substring(8);
@@ -69,7 +76,7 @@ function computeInitialSessionState() {
     }
     return session;
   }).filter((session, idx) => {
-    if (idx === 0) return true;
+    if (idx === 0) return true; // เก็บห้องแรกไว้เสมอ
     return (now - session.createdAt) <= oneHourInMs;
   });
 
@@ -77,7 +84,7 @@ function computeInitialSessionState() {
     return { sessions: [defaultSession], activeSessionId: defaultSession.id };
   }
 
-  // ตรวจสอบว่า session ล่าสุดมีข้อความหรือไม่
+  // หากห้องล่าสุดมีการคุยข้อความแล้ว ให้เปิดห้องใหม่รอไว้
   const mostRecent = validSessions[0];
   if (mostRecent && mostRecent.messages.length > 1) {
     const newId = `session-${now}`;
@@ -101,12 +108,8 @@ function computeInitialSessionState() {
   return { sessions: validSessions, activeSessionId: mostRecent ? mostRecent.id : 'session-1' };
 }
 
-// สถานะการสนทนา: sessions, activeSessionId, effect เก็บ/หมดอายุอัตโนมัติ, activeSession/isActiveSessionLatest
-// ที่คำนวณแบบ derived value, และ handler ที่เกี่ยวข้อง (handleNewChat, handleDeleteSession)
 export function useChatSessions({ currentTime, setIsSidebarOpen }) {
-  // ใช้ ref คุมให้ computeInitialSessionState() ทำงานแค่ครั้งเดียวต่อการ mount จริง (กันปัญหา React
-  // StrictMode ที่เรียกฟังก์ชันซึ่งส่งเข้า useState ซ้ำสองครั้งใน dev mode) แล้วส่งค่าที่คำนวณเสร็จแล้ว
-  // (เป็นค่าธรรมดา ไม่ใช่ฟังก์ชัน) เข้า useState ตรงๆ ทั้งสองตัว — จึงไม่มีปัญหาการ double-invoke เลย
+  // ใช้ useRef เพื่อคำนวณ State เริ่มต้นเพียงครั้งเดียว ป้องกันปัญหา React StrictMode
   const initialStateRef = useRef(null);
   if (initialStateRef.current === null) {
     initialStateRef.current = computeInitialSessionState();
@@ -115,12 +118,12 @@ export function useChatSessions({ currentTime, setIsSidebarOpen }) {
   const [sessions, setSessions] = useState(initialStateRef.current.sessions);
   const [activeSessionId, setActiveSessionId] = useState(initialStateRef.current.activeSessionId);
 
-  // บันทึกแชทลง localStorage
+  // ซิงค์ข้อมูล sessions ลง localStorage ทุกครั้งที่มีการเปลี่ยนแปลง
   useEffect(() => {
     localStorage.setItem('tuh_chats', JSON.stringify(sessions));
   }, [sessions]);
 
-  // ตรวจสอบและลบเซสชันที่หมดอายุโดยอัตโนมัติเมื่อตัวนับถอยหลังถึง 00:00 (1 ชั่วโมง)
+  // ตรวจสอบและลบเซสชันที่หมดอายุอัตโนมัติ (เกิน 1 ชั่วโมง)
   useEffect(() => {
     if (sessions.length <= 1) return;
     const now = Date.now();
@@ -141,17 +144,22 @@ export function useChatSessions({ currentTime, setIsSidebarOpen }) {
 
       setSessions(filtered);
 
+      // หาก session ปัจจุบันถูกลบ ให้สลับไปยัง session แรก
       if (!filtered.some(s => s.id === activeSessionId)) {
         setActiveSessionId(filtered[0].id);
       }
     }
   }, [currentTime, sessions, activeSessionId]);
 
+  // คำนวณ Session ปัจจุบันที่กำลังแสดงผล
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || { messages: [] };
+  // ตรวจสอบว่า Session ปัจจุบันเป็น Session ล่าสุด (ห้องบนสุด) หรือไม่
   const isActiveSessionLatest = activeSessionId === sessions[0]?.id;
 
-  // สร้างบทสนทนาใหม่ — รับ chatGreeting ปัจจุบันจากผู้เรียก เพราะค่านี้เป็นของ useWelcomeSettings
-  // ซึ่งถูกเรียกทีหลัง hook นี้ใน App.jsx (useWelcomeSettings ต้องพึ่ง setSessions จาก hook นี้ก่อน)
+  /**
+   * สร้างบทสนทนาใหม่ (New Chat Session)
+   * @param {string} chatGreeting - ข้อความทักทายของบอท
+   */
   const handleNewChat = (chatGreeting) => {
     const newId = `session-${Date.now()}`;
     const newSession = {
@@ -173,15 +181,21 @@ export function useChatSessions({ currentTime, setIsSidebarOpen }) {
     setIsSidebarOpen(false);
   };
 
-  // ลบบทสนทนา
+  /**
+   * ลบบทสนทนาที่ระบุ ID
+   * @param {string} id - Session ID ที่ต้องการลบ
+   * @param {Event} e - Click event
+   */
   const handleDeleteSession = (id, e) => {
     e.stopPropagation();
+    // ป้องกันการลบห้องปัจจุบันที่กำลังใช้งานอยู่
     if (id === sessions[0]?.id) {
       alert("ไม่สามารถลบการสนทนาปัจจุบันที่กำลังใช้งานอยู่ได้ครับ");
       return;
     }
+    // ป้องกันการลบจนไม่เหลือห้องสนทนา
     if (sessions.length === 1) {
-      alert("ขาหมูขอชีแจงว่าคุณผู้ใช้ไม่สามารถลบการสนทนาทั้งหมดได้ ต้องมีอย่างน้อย 1 รายการครับ");
+      alert("ขาหมูขอชี้แจงว่าคุณผู้ใช้ไม่สามารถลบการสนทนาทั้งหมดได้ ต้องมีอย่างน้อย 1 รายการครับ");
       return;
     }
     const filtered = sessions.filter(s => s.id !== id);
@@ -197,3 +211,4 @@ export function useChatSessions({ currentTime, setIsSidebarOpen }) {
     handleNewChat, handleDeleteSession
   };
 }
+
