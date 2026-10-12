@@ -98,7 +98,7 @@ async def analyze_query(query: str) -> dict:
         return {"is_valid_query": False, "suggested_keywords": []}
 
     api_key = settings.LLM_API_KEY
-    if not api_key:
+    if not api_key or not settings.LLM_CHAT_URL:
         # ไม่มี LLM key — คืนค่ากลางๆ ให้แอดมินเขียนคำตอบเองได้ตามปกติ ไม่ error
         return {"is_valid_query": True, "suggested_keywords": []}
 
@@ -129,12 +129,14 @@ async def analyze_query(query: str) -> dict:
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
-            "HTTP-Referer": "http://localhost:8000",
-            "X-Title": "TUH Chatbot v2",
+            # header เฉพาะของ OpenRouter (เลิกใช้):
+            # "HTTP-Referer": "http://localhost:8000",
+            # "X-Title": "TUH Chatbot v2",
         }
         loop = __import__("asyncio").get_event_loop()
         res_data = await loop.run_in_executor(
-            None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload_llm, headers, 20
+            None, make_http_post, settings.LLM_CHAT_URL, payload_llm, headers, 20
+            # None, make_http_post, "https://openrouter.ai/api/v1/chat/completions", payload_llm, headers, 20
         )
         content = res_data.get("choices", [{}])[0].get("message", {}).get("content", "")
         match = __import__("re").search(r'\{.*\}', content, __import__("re").DOTALL)

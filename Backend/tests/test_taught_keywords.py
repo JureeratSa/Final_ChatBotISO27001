@@ -133,6 +133,7 @@ async def test_analyze_prompt_lists_document_titles(monkeypatch):
         ]
     monkeypatch.setattr(rag_service, "_retriever", R())
     monkeypatch.setattr(type(settings), "LLM_API_KEY", property(lambda self: "k"))
+    monkeypatch.setattr(type(settings), "LLM_CHAT_URL", property(lambda self: "http://llm.test/v1/chat/completions"))
     sent = {}
 
     def fake_post(url, payload, headers, timeout):
