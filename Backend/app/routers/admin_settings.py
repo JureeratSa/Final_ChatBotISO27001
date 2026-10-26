@@ -1,12 +1,11 @@
 """
 TUH Chatbot AI — Admin Router: Settings
 แยกออกมาจาก Backend/app/routers/admin.py
-ไม่แยก service layer (ตามแผน) — logic การอ่าน Authorization header เองแทนการใช้
-get_current_user คงไว้ตรงนี้พร้อมคอมเมนต์อธิบายเหตุผลเดิม
+ไม่แยก service layer (ตามแผน) — GET /settings ไม่บังคับ login และไม่ส่ง API key ออกไป
 """
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -20,30 +19,10 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.get("/settings", response_model=SettingsResponse)
-async def get_settings(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    # เปิดเผย gemini_api_key ตัวจริงเฉพาะ System Administrator เท่านั้น ให้สอดคล้องกับ
-    # update_settings ด้านล่างที่บังคับ role นี้อยู่แล้ว (เดิมเช็คแค่ "login อยู่ไหม" ทำให้
-    # admin role ธรรมดาที่แก้ค่านี้ไม่ได้ กลับอ่านค่าคีย์จริงได้)
-    # หมายเหตุ: endpoint นี้ต้องรองรับผู้เรียกแบบไม่ login ด้วย (ดึงค่า default มาแสดง) จึง
-    # parse Authorization header เองแทนการบังคับผ่าน get_current_user
-    is_admin = False
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ", 1)[1]
-        try:
-            from app.core.security import verify_access_token
-            payload = verify_access_token(token)
-            username = payload.get("sub")
-            if username:
-                result = await db.execute(select(User).where(User.username == username, User.is_active == True))
-                user = result.scalar_one_or_none()
-                if user and user.role == "System Administrator":
-                    is_admin = True
-        except Exception:
-            pass
+async def get_settings(db: AsyncSession = Depends(get_db)):
+    # API key ไม่ถูกส่งออกจาก API เลย (แม้เป็น System Administrator) — ค่าจริงอยู่ใน .env เท่านั้น
+    # endpoint นี้ต้องรองรับผู้เรียกแบบไม่ login ด้วย จึงไม่บังคับ get_current_user
+    gemini_key = "***masked***" if settings.LLM_API_KEY else ""
 
     result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
     cfg = result.scalar_one_or_none()
@@ -55,13 +34,8 @@ async def get_settings(
             max_tokens=1000,
             top_k=3,
             embedding_tech="bge-m3",
-            gemini_api_key=settings.LLM_API_KEY if is_admin else "***masked***"
+            gemini_api_key=gemini_key
         )
-
-    gemini_key = ""
-    api_key_source = settings.LLM_API_KEY or cfg.gemini_api_key
-    if api_key_source:
-        gemini_key = api_key_source if is_admin else "***masked***"
 
     return SettingsResponse(
         model_name=settings.DEFAULT_LLM_MODEL,  # แสดงโมเดลที่ใช้จริง (มาจากโค้ด/.env)
@@ -101,7 +75,8 @@ async def update_settings(
 
     # บังคับให้อ่านค่าจากโค้ดและ env config เท่านั้น (ไม่ให้แก้ไขจากหน้าเว็บ)
     cfg.model_name = settings.DEFAULT_LLM_MODEL
-    cfg.gemini_api_key = settings.LLM_API_KEY
+    # API key อยู่ใน .env เท่านั้น ไม่เก็บสำเนาลงฐานข้อมูล (เดิมเขียน key จริงลงคอลัมน์นี้ทุกครั้งที่บันทึก)
+    cfg.gemini_api_key = None
 
     if body.temperature is not None:
         cfg.temperature = body.temperature

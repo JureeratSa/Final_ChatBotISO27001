@@ -61,3 +61,36 @@ def test_llm_api_key_comes_from_litellm_key(monkeypatch):
     assert settings.LLM_API_KEY == "abc"
     monkeypatch.setattr(settings, "LITELLM_API_KEY", None)
     assert settings.LLM_API_KEY == ""
+
+
+async def test_update_settings_does_not_store_api_key_in_db(client, admin_user, db_session, monkeypatch):
+    """API key อยู่ใน .env เท่านั้น — เดิมบันทึกหน้าตั้งค่าแล้ว key จริงถูกเขียนลงตาราง settings"""
+    from sqlalchemy import select
+    from app.core.config import settings
+    from app.models.models import SystemSettings
+    monkeypatch.setattr(settings, "LITELLM_API_KEY", "secret-key")
+    db_session.add(SystemSettings(id="config", gemini_api_key="old-leaked-key"))
+    await db_session.commit()
+
+    resp = await client.post(
+        "/api/admin/settings",
+        json={"top_k": 5},
+        headers=auth_header(admin_user.username),
+    )
+    assert resp.status_code == 200
+
+    db_session.expire_all()
+    cfg = (await db_session.execute(select(SystemSettings).where(SystemSettings.id == "config"))).scalar_one()
+    assert cfg.gemini_api_key is None
+
+
+async def test_get_settings_never_returns_real_api_key(client, admin_user, monkeypatch):
+    """แม้เป็น System Administrator ก็ได้แค่ค่าที่ซ่อนไว้ — key จริงไม่ออกจาก backend"""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "LITELLM_API_KEY", "secret-key")
+
+    for headers in ({}, auth_header(admin_user.username)):
+        resp = await client.get("/api/admin/settings", headers=headers)
+        assert resp.status_code == 200
+        assert resp.json()["gemini_api_key"] == "***masked***"
+        assert "secret-key" not in resp.text
