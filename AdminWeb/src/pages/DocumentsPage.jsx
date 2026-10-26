@@ -440,7 +440,7 @@ export default function DocumentsPage() {
                 {/* 1. Add Form Panel */}
                 <div className="tuh-glass-1 rounded-3xl p-6 shadow-sm">
                   <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2 mb-4">
-                    <i className="fa-solid fa-file-circle-plus text-tuh-rose"></i> เพิ่มแบบฟอร์มสวัสดิการ
+                    <i className="fa-solid fa-file-circle-plus text-tuh-rose"></i> เพิ่มแบบฟอร์ม
                   </h3>
                   <form onSubmit={handleAddForm} className="space-y-4">
                     <div>
@@ -448,7 +448,7 @@ export default function DocumentsPage() {
                       <input
                         type="text"
                         required
-                        placeholder="เช่น แบบเสนอขอรับสวัสดิการ..."
+                        placeholder="เช่น แบบฟอร์มขอสิทธิ์เข้าใช้งานระบบ..."
                         value={formName}
                         onChange={(e) => setFormName(e.target.value)}
                         className="w-full tuh-glass-2 rounded-2xl py-2.5 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"

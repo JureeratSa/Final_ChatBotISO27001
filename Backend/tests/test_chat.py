@@ -29,6 +29,9 @@ async def test_chat_greets_back_on_chitchat(client):
     body = resp.json()
     assert body["used_rag"] is False
     assert body["model"] == "chit_chat"
+    # ตอนนี้ตอบได้เฉพาะนโยบาย ISO27001 — ข้อความสำเร็จรูปต้องไม่ชวนถามเรื่องสวัสดิการ
+    assert "สวัสดิการ" not in body["answer"]
+    assert "ISO27001" in body["answer"]
 
 
 async def test_chat_declines_profanity(client):
@@ -37,6 +40,23 @@ async def test_chat_declines_profanity(client):
     body = resp.json()
     assert body["used_rag"] is False
     assert body["model"] == "profanity_filter"
+
+
+@pytest.mark.parametrize("query", [
+    "ข้อมูลที่สำรองไว้ต้องทดสอบกู้คืนบ่อยแค่ไหน",
+    "กู้ข้อมูลจาก backup ได้อย่างไร",
+    "แผนกู้ระบบเมื่อเกิดเหตุฉุกเฉิน",
+])
+async def test_restore_word_is_not_treated_as_profanity(query):
+    """Regression: "กู้" (กู้คืน/กู้ข้อมูล/กู้ระบบ) มี "กู" อยู่ข้างใน เคยถูกปัดเป็นคำหยาบ"""
+    from app.services.rag_service import contains_profanity
+    assert contains_profanity(query) is False
+
+
+@pytest.mark.parametrize("query", ["กูไม่รู้", "ก ู ไม่รู้", "มึงโง่มาก"])
+async def test_profanity_still_detected(query):
+    from app.services.rag_service import contains_profanity
+    assert contains_profanity(query) is True
 
 
 async def test_profanity_filtered_query_is_not_logged_as_unanswered(client, db_session):

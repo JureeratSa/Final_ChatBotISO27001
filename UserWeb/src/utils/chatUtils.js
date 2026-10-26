@@ -10,7 +10,7 @@ import React from 'react';
 // กำหนด URL ของ Backend API โดยตรวจสอบจาก Environment Variable หรือ Host ปัจจุบัน
 export const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
-export const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับสวัสดิการสามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ 🏥🤖';
+export const DEFAULT_WELCOME_MESSAGE = 'สวัสดีครับ TUH Chatbot AI ยินดีให้บริการครับ \n\nมีข้อสงสัยเกี่ยวกับนโยบาย ISO27001 ของ รพธ. สามารถสอบถามข้อมูลกับขาหมูได้เลยนะครับ 🏥🤖';
 export const DEFAULT_GREETING = 'สวัสดีครับ! เริ่มต้นบทสนทนาใหม่แล้วครับ ท่านต้องการสอบถามข้อมูลส่วนใดของโรงพยาบาลธรรมศาสตร์ฯ หรือมีข้อขัดข้องเกี่ยวกับระบบสารสนเทศส่วนใด ถามเข้ามาได้เลยครับ 🏥🤖';
 
 /**
