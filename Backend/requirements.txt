@@ -29,3 +29,7 @@ PyMuPDF>=1.24.0
 
 # Utils
 python-dotenv>=1.0.0
+
+# OCR หน้าสแกน: ตำแหน่งคำจาก Tesseract + จับคู่บรรทัดกับ chunk (Admin/pdf_ocr.py)
+pytesseract>=0.3.10
+rapidfuzz>=3.6

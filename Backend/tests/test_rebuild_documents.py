@@ -74,6 +74,25 @@ def test_changing_exclude_pages_invalidates_cache(fake_repo):
     assert "COVER PAGE" not in " ".join(c["content"] for c in _indexed_chunks(fake_repo))
 
 
+def test_scanned_pages_are_indexed_from_ocr_and_marked(fake_repo, monkeypatch):
+    from Admin import pdf_ocr
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 72), "TEXT LAYER PAGE foxtrot with enough characters")
+    doc.new_page()  # หน้าสแกน: ไม่มีชั้นข้อความ
+    doc.save(str(fake_repo / "uploads" / "scan.pdf"))
+    doc.close()
+    monkeypatch.setattr(pdf_ocr, "_ocr_config", lambda: {"TYPHOON_OCR_URL": "u", "TYPHOON_OCR_API_KEY": "k", "TYPHOON_OCR_MODEL": "m"})
+    monkeypatch.setattr(pdf_ocr, "ocr_page_image", lambda png, cfg: "OCR UNIFORM RULE golf")
+
+    rebuild_db.rebuild(documents=[{"filename": "scan.pdf", "status": "Active", "exclude_pages": []}])
+    chunks = _indexed_chunks(fake_repo)
+
+    ocr_chunks = [c for c in chunks if "OCR UNIFORM RULE" in c["content"]]
+    text_chunks = [c for c in chunks if "TEXT LAYER PAGE" in c["content"]]
+    assert ocr_chunks and all(c["metadata"]["page"] == 2 and c["metadata"].get("is_scanned") for c in ocr_chunks)
+    assert text_chunks and not any(c["metadata"].get("is_scanned") for c in text_chunks)
+
+
 def test_backend_passes_db_documents_and_saves_durations(monkeypatch):
     docs = [{"filename": "a.pdf", "status": "Active", "exclude_pages": [1]}]
     calls = {}

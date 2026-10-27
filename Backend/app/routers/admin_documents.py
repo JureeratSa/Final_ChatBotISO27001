@@ -93,19 +93,24 @@ async def upload_document(
         f.write(file_content)
 
     # Count PDF pages and extract raw text for Step 1
+    # หน้าที่เป็นภาพสแกนจะถูก OCR ด้วย Typhoon (Admin/pdf_ocr.py) และเก็บ cache ไว้ให้ rebuild ใช้ต่อ
+    # OCR ใช้เวลาหลายวินาทีต่อหน้า จึงรันใน threadpool เพื่อไม่ให้ event loop ค้าง
     pages = None
     raw_text_blocks = []
     try:
-        import fitz
-        import re
-        doc_pdf = fitz.open(str(file_path))
-        pages = len(doc_pdf)
-        for i, page in enumerate(doc_pdf):
-            page_text = page.get_text()
-            # Clean Thai spacing and split sara-am characters
-            cleaned_page_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', page_text)
-            raw_text_blocks.append(f"# Page {i+1}\n{cleaned_page_text}")
-        doc_pdf.close()
+        import sys
+        admin_parent = str(Path(settings.ADMIN_DIR).parent)
+        if admin_parent not in sys.path:
+            sys.path.insert(0, admin_parent)
+        from Admin.pdf_ocr import extract_pages
+        from starlette.concurrency import run_in_threadpool
+
+        page_list = await run_in_threadpool(
+            extract_pages, str(file_path), _parse_exclude_pages(exclude_pages)
+        )
+        pages = len(page_list)
+        for p in page_list:
+            raw_text_blocks.append(f"# Page {p['page']}\n{p['text']}")
     except Exception as parse_err:
         logger.error("Error parsing raw text on upload: %s", parse_err)
         raw_text_blocks = ["(ไม่สามารถถอดข้อความภาษาไทยได้)"]
@@ -195,7 +200,7 @@ async def delete_document(
         file_path.unlink()
 
     # Delete associated workflow files
-    for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
+    for ext in [".raw.txt", ".cleaned.md", ".chunks.json", ".ocr.json"]:
         assoc_file = safe_path(UPLOADS_DIR, f"{filename}{ext}")
         if assoc_file.exists():
             assoc_file.unlink()
@@ -264,7 +269,7 @@ async def delete_document_post(
         file_path.unlink()
 
     # Delete associated workflow files
-    for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
+    for ext in [".raw.txt", ".cleaned.md", ".chunks.json", ".ocr.json"]:
         assoc_file = safe_path(UPLOADS_DIR, f"{filename}{ext}")
         if assoc_file.exists():
             assoc_file.unlink()

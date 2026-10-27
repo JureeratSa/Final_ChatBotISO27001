@@ -124,17 +124,12 @@ def generate_table_description(table_markdown, heading, page_num):
     desc = f"ตารางแสดงข้อมูลรายละเอียด{heading_info} (หน้า {page_num}){columns_info}"
     return desc
 
-def extract_text_from_pdf(filepath):
-    """แกะตัวหนังสือจากไฟล์ PDF ทีละหน้า"""
-    pages_text = []
-    doc = fitz.open(filepath)
-    for page in doc:
-        raw_text = page.get_text()
-        # Clean Thai spacing and split sara-am characters
-        cleaned_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', raw_text)
-        pages_text.append(cleaned_text)
-    doc.close()
-    return pages_text
+def extract_text_from_pdf(filepath, skip_pages=()):
+    """แกะตัวหนังสือจากไฟล์ PDF ทีละหน้า — หน้าที่เป็นภาพสแกนอ่านด้วย Typhoon OCR (ดู Admin/pdf_ocr.py)
+    คืน (ข้อความแต่ละหน้า, set ของเลขหน้าที่ได้ข้อความจาก OCR)"""
+    from Admin.pdf_ocr import extract_pages
+    pages = extract_pages(filepath, skip_pages=skip_pages)
+    return [p["text"] for p in pages], {p["page"] for p in pages if p["is_scanned"]}
 
 # Chunking
 
@@ -340,6 +335,7 @@ def rebuild(documents=None):
             is_default_and_unchanged = (pdf == default_filename and os.path.exists(default_md_path))
             
             chunk_start = time.perf_counter()
+            scanned_pages = set()
             if is_default_and_unchanged:
                 print("  Loading pre-cleaned markdown for default document...")
                 with open(default_md_path, "r", encoding="utf-8") as f:
@@ -367,7 +363,9 @@ def rebuild(documents=None):
                     
                 full_text = "".join(reconstructed_blocks)
             else:
-                pages = extract_text_from_pdf(pdf_path)
+                pages, scanned_pages = extract_text_from_pdf(pdf_path, skip_pages=exclude_pages)
+                if scanned_pages:
+                    print(f"  หน้าสแกน (OCR): {len(scanned_pages)} หน้า")
                 text_blocks = []
                 for i, page_text in enumerate(pages):
                     page_num = i + 1
@@ -378,6 +376,10 @@ def rebuild(documents=None):
                 full_text = "\n\n".join(text_blocks)
                 
             chunks, _ = chunk_document_text(full_text, pdf, start_chunk_id=1)
+            # บอกว่า chunk ไหนมาจาก OCR — หน้าสแกนไม่มีชั้นข้อความใน PDF จึงไฮไลท์อ้างอิงไม่ได้
+            for c in chunks:
+                if c["metadata"]["page"] in scanned_pages:
+                    c["metadata"]["is_scanned"] = True
             chunking_duration = time.perf_counter() - chunk_start
             
             if not chunks:

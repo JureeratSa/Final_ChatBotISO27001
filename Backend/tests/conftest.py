@@ -152,3 +152,13 @@ def auth_header(username: str) -> dict:
     """สร้าง Authorization header จาก username โดยไม่ต้องยิง /login จริง (unit-level shortcut)"""
     token = create_access_token({"sub": username})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _no_real_ocr(monkeypatch):
+    """ปิดการเรียก Typhoon OCR จริงในทุกเทส — Backend/.env ของเครื่องพัฒนามี token จริงอยู่
+    PDF ทดสอบหลายไฟล์มีข้อความสั้นจนถูกนับเป็นหน้าสแกน ถ้าไม่ปิดจะยิง API ทุกครั้งที่รันเทส
+    Tesseract ก็ปิดด้วย (ผลขึ้นกับเครื่อง) — เทสที่ต้องการ OCR ให้ monkeypatch เองในเทสนั้น"""
+    from Admin import pdf_ocr
+    monkeypatch.setattr(pdf_ocr, "_ocr_config", lambda: None)
+    monkeypatch.setattr(pdf_ocr, "_tesseract_cmd", lambda: None)
