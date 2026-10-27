@@ -41,10 +41,12 @@ export function useFormsState(API_URL, fetch, showSuccess, showError) {
       headers: headers,
       body: formFile
     })
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          showError(data.error);
+      // backend ส่ง error กลับเป็น {detail: "..."} พร้อม status 4xx — ต้องเช็ค res.ok ด้วย
+      // (เดิมเช็คแค่ data.error ทำให้อัปโหลดไม่สำเร็จ เช่นระบุหน้าเกินจำนวนหน้า แต่ขึ้นว่าสำเร็จ)
+      .then(res => res.json().catch(() => ({})).then(data => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || data.error) {
+          showError(data.detail || data.error || "อัปโหลดแบบฟอร์มไม่สำเร็จ");
         } else {
           showSuccess(data.message || "บันทึกและอัปโหลดแบบฟอร์มสำเร็จ");
           setFormName('');

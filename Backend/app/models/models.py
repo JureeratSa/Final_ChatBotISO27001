@@ -212,7 +212,7 @@ class Form(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, comment="ชื่อแบบฟอร์ม (เช่น แบบคำขอรับเงินช่วยเหลือ)")
     filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="ชื่อไฟล์ PDF ต้นฉบับ")
     page: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="หน้าที่ระบุในเอกสาร (เช่น '15-16')")
-    download_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="URL สำหรับดาวน์โหลดไฟล์แบบฟอร์ม")
+    download_link: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True, comment="URL สำหรับดาวน์โหลดไฟล์แบบฟอร์ม")
 
     @property
     def link(self) -> Optional[str]:

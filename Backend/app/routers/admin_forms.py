@@ -191,6 +191,13 @@ async def upload_form_compatibility(
         db.add(new_form)
         message = "บันทึกและอัปโหลดแบบฟอร์มสำเร็จ"
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        # บันทึกลงฐานข้อมูลไม่สำเร็จ — ลบไฟล์ที่เพิ่งเขียนทิ้ง ไม่ให้ค้างใน uploads/forms โดยไม่มีแถวอ้างถึง
+        await db.rollback()
+        if final_filepath.exists():
+            final_filepath.unlink()
+        raise
 
     return {"success": True, "message": message}
