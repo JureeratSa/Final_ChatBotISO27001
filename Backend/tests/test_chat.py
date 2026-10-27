@@ -29,9 +29,9 @@ async def test_chat_greets_back_on_chitchat(client):
     body = resp.json()
     assert body["used_rag"] is False
     assert body["model"] == "chit_chat"
-    # ตอนนี้ตอบได้เฉพาะนโยบาย ISO27001 — ข้อความสำเร็จรูปต้องไม่ชวนถามเรื่องสวัสดิการ
-    assert "สวัสดิการ" not in body["answer"]
-    assert "ISO27001" in body["answer"]
+    # ขอบเขตอิงตามเอกสารในระบบ (เพิ่มเรื่องใหม่ได้) — ข้อความสำเร็จรูปจึงไม่ผูกกับหัวข้อใดหัวข้อเดียว
+    assert "ISO27001" not in body["answer"]
+    assert "รพธ." in body["answer"]
 
 
 async def test_chat_declines_profanity(client):

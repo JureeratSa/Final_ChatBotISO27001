@@ -25,7 +25,7 @@ from app.models.models import SystemSettings, ChatHistory, Form
 from app.services.rag_service import (
     get_retriever, query_rag, contains_profanity, is_chit_chat,
     build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
-    split_used_sources, condense_question,
+    split_used_sources, cites_sources_explicitly, condense_question,
 )
 
 from app.core.security import safe_path
@@ -134,6 +134,7 @@ async def chat(
         forms=forms_list
     )
     # ตัด tag [SOURCES: ...] ออกจากคำตอบ และเก็บเฉพาะชิ้นที่ LLM ใช้จริงไว้ทำ citation
+    explicit_sources = cites_sources_explicitly(answer, rag_results)
     answer, cited_results = split_used_sources(answer, rag_results)
 
     elapsed = time.time() - start_time
@@ -152,7 +153,9 @@ async def chat(
     citations: List[CitationInfo] = []
     form_links_out: List[FormLink] = []
 
-    if has_reliable_context(rag_results, used_rag) and not is_unanswered and cited_results:
+    # คำตอบที่ตอบได้บางส่วนยังนับเป็น unanswered (แอดมินจะได้เห็นส่วนที่เอกสารขาด) แต่ถ้า LLM
+    # ระบุเลขแหล่งอ้างอิงมาเอง ก็ยังแนบ citation ให้ส่วนที่ตอบได้
+    if has_reliable_context(rag_results, used_rag) and cited_results and (not is_unanswered or explicit_sources):
         citation_dicts = await build_citations(db, cited_results)
         citations = [CitationInfo(**c) for c in citation_dicts]
 
