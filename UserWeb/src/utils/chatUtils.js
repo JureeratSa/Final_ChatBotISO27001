@@ -38,7 +38,8 @@ export const parseMarkdown = (text) => {
   let html = escapeHtml(text);
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-tuh-navy dark:text-white">$1</strong>');
   html = html.replace(/^[-\*]\s*(.*?)$/gm, '<li class="ml-4 list-disc">$1</li>');
-  html = html.replace(/^\d+\.\s(.*?)$/gm, '<li class="ml-4 list-decimal">$1</li>');
+  // แสดงเลขตามที่ข้อความเขียนมา — ถ้าใช้ list-decimal เบราว์เซอร์จะนับ <li> ของ bullet ปนไปด้วย (1, 4, 5, 8)
+  html = html.replace(/^(\d+)\.\s(.*?)$/gm, '<li class="ml-4 list-none">$1. $2</li>');
   
   // จำกัด href ป้องกัน javascript: URL Injection
   html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, url) => {

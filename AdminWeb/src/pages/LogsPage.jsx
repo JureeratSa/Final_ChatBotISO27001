@@ -24,6 +24,64 @@ export default function LogsPage() {
   // { item, mode: 'resolve' | 'ignore' } ของรายการที่กำลังเปิด modal อยู่
   const [modalState, setModalState] = useState(null);
 
+  // รายการหลังกรองช่วงวันที่ + เรียงลำดับ — ใช้ทั้งตารางและไฟล์ CSV ให้ตรงกับที่เห็นบนจอ
+  let processed = [...unanswered];
+
+  // Filter by date range if specified
+  if (unansweredStartDate) {
+    const start = new Date(unansweredStartDate);
+    start.setHours(0, 0, 0, 0);
+    processed = processed.filter(log => {
+      const d = parseTimestamp(log.timestamp);
+      return d >= start;
+    });
+  }
+  if (unansweredEndDate) {
+    const end = new Date(unansweredEndDate);
+    end.setHours(23, 59, 59, 999);
+    processed = processed.filter(log => {
+      const d = parseTimestamp(log.timestamp);
+      return d <= end;
+    });
+  }
+
+  // Sort by date
+  processed.sort((a, b) => {
+    const dateA = parseTimestamp(a.timestamp);
+    const dateB = parseTimestamp(b.timestamp);
+    return unansweredSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+  });
+
+  const downloadUnansweredCSV = () => {
+    if (processed.length === 0) return;
+    const statusLabel = { Pending: 'รอการตรวจเช็ค', Resolved: 'แก้ไขแล้ว', Ignored: 'ไม่แก้ไข' };
+    const headers = ["ข้อความคำถาม", "ถามซ้ำ (ครั้ง)", "ถามล่าสุดเมื่อ", "สถานะ", "วิธีแก้ / เหตุผลที่ไม่แก้", "คำค้นที่สอน", "หมายเหตุ", "แก้ไขโดย"];
+    const rows = processed.map(log => [
+      log.query,
+      log.count,
+      log.timestamp,
+      statusLabel[log.status] || log.status,
+      log.status === 'Ignored' ? IGNORE_REASON_LABELS[log.ignore_reason] : RESOLUTION_LABELS[log.resolution_type],
+      (log.search_keywords || []).join(", "),
+      log.note,
+      log.resolved_by
+    ]);
+    const csvContent = [
+      "﻿" + headers.map(h => `"${h.replace(/"/g, '""')}"`).join(","),
+      ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `unanswered_questions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-slide-in">
       <div className="tuh-glass-1 rounded-3xl overflow-hidden shadow-sm">
@@ -79,6 +137,14 @@ export default function LogsPage() {
                 ล้างค่า
               </button>
             )}
+
+            <button
+              onClick={downloadUnansweredCSV}
+              disabled={processed.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs shadow-sm hover:shadow"
+            >
+              <i className="fa-solid fa-file-csv"></i> ดาวน์โหลด CSV
+            </button>
           </div>
         </div>
 
@@ -95,33 +161,6 @@ export default function LogsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
               {(() => {
-                let processed = [...unanswered];
-
-                // Filter by date range if specified
-                if (unansweredStartDate) {
-                  const start = new Date(unansweredStartDate);
-                  start.setHours(0, 0, 0, 0);
-                  processed = processed.filter(log => {
-                    const d = parseTimestamp(log.timestamp);
-                    return d >= start;
-                  });
-                }
-                if (unansweredEndDate) {
-                  const end = new Date(unansweredEndDate);
-                  end.setHours(23, 59, 59, 999);
-                  processed = processed.filter(log => {
-                    const d = parseTimestamp(log.timestamp);
-                    return d <= end;
-                  });
-                }
-
-                // Sort by date
-                processed.sort((a, b) => {
-                  const dateA = parseTimestamp(a.timestamp);
-                  const dateB = parseTimestamp(b.timestamp);
-                  return unansweredSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-                });
-
                 if (processed.length === 0) {
                   return (
                     <tr>

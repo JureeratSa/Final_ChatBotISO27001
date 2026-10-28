@@ -29,7 +29,6 @@ import { useChatInput } from './hooks/useChatInput';
 import { useFeedbackModal } from './hooks/useFeedbackModal';
 import { useDislikeModal } from './hooks/useDislikeModal';
 import { useAnnouncements } from './hooks/useAnnouncements';
-import { useUserIp } from './hooks/useUserIp';
 
 function App() {
   // ─── 1. Core Interface & Styling Hooks ────────────────────────────────────────
@@ -77,7 +76,6 @@ function App() {
   } = useDislikeModal();
 
   const { activeAnnouncements, showAnnModal, handleCloseAnnModal } = useAnnouncements();
-  const userIp = useUserIp();
 
   const {
     inputValue, setInputValue, isTyping,
@@ -207,10 +205,6 @@ function App() {
                 {/* ส่วนขวา: ปุ่มติดต่อ */}
                 <div className="hidden md:flex items-center gap-2">
                   <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
-                    <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
-                    IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
-                  </span>
-                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
                     ระบบมีปัญหาติดต่อ 8471 หรือ 8343
                   </span>
@@ -326,10 +320,6 @@ function App() {
                   </div>
                 </div>
                 <div className="hidden md:flex w-full lg:w-auto justify-start lg:justify-end shrink-0 pl-12 md:pl-0 lg:pl-0 gap-2">
-                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
-                    <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
-                    IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
-                  </span>
                   <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
                     ระบบมีปัญหาติดต่อ 8471 หรือ 8343
