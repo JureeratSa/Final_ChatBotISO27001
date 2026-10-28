@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * PrivacyNotice — ไอคอน (i) แจ้งเรื่องการบันทึกการใช้งาน (audit log) ตาม PDPA
@@ -52,7 +53,9 @@ export default function PrivacyNotice({ variant = 'admin', className = '', label
         {label && <span>{label}</span>}
       </button>
 
-      {open && (
+      {/* render ที่ document.body — ปุ่มอยู่ใน header ที่มี backdrop-blur ซึ่งทำให้ position:fixed
+          ยึดกับ header แทนหน้าจอ (modal เลยถูกตัด/ซ้อนกับเนื้อหาด้านล่าง) */}
+      {open && createPortal(
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
           onClick={() => setOpen(false)}
@@ -87,7 +90,8 @@ export default function PrivacyNotice({ variant = 'admin', className = '', label
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
