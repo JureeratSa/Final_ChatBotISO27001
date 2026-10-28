@@ -16,6 +16,7 @@ from app.core.security import safe_path
 from app.models.models import Document, User
 from app.schemas.schemas import DocumentResponse
 from app.services.department_scope import check_department
+from app.services.audit_service import add_audit_detail
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -49,6 +50,8 @@ def _doc_to_response(doc: Document) -> DocumentResponse:
 
 
 def _check_doc_ownership(doc: Document, current_user: User):
+    # ทุก endpoint ของเอกสารผ่านตรงนี้ — ระบุใน audit log ว่าทำกับเอกสารไหน (บันทึกแม้ถูกปฏิเสธ)
+    add_audit_detail(document=doc.filename, document_name=doc.display_name, department=doc.department)
     # เดิมเทียบ uploaded_by กับชื่อผู้ใช้ (เอกสารเป็นของ "คน") — เปลี่ยนเป็นของ "แผนก" ให้แอดมิน
     # ทุกคนในแผนกช่วยกันดูแลได้ และเอกสารไม่ตกค้างเมื่อคนอัปโหลดย้าย/ลาออก
     check_department(

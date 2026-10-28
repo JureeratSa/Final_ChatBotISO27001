@@ -4,7 +4,7 @@ Endpoints: /api/auth/login, /api/auth/refresh, /api/auth/logout, /api/auth/me
 ครอบคลุมการ Manage Admin Users (GET/POST/PUT/DELETE /api/auth/users)
 """
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,6 +21,7 @@ from app.schemas.schemas import (
     UserCreate, UserUpdate, UserResponse
 )
 from app.services.department_scope import SUPER_ADMIN_ROLE
+from app.services.audit_service import set_audit
 
 
 def _require_department(role: str, department) -> None:
@@ -64,19 +65,22 @@ async def get_current_user(
 # ─── Login ────────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Admin Login — คืน Access Token + Refresh Token"""
+    set_audit(request, action="login_failed", username=body.username)
     result = await db.execute(
         select(User).where(User.username == body.username, User.is_active == True)
     )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.password_hash):
+        set_audit(request, detail={"reason": "invalid_credentials"})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
         )
 
+    set_audit(request, action="login_success")
     tokens = generate_token_pair(user.username)
     return TokenResponse(
         **tokens,
@@ -137,6 +141,7 @@ async def list_users(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     body: UserCreate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -162,6 +167,8 @@ async def create_user(
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+    set_audit(request, detail={"target_user": new_user.username, "role": new_user.role,
+                               "department": new_user.department})
     return new_user
 
 
@@ -169,6 +176,7 @@ async def create_user(
 async def update_user(
     user_id: int,
     body: UserUpdate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -187,6 +195,16 @@ async def update_user(
         body.role if body.role is not None else user.role,
         body.department if body.department is not None else user.department,
     )
+    # บันทึกว่าเปลี่ยนสิทธิ์/สถานะอะไร (ค่าเดิม → ค่าใหม่) ลง audit log — รหัสผ่านบันทึกแค่ว่ามีการเปลี่ยน
+    changes = {}
+    for field in ("display_name", "role", "department", "is_active"):
+        new_value = getattr(body, field)
+        if new_value is not None and new_value != getattr(user, field):
+            changes[field] = [getattr(user, field), new_value]
+    if body.password is not None:
+        changes["password"] = "changed"
+    set_audit(request, detail={"target_user": user.username, "changes": changes})
+
     if body.display_name is not None:
         user.display_name = body.display_name
     if body.password is not None:
@@ -220,6 +238,7 @@ async def list_departments(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -237,5 +256,6 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบผู้ใช้นี้")
 
+    set_audit(request, detail={"target_user": user.username, "role": user.role, "department": user.department})
     await db.delete(user)
     await db.commit()

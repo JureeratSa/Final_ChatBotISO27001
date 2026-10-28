@@ -10,6 +10,7 @@ TUH Chatbot AI — SQLAlchemy Models
 6. unanswered: รายการคำถามที่บอทหาคำตอบไม่พบ
 7. forms: รายการแบบฟอร์มสวัสดิการสำหรับดาวน์โหลด
 8. announcements: ข่าวประชาสัมพันธ์และ Pop-up หน้าเว็บ
+9. admin_audit_logs: บันทึกการเข้าสู่ระบบและการดำเนินการของแอดมิน (audit log)
 """
 from datetime import datetime
 from typing import Optional
@@ -260,3 +261,34 @@ class Announcement(Base):
 
     creator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[created_by_id])
 
+
+
+# ─── 9. Admin Audit Logs ──────────────────────────────────────────────────────
+
+class AdminAuditLog(Base):
+    """
+    ตาราง admin_audit_logs: บันทึกการเข้าใช้งานและการดำเนินการของแอดมิน เพื่อการตรวจสอบย้อนหลัง
+    และความมั่นคงปลอดภัย (แจ้งผู้ใช้ไว้ที่หน้า Login / หน้า Admin ตาม PDPA)
+    - action: 'login_success' / 'login_failed' / 'logout' / 'change' (คำขอที่แก้ไขข้อมูล POST/PUT/DELETE)
+    - ไม่เก็บ request body เลย (กันรหัสผ่าน/เนื้อหาเอกสารหลุดเข้า log) — รายละเอียดที่จำเป็น
+      เช่น การเปลี่ยนสิทธิ์ผู้ใช้ endpoint ใส่เองใน detail (ดู app/services/audit_service.py)
+    """
+    __tablename__ = "admin_audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="รหัสบันทึก")
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True, comment="วันเวลาที่เกิดเหตุการณ์"
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="รหัสผู้ใช้ (NULL = ระบุตัวไม่ได้ เช่น ล็อกอินด้วยชื่อที่ไม่มีในระบบ)"
+    )
+    username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="ชื่อผู้ใช้ ณ เวลาที่บันทึก")
+    department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="แผนกของผู้ใช้ ณ เวลาที่บันทึก")
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True, comment="ประเภทเหตุการณ์")
+    method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, comment="HTTP method")
+    path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="API path ที่เรียก")
+    status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="HTTP status ของผลลัพธ์")
+    ip_address: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, comment="IP ของเครื่องที่เชื่อมต่อเข้ามา")
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="อุปกรณ์/เบราว์เซอร์ (User-Agent)")
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="รายละเอียดเพิ่มเติม (JSON)")

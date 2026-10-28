@@ -22,11 +22,13 @@ from app.services.form_service import _parse_pages
 from app.services.department_scope import (
     check_department, department_column_filter, owner_department_for, require_super_admin, scope_department
 )
+from app.services.audit_service import add_audit_detail
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 def _check_form_access(form: FormModel, user: User) -> None:
+    add_audit_detail(form=form.name, form_file=form.filename, department=form.department)
     check_department(form.department, user, "คุณไม่มีสิทธิ์จัดการแบบฟอร์มของแผนกอื่น")
 
 
@@ -63,6 +65,7 @@ async def create_form(
         department=owner_department_for(current_user, body.department)
     )
     db.add(new_form)
+    add_audit_detail(form=new_form.name, form_file=new_form.filename, department=new_form.department)
     await db.commit()
     await db.refresh(new_form)
     return new_form
@@ -127,6 +130,7 @@ async def upload_form_compatibility(
     filename = unquote(request.headers.get("x-file-name", "form.pdf").strip())
     page = unquote(request.headers.get("x-form-page", "").strip())
 
+    add_audit_detail(form=form_name or None, form_file=filename or None, pages=page or None)
     if not form_name or not filename:
         raise HTTPException(status_code=400, detail="กรุณากรอกชื่อและเลือกไฟล์แบบฟอร์มให้ครบถ้วน")
     filename = safe_filename(filename)  # ป้องกัน Path Traversal จาก x-file-name header
@@ -215,6 +219,7 @@ async def upload_form_compatibility(
             )
         )
         db.add(new_form)
+        add_audit_detail(department=new_form.department)
         message = "บันทึกและอัปโหลดแบบฟอร์มสำเร็จ"
 
     try:
@@ -246,6 +251,9 @@ async def update_form_department(
     form = result.scalar_one_or_none()
     if not form:
         raise HTTPException(status_code=404, detail="ไม่พบแบบฟอร์มนี้")
-    form.department = (payload.department or "").strip() or None
+    new_department = (payload.department or "").strip() or None
+    add_audit_detail(form=form.name, from_department=form.department or "ยังไม่ระบุ",
+                     to_department=new_department or "ยังไม่ระบุ")
+    form.department = new_department
     await db.commit()
     return {"success": True, "department": form.department}

@@ -1,0 +1,108 @@
+import { useState } from 'react';
+
+/**
+ * PrivacyNotice — ไอคอน (i) แจ้งเรื่องการบันทึกการใช้งาน (audit log) ตาม PDPA
+ * ต้องแจ้งเจ้าของข้อมูลก่อน/ขณะเก็บ IP, User-Agent, วันเวลา, ผู้ใช้ และกิจกรรม (ดู Backend/app/services/audit_service.py)
+ * - variant="login": หน้า Login (ข้อความทั่วไป + ลิงก์นโยบายความเป็นส่วนตัว)
+ * - variant="admin": หน้าระบบผู้ดูแล (แจ้งชัดกว่า เพราะแอดมินแก้ข้อมูลและสิทธิ์ได้)
+ * ลิงก์นโยบายตั้งที่ VITE_PRIVACY_POLICY_URL — ยังไม่ตั้งจะแสดงเป็นข้อความเฉยๆ ไม่ใส่ลิงก์
+ */
+const PRIVACY_POLICY_URL = import.meta.env.VITE_PRIVACY_POLICY_URL || '';
+
+function PolicyLink() {
+  if (!PRIVACY_POLICY_URL) return <span className="font-bold">นโยบายความเป็นส่วนตัว</span>;
+  return (
+    <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-tuh-rose underline hover:opacity-80">
+      นโยบายความเป็นส่วนตัว
+    </a>
+  );
+}
+
+const NOTICES = {
+  login: {
+    title: 'การบันทึกการใช้งานระบบ',
+    body: (
+      <>
+        <p>
+          การเข้าสู่ระบบและการใช้งานระบบนี้จะถูกบันทึกเพื่อวัตถุประสงค์ด้านความมั่นคงปลอดภัย การตรวจสอบการใช้งาน
+          และการปฏิบัติตามกฎหมาย โดยระบบอาจเก็บข้อมูล เช่น ชื่อผู้ใช้ วันเวลา ที่อยู่ IP อุปกรณ์/เบราว์เซอร์
+          และกิจกรรมการใช้งาน
+        </p>
+        <p className="mt-3">
+          ข้อมูลจะถูกเก็บรักษาตามนโยบายการเก็บรักษาข้อมูลขององค์กร ท่านสามารถอ่านรายละเอียดได้ที่ <PolicyLink />
+        </p>
+      </>
+    ),
+  },
+  admin: {
+    title: 'การบันทึกการดำเนินการของผู้ดูแลระบบ',
+    body: (
+      <>
+        <p>
+          การเข้าใช้งานและการดำเนินการทั้งหมดในระบบผู้ดูแลจะถูกบันทึกเพื่อการตรวจสอบย้อนหลัง ความมั่นคงปลอดภัย
+          และการปฏิบัติตามกฎหมาย รวมถึงข้อมูลผู้ใช้ วันเวลา ที่อยู่ IP อุปกรณ์
+          และการเปลี่ยนแปลงข้อมูลหรือสิทธิ์การเข้าถึง
+        </p>
+        <p className="mt-3">อ่านรายละเอียดเพิ่มเติมได้ที่ <PolicyLink /></p>
+      </>
+    ),
+  },
+};
+
+export default function PrivacyNotice({ variant = 'admin', className = '', label }) {
+  const [open, setOpen] = useState(false);
+  const notice = NOTICES[variant];
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`inline-flex items-center gap-1.5 transition active:scale-95 ${className}`}
+        title={notice.title}
+        aria-label={notice.title}
+      >
+        <i className="fa-solid fa-circle-info"></i>
+        {label && <span>{label}</span>}
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-lg bg-white dark:bg-[#1e0533] text-tuh-navy dark:text-slate-100 rounded-3xl shadow-2xl overflow-hidden animate-slide-in text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-slate-100 dark:border-tuh-purple/20 flex justify-between items-center">
+              <h3 className="font-extrabold text-base flex items-center gap-2">
+                <i className="fa-solid fa-shield-halved text-tuh-rose"></i> {notice.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-slate-500 dark:text-slate-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                aria-label="ปิด"
+              >
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+            <div className="p-6 text-sm leading-relaxed font-medium">{notice.body}</div>
+            <div className="px-6 pb-5 text-right">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="bg-tuh-rose hover:bg-tuh-rose/90 text-white font-bold py-2 px-5 rounded-xl text-sm transition active:scale-[0.98]"
+              >
+                รับทราบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

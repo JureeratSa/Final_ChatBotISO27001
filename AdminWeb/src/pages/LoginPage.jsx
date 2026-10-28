@@ -1,3 +1,5 @@
+import PrivacyNotice from '../components/PrivacyNotice';
+
 /**
  * LoginPage — หน้าจอเข้าสู่ระบบแอดมิน แสดงก่อน login สำเร็จ จึงรับค่าทุกอย่างผ่าน props
  * โดยตรงจาก App.jsx (ไม่ผ่าน AdminContext เพราะ context นั้น gate อยู่หลัง login แล้วเท่านั้น)
@@ -107,7 +109,16 @@ export default function LoginPage({
           </button>
         </form>
 
-        <div className="mt-8 text-center text-xs text-slate-500 dark:text-slate-400 font-semibold">
+        {/* แจ้งการบันทึกการเข้าใช้งาน (PDPA) — กดไอคอนเพื่ออ่านรายละเอียด */}
+        <div className="mt-6 text-center">
+          <PrivacyNotice
+            variant="login"
+            label="การเข้าสู่ระบบและการใช้งานจะถูกบันทึก"
+            className="text-xs font-semibold text-slate-300 hover:text-white"
+          />
+        </div>
+
+        <div className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400 font-semibold">
           งานสารสนเทศ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ
         </div>
       </div>

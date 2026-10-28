@@ -16,6 +16,7 @@ from app.models.models import User, Feedback, ChatHistory
 from app.schemas.schemas import FeedbackResponse, FeedbackSubmit
 from app.services.feedback_service import upsert_feedback
 from app.services.department_scope import history_scope_filter
+from app.services.audit_service import add_audit_detail
 
 
 async def _scoped_feedback_query(db: AsyncSession, user: User, department: Optional[str] = None):
@@ -64,5 +65,6 @@ async def delete_feedback(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="ไม่พบ Feedback นี้")
+    add_audit_detail(feedback_rating=item.rating, question=(item.query or "")[:200] or None)
     await db.delete(item)
     await db.commit()

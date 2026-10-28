@@ -20,6 +20,7 @@ import FaqsPage from './pages/FaqsPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
+import AuditLogsPage from './pages/AuditLogsPage';
 import { useTheme } from './hooks/useTheme';
 import { useAuth } from './hooks/useAuth';
 import { useProfile } from './hooks/useProfile';
@@ -373,7 +374,7 @@ function App() {
 
   // Safety redirect: แอดมินแผนกเข้าแท็บส่วนกลาง (บัญชีแอดมิน / ตั้งค่า AI / ประกาศ / FAQ ปุ่มหน้าแรก)
   // ไม่ได้ — backend ปฏิเสธการแก้ไขอยู่แล้ว ฝั่งนี้แค่ไม่ให้เปิดหน้าที่ใช้งานไม่ได้
-  const SUPER_ADMIN_TABS = ['users', 'settings', 'announcements', 'faqs'];
+  const SUPER_ADMIN_TABS = ['users', 'settings', 'announcements', 'faqs', 'audit'];
   useEffect(() => {
     if (isLoggedIn && adminUser) {
       if (adminUser.role !== 'System Administrator' && SUPER_ADMIN_TABS.includes(activeTab)) {
@@ -439,6 +440,7 @@ function App() {
     expandedChunk,
     faqAnswer,
     feedback,
+    fetch,
     fetchDocuments,
     fetchForms,
     fetchHistory,
@@ -618,6 +620,7 @@ function App() {
         {activeTab === 'settings' && adminUser.role === 'System Administrator' && <SettingsPage />}
         {activeTab === 'profile' && <ProfilePage />}
         {activeTab === 'users' && adminUser.role === 'System Administrator' && <UsersPage />}
+        {activeTab === 'audit' && isSuperAdmin && <AuditLogsPage />}
       </AdminShell>
     </AdminContext.Provider>
   );

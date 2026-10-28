@@ -56,6 +56,9 @@ async def session_maker(test_engine, monkeypatch):
 async def app_instance(session_maker):
     """FastAPI app เปล่าๆ ที่ mount เฉพาะ router ที่จะเทส (ไม่รัน lifespan ของ main.py จริง)"""
     application = FastAPI()
+    # audit log middleware ตัวเดียวกับ main.py — เขียนผ่าน AsyncSessionLocal ที่ถูกสลับเป็น SQLite แล้ว
+    from app.services.audit_service import AuditLogMiddleware
+    application.add_middleware(AuditLogMiddleware)
     application.include_router(auth.router)
     application.include_router(chat.router)
     application.include_router(admin_documents.router)

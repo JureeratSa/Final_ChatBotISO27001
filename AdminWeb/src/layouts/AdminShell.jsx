@@ -1,6 +1,7 @@
 import { useAdminContext } from '../context/AdminContext';
 import dog from '../dog.png';
 import botAvatar from '../bot_avatar.jpg';
+import PrivacyNotice from '../components/PrivacyNotice';
 
 /**
  * AdminShell — โครง layout หลักหลัง login (sidebar navigation + top bar) ครอบเนื้อหา
@@ -180,6 +181,16 @@ export default function AdminShell({ children }) {
             </button>
           )}
 
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabClick('audit')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'audit' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-shield-halved text-sm"></i>
+              <span>บันทึกการเข้าใช้งาน</span>
+            </button>
+          )}
+
           <button
             onClick={() => handleTabClick('profile')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'profile' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
@@ -252,6 +263,7 @@ export default function AdminShell({ children }) {
                 {activeTab === 'settings' && <i className="fa-solid fa-sliders"></i>}
                 {activeTab === 'profile' && <i className="fa-solid fa-user-gear"></i>}
                 {activeTab === 'users' && <i className="fa-solid fa-users"></i>}
+                {activeTab === 'audit' && <i className="fa-solid fa-shield-halved"></i>}
               </span>
               <span className={`${activeTab === 'dashboard' ? 'text-tuh-gradient-light' : 'text-tuh-gradient'} font-black`}>
                 {activeTab === 'dashboard' && 'ภาพรวม'}
@@ -264,10 +276,16 @@ export default function AdminShell({ children }) {
                 {activeTab === 'settings' && 'การตั้งค่าระบบ AI แชทบอท'}
                 {activeTab === 'profile' && 'โปรไฟล์ผู้ดูแลระบบ'}
                 {activeTab === 'users' && 'จัดการบัญชีแอดมินระบบ'}
+                {activeTab === 'audit' && 'บันทึกการเข้าใช้งานของแอดมิน'}
               </span>
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            {/* แจ้งว่าการดำเนินการในระบบผู้ดูแลถูกบันทึก (audit log) */}
+            <PrivacyNotice
+              variant="admin"
+              className="w-9 h-9 justify-center rounded-full text-tuh-indigo/70 dark:text-slate-300 hover:text-tuh-rose hover:bg-slate-100 dark:hover:bg-tuh-indigo/50 text-lg"
+            />
             <span className="hidden md:inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full bg-tuh-pink/30 text-tuh-rose border border-tuh-rose/20 dark:bg-tuh-rose/25 dark:text-white dark:border-none shadow-sm">
               <img src={botAvatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover shadow-sm" />
               {adminUser.name} ({isSuperAdmin ? 'SuperAdmin' : (adminUser.department || adminUser.role)})

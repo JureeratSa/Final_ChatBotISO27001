@@ -16,6 +16,7 @@ if sys.platform == 'win32':
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.services.audit_service import AuditLogMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -150,6 +151,9 @@ allowed_origins = [
 # (UserWeb/AdminWeb dev server + XAMPP build) เท่านั้น ไม่เปิดกว้างทุกพอร์ตหรือทุก subnet
 _octet = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
 allowed_origin_regex = rf"^http://172\.30\.{_octet}\.{_octet}:(?:5173|5174|8080)$"
+
+# บันทึกการเข้าสู่ระบบ/การแก้ไขข้อมูลของแอดมิน (audit log) — เพิ่มก่อน CORS ให้ CORS อยู่ชั้นนอกสุด
+app.add_middleware(AuditLogMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

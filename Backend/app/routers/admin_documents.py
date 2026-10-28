@@ -32,6 +32,7 @@ from app.services.rebuild_service import _delete_from_search_index, _trigger_reb
 from app.services.department_scope import (
     UNASSIGNED, owner_department_for, require_super_admin, scope_department
 )
+from app.services.audit_service import add_audit_detail
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -106,6 +107,8 @@ async def upload_document(
     # เดิมเอา filename จาก header x-file-name ไปต่อ path ตรงๆ ส่ง "../../x.pdf" เขียนไฟล์
     # นอก UPLOADS_DIR ได้เลย
     filename = safe_filename(filename)
+    add_audit_detail(document=filename, document_name=display_name, size_bytes=file_size,
+                     exclude_pages=exclude_pages or None)
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF เท่านั้น")
 
@@ -170,6 +173,7 @@ async def upload_document(
         )
         db.add(doc_entry)
 
+    add_audit_detail(department=doc_entry.department, replaced_existing=bool(existing) or None)
     await db.commit()
     await db.refresh(doc_entry)
 
@@ -189,6 +193,8 @@ async def update_document(
     if not doc:
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
+    add_audit_detail(changed_fields=sorted(body.model_dump(exclude_none=True)),
+                     new_status=body.status, new_display_name=body.display_name)
 
     if body.status is not None:
         doc.status = body.status
@@ -265,6 +271,7 @@ async def toggle_document(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(from_status=doc.status, to_status="Active" if active else "Inactive")
     doc.status = "Active" if active else "Inactive"
     await db.commit()
     await db.refresh(doc)
@@ -321,6 +328,7 @@ async def update_exclude_pages(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(exclude_pages=",".join(map(str, exclude_pages)))
     doc.exclude_pages = ",".join(map(str, exclude_pages))
     await db.commit()
     await db.refresh(doc)
@@ -347,6 +355,7 @@ async def update_document_details(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(new_display_name=payload.display_name.strip() or doc.filename)
     doc.display_name = payload.display_name.strip() or doc.filename
     await db.commit()
     await db.refresh(doc)
@@ -371,7 +380,10 @@ async def update_document_department(
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
-    doc.department = (payload.department or "").strip() or None
+    new_department = (payload.department or "").strip() or None
+    add_audit_detail(document=doc.filename, document_name=doc.display_name,
+                     from_department=doc.department or "ยังไม่ระบุ", to_department=new_department or "ยังไม่ระบุ")
+    doc.department = new_department
     await db.commit()
     return {"success": True, "department": doc.department}
 
@@ -405,6 +417,7 @@ async def approve_document(
 
     exclude_pages = _parse_exclude_pages(doc.exclude_pages)
     new_status = run_approval_pipeline(filename, current_status, exclude_pages)
+    add_audit_detail(from_status=current_status, to_status=new_status)
 
     if current_status == "Step_Chunk_Preview":
         background_tasks.add_task(_trigger_rebuild_background)
@@ -483,6 +496,7 @@ async def update_content_document(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(content_type=content_type)
     safe_name = safe_filename(filename)
     if content_type == "raw":
         if not isinstance(content, str):

@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.routers.auth import get_current_user
 from app.models.models import User, SystemSettings
 from app.schemas.schemas import SettingsResponse, SettingsUpdate, CustomFaqCreate
+from app.services.audit_service import add_audit_detail
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -67,6 +68,8 @@ async def update_settings(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="คุณไม่มีสิทธิ์ตั้งค่าระบบ AI"
         )
+    # บันทึกแค่ชื่อช่องที่ส่งมาแก้ ไม่เก็บค่า (system prompt ยาว / อาจมี API key)
+    add_audit_detail(changed_fields=sorted(body.model_dump(exclude_none=True)))
     result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
     cfg = result.scalar_one_or_none()
 
@@ -136,6 +139,7 @@ async def add_custom_faq(
         "answer": body.answer,
     }
     faqs.append(new_faq)
+    add_audit_detail(faq_question=new_faq["question"][:200])
     cfg.custom_faqs = json.dumps(faqs, ensure_ascii=False)
     await db.commit()
     return {"success": True, "faq": new_faq, "custom_faqs": faqs}
