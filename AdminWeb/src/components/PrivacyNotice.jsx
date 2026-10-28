@@ -3,20 +3,9 @@ import { useState } from 'react';
 /**
  * PrivacyNotice — ไอคอน (i) แจ้งเรื่องการบันทึกการใช้งาน (audit log) ตาม PDPA
  * ต้องแจ้งเจ้าของข้อมูลก่อน/ขณะเก็บ IP, User-Agent, วันเวลา, ผู้ใช้ และกิจกรรม (ดู Backend/app/services/audit_service.py)
- * - variant="login": หน้า Login (ข้อความทั่วไป + ลิงก์นโยบายความเป็นส่วนตัว)
+ * - variant="login": หน้า Login (ข้อความทั่วไป)
  * - variant="admin": หน้าระบบผู้ดูแล (แจ้งชัดกว่า เพราะแอดมินแก้ข้อมูลและสิทธิ์ได้)
- * ลิงก์นโยบายตั้งที่ VITE_PRIVACY_POLICY_URL — ยังไม่ตั้งจะแสดงเป็นข้อความเฉยๆ ไม่ใส่ลิงก์
  */
-const PRIVACY_POLICY_URL = import.meta.env.VITE_PRIVACY_POLICY_URL || '';
-
-function PolicyLink() {
-  if (!PRIVACY_POLICY_URL) return <span className="font-bold">นโยบายความเป็นส่วนตัว</span>;
-  return (
-    <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-tuh-rose underline hover:opacity-80">
-      นโยบายความเป็นส่วนตัว
-    </a>
-  );
-}
 
 const NOTICES = {
   login: {
@@ -28,9 +17,7 @@ const NOTICES = {
           และการปฏิบัติตามกฎหมาย โดยระบบอาจเก็บข้อมูล เช่น ชื่อผู้ใช้ วันเวลา ที่อยู่ IP อุปกรณ์/เบราว์เซอร์
           และกิจกรรมการใช้งาน
         </p>
-        <p className="mt-3">
-          ข้อมูลจะถูกเก็บรักษาตามนโยบายการเก็บรักษาข้อมูลขององค์กร ท่านสามารถอ่านรายละเอียดได้ที่ <PolicyLink />
-        </p>
+        <p className="mt-3">ข้อมูลจะถูกเก็บรักษาตามนโยบายการเก็บรักษาข้อมูลขององค์กร</p>
       </>
     ),
   },
@@ -43,7 +30,6 @@ const NOTICES = {
           และการปฏิบัติตามกฎหมาย รวมถึงข้อมูลผู้ใช้ วันเวลา ที่อยู่ IP อุปกรณ์
           และการเปลี่ยนแปลงข้อมูลหรือสิทธิ์การเข้าถึง
         </p>
-        <p className="mt-3">อ่านรายละเอียดเพิ่มเติมได้ที่ <PolicyLink /></p>
       </>
     ),
   },
