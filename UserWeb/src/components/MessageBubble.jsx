@@ -23,6 +23,18 @@ export const MessageBubble = ({
 }) => {
   const isBot = msg.sender === 'bot';
   const citations = isBot && Array.isArray(msg.citations) ? msg.citations : [];
+  const formLinks = isBot && Array.isArray(msg.formLinks) ? msg.formLinks.filter(f => f.download_link) : [];
+
+  // download_link ถูกบันทึกเป็น URL เต็มตาม host ของคนที่อัปโหลด (เช่น http://localhost:8000/...)
+  // ซึ่งเครื่องอื่นเปิดไม่ได้ — ใช้แค่ path แล้วต่อกับ API ของหน้าที่เปิดอยู่แทน
+  const formHref = (link) => {
+    try {
+      const { pathname } = new URL(link, apiUrl);
+      return pathname.startsWith('/api/forms/download/') ? `${apiUrl}${pathname}` : link;
+    } catch {
+      return link;
+    }
+  };
 
   return (
     <div
@@ -50,9 +62,22 @@ export const MessageBubble = ({
           {parseMarkdown(msg.text)}
         </div>
 
-        {/* 3. ส่วนแสดงรายการเอกสารอ้างอิง (Citations) */}
-        {isBot && citations.length > 0 && (
+        {/* 3. ส่วนแสดงรายการเอกสารอ้างอิง (Citations) และปุ่มดาวน์โหลดแบบฟอร์ม */}
+        {isBot && (citations.length > 0 || formLinks.length > 0) && (
           <div className="flex flex-wrap gap-1 px-0.5">
+            {formLinks.map((f, i) => (
+              <a
+                key={`form-${f.name}-${i}`}
+                href={formHref(f.download_link)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`ดาวน์โหลด ${f.name}`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-teal-500/10 text-teal-700 hover:bg-teal-500/20 dark:text-teal-300 dark:hover:bg-teal-400/20 transition-colors"
+              >
+                <i className="fa-solid fa-file-arrow-down"></i>
+                <span className="truncate max-w-[200px]">{f.name}</span>
+              </a>
+            ))}
             {citations.map((c, i) => (
               <a
                 key={`${c.source}-${i}`}
