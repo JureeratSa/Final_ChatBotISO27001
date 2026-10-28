@@ -36,6 +36,13 @@ export const MessageBubble = ({
     }
   };
 
+  // บอทมักเขียนชื่อแบบฟอร์มในวงเล็บเหลี่ยม เช่น "[แบบฟอร์มเบิกยืดหยุ่น]" โดยไม่มี URL — แปลงเป็นลิงก์
+  // markdown ให้กดดาวน์โหลดได้ในเนื้อคำตอบ (ข้ามกรณีที่มี "(url)" ตามหลังอยู่แล้ว)
+  const linkFormNames = (text) => formLinks.reduce((out, f) => {
+    const escaped = f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return out.replace(new RegExp(`\\[${escaped}\\](?!\\()`, 'g'), `[${f.name}](${formHref(f.download_link)})`);
+  }, text || '');
+
   return (
     <div
       className={`flex gap-2 max-w-[60%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
@@ -59,7 +66,7 @@ export const MessageBubble = ({
           ? 'p-3 rounded-2xl shadow-sm bg-slate-100 dark:bg-[#07010f] border border-slate-200/60 dark:border-tuh-purple/20 text-tuh-navy dark:text-white rounded-tl-sm'
           : 'p-3 rounded-2xl shadow-md bg-[#f8bbd0] text-black dark:bg-[#ad1457] dark:text-white rounded-tr-sm'
           }`}>
-          {parseMarkdown(msg.text)}
+          {parseMarkdown(linkFormNames(msg.text))}
         </div>
 
         {/* 3. ส่วนแสดงรายการเอกสารอ้างอิง (Citations) และปุ่มดาวน์โหลดแบบฟอร์ม */}

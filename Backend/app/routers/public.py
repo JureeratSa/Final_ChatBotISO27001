@@ -246,10 +246,17 @@ async def compatibility_search(
             save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs, answer_docs
         )
 
+        # ลิงก์ดาวน์โหลดแบบฟอร์มที่คำตอบพูดถึง (เหมือน chat.py ขั้นที่ 8 — UserWeb เรียก endpoint นี้)
+        form_links = [
+            {"name": f.name, "download_link": f.download_link}
+            for f in forms_list if f.name and f.download_link and f.name in answer
+        ]
+
         return {
             "answer": answer,
             "results": rag_results,
             "citations": citations,
+            "form_links": form_links,
         }
 
 
