@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useAdminContext } from '../context/AdminContext';
 import ChunkEditorGrid from '../components/documents/ChunkEditorGrid';
+import { DepartmentCell, DepartmentFilter } from '../components/DepartmentControls';
 
 /**
  * DocumentsPage — แท็บ "จัดการแฟ้มเอกสาร PDF" ครอบคลุมทั้ง pipeline อัปโหลด/คลีน/แบ่ง chunk
@@ -17,6 +19,11 @@ export default function DocumentsPage() {
     docSortOrder,
     documents,
     dragOver,
+    fetchDocuments,
+    fetchForms,
+    isSuperAdmin,
+    matchesDepartment,
+    moveToDepartment,
     editDisplayName,
     expandedChunk,
     formName,
@@ -76,6 +83,10 @@ export default function DocumentsPage() {
     uploading,
   } = useAdminContext();
 
+  // ตัวกรองแผนกของ SuperAdmin ('' = ทุกแผนก) — แอดมินแผนกได้เฉพาะของแผนกตัวเองจาก API อยู่แล้ว
+  const [docDepartment, setDocDepartment] = useState('');
+  const [formDepartment, setFormDepartment] = useState('');
+
   return (
     <>
             <div className="space-y-6 animate-slide-in">
@@ -134,7 +145,8 @@ export default function DocumentsPage() {
               {/* Documents Table */}
               {(() => {
                 const filtered = documents.filter(doc =>
-                  doc.filename.toLowerCase().includes(docSearchQuery.toLowerCase())
+                  doc.filename.toLowerCase().includes(docSearchQuery.toLowerCase()) &&
+                  matchesDepartment(doc.department, docDepartment)
                 );
 
                 const sorted = [...filtered].sort((a, b) => {
@@ -170,6 +182,8 @@ export default function DocumentsPage() {
                           </span>
                         )}
                       </div>
+                      <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                      <DepartmentFilter value={docDepartment} onChange={(v) => { setDocDepartment(v); setDocCurrentPage(1); }} />
                       {/* Search Bar */}
                       <div className="relative w-full md:w-72">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-500 dark:text-slate-400">
@@ -182,6 +196,7 @@ export default function DocumentsPage() {
                           onChange={(e) => setDocSearchQuery(e.target.value)}
                           className="w-full pl-9 pr-4 py-2.5 text-xs font-bold tuh-glass-2 rounded-2xl focus:outline-none focus:border-tuh-rose transition text-tuh-navy dark:text-white"
                         />
+                      </div>
                       </div>
                     </div>
 
@@ -229,6 +244,7 @@ export default function DocumentsPage() {
                                 <i className="fa-solid fa-arrows-up-down text-[9px] ml-1 text-slate-300 dark:text-slate-600"></i>
                               )}
                             </th>
+                            {isSuperAdmin && <th className="px-6 py-4">แผนก</th>}
                             <th className="px-6 py-4 text-center">สถานะการทำงาน</th>
                             <th className="px-6 py-4 text-center">เปิดใช้งาน</th>
                             <th className="px-6 py-4 text-right">เครื่องมือ</th>
@@ -237,7 +253,7 @@ export default function DocumentsPage() {
                         <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
                           {sorted.length === 0 ? (
                             <tr>
-                              <td colSpan="8" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
+                              <td colSpan={isSuperAdmin ? 9 : 8} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
                                 {documents.length === 0 ? 'ไม่มีไฟล์เอกสารที่บันทึกไว้ในขณะนี้' : 'ไม่พบเอกสารที่ตรงกับการค้นหา'}
                               </td>
                             </tr>
@@ -276,6 +292,14 @@ export default function DocumentsPage() {
                                   <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">
                                     {doc.uploaded_by || 'ระบบ (Migration)'}
                                   </td>
+                                  {isSuperAdmin && (
+                                    <td className="px-6 py-4">
+                                      <DepartmentCell
+                                        value={doc.department}
+                                        onMove={(dept) => moveToDepartment('document', doc.filename, dept).then(ok => ok && fetchDocuments())}
+                                      />
+                                    </td>
+                                  )}
                                   <td className="px-6 py-4 text-center">
                                     {isProcessing ? (
                                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500">
@@ -497,6 +521,8 @@ export default function DocumentsPage() {
                     <h3 className="text-base font-extrabold text-tuh-navy dark:text-white flex items-center gap-2">
                       <i className="fa-solid fa-folder-open text-tuh-rose"></i> แฟ้มแบบฟอร์มทั้งหมด ({forms.length} รายการ)
                     </h3>
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <DepartmentFilter value={formDepartment} onChange={setFormDepartment} />
                     {/* Search Bar for Forms */}
                     <div className="relative w-full md:w-60">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 dark:text-slate-400">
@@ -510,6 +536,7 @@ export default function DocumentsPage() {
                         className="w-full pl-9 pr-4 py-2 text-xs font-bold tuh-glass-2 rounded-2xl focus:outline-none focus:border-tuh-rose transition text-tuh-navy dark:text-white"
                       />
                     </div>
+                    </div>
                   </div>
 
                   <div className="flex-1 overflow-x-auto">
@@ -518,6 +545,7 @@ export default function DocumentsPage() {
                         <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                           <th className="px-6 py-3.5">ชื่อแบบฟอร์ม</th>
                           <th className="px-6 py-3.5">ไฟล์ PDF / หน้าที่ระบุ</th>
+                          {isSuperAdmin && <th className="px-6 py-3.5">แผนก</th>}
                           <th className="px-6 py-3.5 text-center">ดาวน์โหลด</th>
                           <th className="px-6 py-3.5 text-right">จัดการ</th>
                         </tr>
@@ -525,13 +553,14 @@ export default function DocumentsPage() {
                       <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
                         {(() => {
                           const filtered = forms.filter(form =>
-                            form.name.toLowerCase().includes(formSearchQuery.toLowerCase())
+                            form.name.toLowerCase().includes(formSearchQuery.toLowerCase()) &&
+                            matchesDepartment(form.department, formDepartment)
                           );
 
                           if (filtered.length === 0) {
                             return (
                               <tr>
-                                <td colSpan="4" className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
+                                <td colSpan={isSuperAdmin ? 5 : 4} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-bold">
                                   {forms.length === 0 ? 'ยังไม่มีแบบฟอร์มที่ลงทะเบียนไว้ในแฟ้มข้อมูล' : 'ไม่พบแบบฟอร์มที่ตรงกับการค้นหา'}
                                 </td>
                               </tr>
@@ -553,6 +582,14 @@ export default function DocumentsPage() {
                                   {form.page && <span className="text-sm font-extrabold text-tuh-rose">หน้า {form.page}</span>}
                                 </div>
                               </td>
+                              {isSuperAdmin && (
+                                <td className="px-6 py-4">
+                                  <DepartmentCell
+                                    value={form.department}
+                                    onMove={(dept) => moveToDepartment('form', form.id, dept).then(ok => ok && fetchForms())}
+                                  />
+                                </td>
+                              )}
                               <td className="px-6 py-4 text-center">
                                 <a
                                   href={form.page ? `${form.link}#page=${form.page}` : form.link}

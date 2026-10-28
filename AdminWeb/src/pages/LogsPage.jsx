@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAdminContext } from '../context/AdminContext';
 import ResolveUnansweredModal from '../components/unanswered/ResolveUnansweredModal';
 import { RESOLUTION_LABELS, IGNORE_REASON_LABELS } from '../components/unanswered/unansweredLabels';
+import { DepartmentCell, DepartmentFilter } from '../components/DepartmentControls';
 
 /**
  * LogsPage — แท็บ "คำถามที่บอทตอบไม่ได้" ตารางรายการคำถามค้างพร้อมตัวกรองช่วงวันที่และการเรียงลำดับ
@@ -10,7 +11,11 @@ import { RESOLUTION_LABELS, IGNORE_REASON_LABELS } from '../components/unanswere
  */
 export default function LogsPage() {
   const {
+    fetchUnanswered,
     handleResolveUnanswered,
+    isSuperAdmin,
+    matchesDepartment,
+    moveToDepartment,
     parseTimestamp,
     setUnansweredEndDate,
     setUnansweredSortOrder,
@@ -23,9 +28,11 @@ export default function LogsPage() {
 
   // { item, mode: 'resolve' | 'ignore' } ของรายการที่กำลังเปิด modal อยู่
   const [modalState, setModalState] = useState(null);
+  // ตัวกรองแผนกของ SuperAdmin ('' = ทุกแผนก) — แอดมินแผนกได้เฉพาะคำถามของแผนกตัวเองจาก API อยู่แล้ว
+  const [unansweredDepartment, setUnansweredDepartment] = useState('');
 
   // รายการหลังกรองช่วงวันที่ + เรียงลำดับ — ใช้ทั้งตารางและไฟล์ CSV ให้ตรงกับที่เห็นบนจอ
-  let processed = [...unanswered];
+  let processed = unanswered.filter(log => matchesDepartment(log.department, unansweredDepartment));
 
   // Filter by date range if specified
   if (unansweredStartDate) {
@@ -55,9 +62,10 @@ export default function LogsPage() {
   const downloadUnansweredCSV = () => {
     if (processed.length === 0) return;
     const statusLabel = { Pending: 'รอการตรวจเช็ค', Resolved: 'แก้ไขแล้ว', Ignored: 'ไม่แก้ไข' };
-    const headers = ["ข้อความคำถาม", "ถามซ้ำ (ครั้ง)", "ถามล่าสุดเมื่อ", "สถานะ", "วิธีแก้ / เหตุผลที่ไม่แก้", "คำค้นที่สอน", "หมายเหตุ", "แก้ไขโดย"];
+    const headers = ["ข้อความคำถาม", "แผนก", "ถามซ้ำ (ครั้ง)", "ถามล่าสุดเมื่อ", "สถานะ", "วิธีแก้ / เหตุผลที่ไม่แก้", "คำค้นที่สอน", "หมายเหตุ", "แก้ไขโดย"];
     const rows = processed.map(log => [
       log.query,
+      log.department || 'ยังไม่ระบุแผนก',
       log.count,
       log.timestamp,
       statusLabel[log.status] || log.status,
@@ -90,6 +98,8 @@ export default function LogsPage() {
 
           {/* Date filtering & sorting controls for unanswered logs */}
           <div className="flex flex-wrap items-center gap-3">
+            <DepartmentFilter value={unansweredDepartment} onChange={setUnansweredDepartment} />
+
             {/* Sort Selector */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">เรียงตามวัน:</span>
@@ -153,6 +163,7 @@ export default function LogsPage() {
             <thead>
               <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                 <th className="px-6 py-4">ข้อความคำถาม</th>
+                {isSuperAdmin && <th className="px-6 py-4">แผนก</th>}
                 <th className="px-6 py-4 text-center">ถามซ้ำ (จำนวน)</th>
                 <th className="px-6 py-4 whitespace-nowrap">ถามล่าสุดเมื่อ</th>
                 <th className="px-6 py-4 text-center">สถานะ</th>
@@ -164,7 +175,7 @@ export default function LogsPage() {
                 if (processed.length === 0) {
                   return (
                     <tr>
-                      <td colSpan="5" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
+                      <td colSpan={isSuperAdmin ? 6 : 5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
                         {unanswered.length === 0 ? 'ไม่มีคำถามที่ค้างการตอบในขณะนี้' : 'ไม่พบรายการที่ตรงกับเงื่อนไขเวลาที่ระบุ'}
                       </td>
                     </tr>
@@ -186,6 +197,14 @@ export default function LogsPage() {
                           </div>
                         )}
                       </td>
+                      {isSuperAdmin && (
+                        <td className="px-6 py-4">
+                          <DepartmentCell
+                            value={log.department}
+                            onMove={(dept) => moveToDepartment('unanswered', log.id, dept).then(ok => ok && fetchUnanswered())}
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-center font-black">
                         {log.count} ครั้ง
                       </td>

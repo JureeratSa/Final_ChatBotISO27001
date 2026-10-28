@@ -32,6 +32,7 @@ class TokenResponse(BaseModel):
     username: str
     display_name: str
     role: str
+    department: Optional[str] = None
 
 
 class RefreshRequest(BaseModel):
@@ -93,6 +94,11 @@ class FAQ(BaseModel):
     answer: str
 
 
+class CustomFaqCreate(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    answer: str = Field(..., min_length=1, max_length=10000)
+
+
 class SettingsResponse(BaseModel):
     model_name: str
     temperature: float
@@ -137,6 +143,7 @@ class DocumentResponse(BaseModel):
     embedding_duration: Optional[float] = None
     upload_date: str
     uploaded_by: Optional[str] = None
+    department: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -228,6 +235,7 @@ class UnansweredResponse(BaseModel):
     resolved_by: Optional[str] = None  # display_name ของผู้ปิดรายการ
     resolved_at: Optional[str] = None
     search_keywords: List[str] = []
+    department: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -286,6 +294,7 @@ class HistoryResponse(BaseModel):
     chunk_ids: List[int] = []
     api_model: Optional[str] = None
     referenced_docs: List[str] = []
+    cited_docs: Optional[List[str]] = None  # None = แถวเก่าก่อนมีคอลัมน์นี้ (ใช้ referenced_docs แทน)
     timestamp: str
 
 
@@ -311,6 +320,7 @@ class FormResponse(BaseModel):
     page: Optional[str] = None
     download_link: Optional[str] = None
     link: Optional[str] = None
+    department: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -321,6 +331,7 @@ class FormCreate(BaseModel):
     filename: Optional[str] = None
     page: Optional[str] = None
     download_link: Optional[str] = None
+    department: Optional[str] = None  # ใช้เฉพาะ SuperAdmin — แอดมินแผนกได้แผนกตัวเองเสมอ
 
 
 # ─── Announcements Schemas ─────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ history_row_to_response() ย้ายไปที่ app/services/history_servi
 import json
 import logging
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from app.routers.auth import get_current_user
 from app.models.models import User, ChatHistory
 from app.schemas.schemas import HistoryResponse
 from app.services.history_service import history_row_to_response
+from app.services.department_scope import history_scope_filter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -26,12 +27,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 @router.get("/history", response_model=List[HistoryResponse])
 async def get_history(
     limit: int = 100,
+    department: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(ChatHistory).order_by(ChatHistory.timestamp.desc()).limit(limit)
-    )
+    """แอดมินแผนกเห็นเฉพาะคำตอบที่อิงเอกสารของแผนกตัวเอง (ดู department_scope.history_department_filter)"""
+    query = select(ChatHistory).order_by(ChatHistory.timestamp.desc()).limit(limit)
+    scope = await history_scope_filter(db, current_user, department)
+    if scope is not None:
+        query = query.where(scope)
+    result = await db.execute(query)
     items = result.scalars().all()
     return [history_row_to_response(h) for h in items]
 

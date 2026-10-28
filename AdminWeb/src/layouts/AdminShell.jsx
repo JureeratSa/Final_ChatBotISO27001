@@ -20,6 +20,7 @@ export default function AdminShell({ children }) {
     history,
     isDarkMode,
     isSidebarOpen,
+    isSuperAdmin,
     pendingUnansweredCount,
     setDeleteModalState,
     setIsDarkMode,
@@ -121,13 +122,16 @@ export default function AdminShell({ children }) {
             <span>จัดการเอกสาร PDF</span>
           </button>
 
-          <button
-            onClick={() => handleTabClick('announcements')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
-          >
-            <i className="fa-solid fa-bullhorn text-sm"></i>
-            <span>สร้างและจัดการประกาศ</span>
-          </button>
+          {/* ประกาศ / FAQ ปุ่มหน้าแรก เป็นส่วนกลางของระบบ — เฉพาะ SuperAdmin */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabClick('announcements')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-bullhorn text-sm"></i>
+              <span>สร้างและจัดการประกาศ</span>
+            </button>
+          )}
 
           <button
             onClick={() => handleTabClick('logs')}
@@ -155,13 +159,15 @@ export default function AdminShell({ children }) {
             <span>ประวัติการตอบของบอท</span>
           </button>
 
-          <button
-            onClick={() => handleTabClick('faqs')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'faqs' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
-          >
-            <i className="fa-solid fa-book text-sm"></i>
-            <span>คู่มือตอบกลับ (FAQs)</span>
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabClick('faqs')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'faqs' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-book text-sm"></i>
+              <span>คู่มือตอบกลับ (FAQs)</span>
+            </button>
+          )}
 
 
           {adminUser.role === 'System Administrator' && (
@@ -264,7 +270,7 @@ export default function AdminShell({ children }) {
           <div className="flex items-center gap-3">
             <span className="hidden md:inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full bg-tuh-pink/30 text-tuh-rose border border-tuh-rose/20 dark:bg-tuh-rose/25 dark:text-white dark:border-none shadow-sm">
               <img src={botAvatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover shadow-sm" />
-              {adminUser.name} ({adminUser.role})
+              {adminUser.name} ({isSuperAdmin ? 'SuperAdmin' : (adminUser.department || adminUser.role)})
             </span>
           </div>
         </header>

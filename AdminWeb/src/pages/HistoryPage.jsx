@@ -1,4 +1,5 @@
 import { useAdminContext } from '../context/AdminContext';
+import { DepartmentFilter } from '../components/DepartmentControls';
 
 /**
  * HistoryPage — แท็บ "ประวัติการตอบของบอท" สรุปจำนวนคำถาม ตัวกรองช่วงเวลา และตาราง
@@ -11,6 +12,7 @@ export default function HistoryPage() {
     downloadCSV,
     filteredHistory,
     history,
+    historyDepartment,
     historyEndDate,
     historyLimit,
     historyPeriod,
@@ -18,6 +20,7 @@ export default function HistoryPage() {
     historyStartDate,
     loadingHistory,
     parseTimestamp,
+    setHistoryDepartment,
     setHistoryEndDate,
     setHistoryLimit,
     setHistoryPeriod,
@@ -112,6 +115,8 @@ export default function HistoryPage() {
                 <option value="asc">เก่าไปใหม่</option>
               </select>
             </div>
+
+            <DepartmentFilter value={historyDepartment} onChange={setHistoryDepartment} />
 
             {/* Limit Selector */}
             <div className="flex items-center gap-1.5">

@@ -148,6 +148,7 @@ async def compatibility_search(
         split_used_sources, cites_sources_explicitly, condense_question,
     )
     from app.routers.chat import save_history, save_unanswered
+    from app.services.department_scope import answer_documents
     from app.services.taught_keywords_service import expand_retrieval_query
 
     start_time = time.time()
@@ -222,8 +223,6 @@ async def compatibility_search(
 
         # Unanswered check — เช็ค model_used ก่อนเสมือน chat.py (ดูคอมเมนต์ที่นั่นสำหรับเหตุผล)
         is_unanswered = is_unanswered_response(answer, model_used)
-        if is_unanswered:
-            background_tasks.add_task(save_unanswered, db, query)
 
         # Citations — ใช้ has_reliable_context() เหมือน chat.py แทนเช็คแค่ rag_results ไม่ว่าง
         # (ดูเหตุผลเต็มใน rag_service.has_reliable_context — retriever คืน top_k เสมอไม่ว่า
@@ -233,13 +232,18 @@ async def compatibility_search(
         if has_reliable_context(rag_results, used_rag) and cited_results and (not is_unanswered or explicit_sources):
             citations = await build_citations(db, cited_results)
 
+        # เอกสารที่คำตอบนี้อิงจริง — ใช้แยกประวัติ/คำถามที่ตอบไม่ได้ตามแผนก (เหมือน chat.py)
+        answer_docs = answer_documents(rag_results, cited_results if citations else [])
+        if is_unanswered:
+            background_tasks.add_task(save_unanswered, db, query, answer_docs)
+
         # Log history in background
         history_id = f"history-{int(time.time() * 1000)}"
         chunk_ids = [res.get("chunk_id", res.get("id", 0)) if isinstance(res, dict) else 0 for res in rag_results]
         referenced_docs = list(set(res["metadata"].get("source", "") for res in rag_results if isinstance(res, dict) and "metadata" in res))
 
         background_tasks.add_task(
-            save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs
+            save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs, answer_docs
         )
 
         return {

@@ -20,6 +20,16 @@ from app.schemas.schemas import (
     LoginRequest, TokenResponse, RefreshRequest, AccessTokenResponse,
     UserCreate, UserUpdate, UserResponse
 )
+from app.services.department_scope import SUPER_ADMIN_ROLE
+
+
+def _require_department(role: str, department) -> None:
+    """แอดมินแผนกต้องมีแผนกเสมอ — ไม่มีแผนกจะมองไม่เห็นข้อมูลอะไรเลยในระบบ"""
+    if role != SUPER_ADMIN_ROLE and not (department or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="กรุณาระบุแผนก/หมวดงานของแอดมิน (แอดมินจะเห็นเฉพาะข้อมูลของแผนกนี้)"
+        )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 security = HTTPBearer()
@@ -72,7 +82,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         **tokens,
         username=user.username,
         display_name=user.display_name,
-        role=user.role
+        role=user.role,
+        department=user.department
     )
 
 
@@ -139,13 +150,14 @@ async def create_user(
     result = await db.execute(select(User).where(User.username == body.username))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username นี้มีอยู่แล้วในระบบ")
+    _require_department(body.role, body.department)
 
     new_user = User(
         username=body.username,
         password_hash=hash_password(body.password),
         display_name=body.display_name,
         role=body.role,
-        department=body.department
+        department=(body.department or "").strip() or None
     )
     db.add(new_user)
     await db.commit()
@@ -171,6 +183,10 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบผู้ใช้นี้")
 
+    _require_department(
+        body.role if body.role is not None else user.role,
+        body.department if body.department is not None else user.department,
+    )
     if body.display_name is not None:
         user.display_name = body.display_name
     if body.password is not None:
@@ -178,13 +194,27 @@ async def update_user(
     if body.role is not None:
         user.role = body.role
     if body.department is not None:
-        user.department = body.department
+        user.department = body.department.strip() or None
     if body.is_active is not None:
         user.is_active = body.is_active
 
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.get("/departments", response_model=List[str])
+async def list_departments(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """รายชื่อแผนกที่มีอยู่ (จากบัญชีแอดมินแผนก) — ใช้เป็นตัวเลือกตอนกรอง/ย้ายแผนกใน AdminWeb"""
+    if current_user.role != SUPER_ADMIN_ROLE:
+        return [current_user.department] if current_user.department else []
+    rows = await db.execute(
+        select(User.department).where(User.role != SUPER_ADMIN_ROLE, User.department.is_not(None)).distinct()
+    )
+    return sorted(d for d in rows.scalars().all() if d and d.strip())
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

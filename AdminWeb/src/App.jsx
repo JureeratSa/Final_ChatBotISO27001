@@ -32,6 +32,7 @@ import { useUsersState } from './hooks/useUsersState';
 import { useFeedbackAndUnansweredState } from './hooks/useFeedbackAndUnansweredState';
 import { useHistoryState } from './hooks/useHistoryState';
 import { useDeleteConfirmation } from './hooks/useDeleteConfirmation';
+import { useDepartments } from './hooks/useDepartments';
 
 // กำหนด URL ของ Backend API (อ่านจาก .env หรือ fallback เป็น host ปัจจุบันที่พอร์ต 8000)
 const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
@@ -90,6 +91,14 @@ function App() {
     handleLogin,
     handleLogout,
   } = useAuth(API_URL, showSuccess, showError, setActiveTab);
+
+  const {
+    isSuperAdmin,
+    departmentOptions,
+    fetchDepartments,
+    moveToDepartment,
+    matchesDepartment,
+  } = useDepartments(API_URL, fetch, adminUser, showSuccess, showError);
 
   const {
     newPassword,
@@ -293,7 +302,9 @@ function App() {
     filteredHistory,
     downloadCSV,
     getSatisfactionStatsByPeriod,
-  } = useHistoryState(API_URL, fetch, feedback);
+    historyDepartment,
+    setHistoryDepartment,
+  } = useHistoryState(API_URL, fetch, feedback, documents);
 
   const { confirmDelete } = useDeleteConfirmation({
     API_URL,
@@ -323,6 +334,7 @@ function App() {
       fetchHistoryChunksMap();
       fetchForms();
       fetchAnnouncements();
+      fetchDepartments();
       if (adminUser.role === 'System Administrator') {
         fetchUsers();
       }
@@ -352,16 +364,23 @@ function App() {
     if (isLoggedIn && activeTab === 'users' && adminUser.role === 'System Administrator') {
       fetchUsers();
     }
+    // รายชื่อแผนกมาจากบัญชีแอดมิน — โหลดใหม่ตอนกลับจากหน้าจัดการบัญชี (อาจเพิ่มแผนกใหม่ไว้)
+    if (isLoggedIn && isSuperAdmin && activeTab !== 'users') {
+      fetchDepartments();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isLoggedIn, adminUser.role]);
 
-  // Safety redirect: If a non-System Administrator lands on users or settings tab, redirect them to dashboard
+  // Safety redirect: แอดมินแผนกเข้าแท็บส่วนกลาง (บัญชีแอดมิน / ตั้งค่า AI / ประกาศ / FAQ ปุ่มหน้าแรก)
+  // ไม่ได้ — backend ปฏิเสธการแก้ไขอยู่แล้ว ฝั่งนี้แค่ไม่ให้เปิดหน้าที่ใช้งานไม่ได้
+  const SUPER_ADMIN_TABS = ['users', 'settings', 'announcements', 'faqs'];
   useEffect(() => {
     if (isLoggedIn && adminUser) {
-      if (adminUser.role !== 'System Administrator' && (activeTab === 'users' || activeTab === 'settings')) {
+      if (adminUser.role !== 'System Administrator' && SUPER_ADMIN_TABS.includes(activeTab)) {
         setActiveTab('dashboard');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, activeTab, adminUser.role]);
 
   // Login View
@@ -405,6 +424,7 @@ function App() {
     confirmPassword,
     currentUnanswered,
     departments,
+    departmentOptions,
     deleteModalState,
     docCurrentPage,
     docSearchQuery,
@@ -419,6 +439,10 @@ function App() {
     expandedChunk,
     faqAnswer,
     feedback,
+    fetchDocuments,
+    fetchForms,
+    fetchHistory,
+    fetchUnanswered,
     filteredHistory,
     formName,
     formPage,
@@ -452,6 +476,7 @@ function App() {
     handleUpdatePassword,
     handleViewPreview,
     history,
+    historyDepartment,
     historyEndDate,
     historyLimit,
     historyPeriod,
@@ -459,10 +484,13 @@ function App() {
     historyStartDate,
     isAnnFormOpen,
     isDarkMode,
+    isSuperAdmin,
     isSidebarOpen,
     loadingHistory,
     loadingPreview,
     loadingUsers,
+    matchesDepartment,
+    moveToDepartment,
     newPassword,
     parseTimestamp,
     pendingUnansweredCount,
@@ -503,6 +531,7 @@ function App() {
     setFormName,
     setFormPage,
     setFormSearchQuery,
+    setHistoryDepartment,
     setHistoryEndDate,
     setHistoryLimit,
     setHistoryPeriod,
@@ -582,10 +611,10 @@ function App() {
         {activeTab === 'dashboard' && <DashboardPage />}
         {activeTab === 'satisfaction' && <SatisfactionPage />}
         {activeTab === 'documents' && <DocumentsPage />}
-        {activeTab === 'announcements' && <AnnouncementsPage />}
+        {activeTab === 'announcements' && isSuperAdmin && <AnnouncementsPage />}
         {activeTab === 'logs' && <LogsPage />}
         {activeTab === 'history' && <HistoryPage />}
-        {activeTab === 'faqs' && <FaqsPage />}
+        {activeTab === 'faqs' && isSuperAdmin && <FaqsPage />}
         {activeTab === 'settings' && adminUser.role === 'System Administrator' && <SettingsPage />}
         {activeTab === 'profile' && <ProfilePage />}
         {activeTab === 'users' && adminUser.role === 'System Administrator' && <UsersPage />}

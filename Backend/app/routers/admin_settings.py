@@ -4,6 +4,7 @@ TUH Chatbot AI — Admin Router: Settings
 ไม่แยก service layer (ตามแผน) — GET /settings ไม่บังคับ login และไม่ส่ง API key ออกไป
 """
 import json
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.routers.auth import get_current_user
 from app.models.models import User, SystemSettings
-from app.schemas.schemas import SettingsResponse, SettingsUpdate
+from app.schemas.schemas import SettingsResponse, SettingsUpdate, CustomFaqCreate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -112,3 +113,29 @@ async def update_settings(
         last_build_duration=cfg.last_build_duration,
         success=True
     )
+
+
+@router.post("/custom_faqs")
+async def add_custom_faq(
+    body: CustomFaqCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """เพิ่มคู่คำถาม-คำตอบ FAQ 1 คู่ (ตอนแก้คำถามที่บอทตอบไม่ได้ด้วยวิธี "สอน FAQ")
+    แยกจาก POST /settings ซึ่งเป็นของ SuperAdmin เท่านั้น — แอดมินแผนกเพิ่ม FAQ ได้ แต่แก้ค่าอื่นของระบบไม่ได้"""
+    result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        cfg = SystemSettings(id="config")
+        db.add(cfg)
+    faqs = json.loads(cfg.custom_faqs or "[]")
+    new_faq = {
+        "id": f"faq-{int(time.time() * 1000)}",
+        "icon": None,
+        "question": body.question.strip(),
+        "answer": body.answer,
+    }
+    faqs.append(new_faq)
+    cfg.custom_faqs = json.dumps(faqs, ensure_ascii=False)
+    await db.commit()
+    return {"success": True, "faq": new_faq, "custom_faqs": faqs}

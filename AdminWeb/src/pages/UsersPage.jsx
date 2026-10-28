@@ -22,6 +22,7 @@ export default function UsersPage() {
     setUserFormUsername,
     showUserModal,
     userFormDepartment,
+    departmentOptions,
     userFormDisplayName,
     userFormIsActive,
     userFormMode,
@@ -203,14 +204,28 @@ export default function UsersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">หมวดงาน / แผนก (Department)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  หมวดงาน / แผนก (Department)
+                  {userFormRole !== 'System Administrator' && <span className="text-red-500"> *</span>}
+                </label>
+                {/* แผนกเป็นข้อความอิสระ — เลือกจากรายการเดิมเพื่อไม่ให้สะกดต่างกันจนกลายเป็นคนละแผนก */}
                 <input
                   type="text"
-                  placeholder="เช่น ไอที, ประชาสัมพันธ์, การเงิน"
+                  list="department-options"
+                  required={userFormRole !== 'System Administrator'}
+                  placeholder="เช่น งานสารสนเทศ, งานการพยาบาล"
                   value={userFormDepartment}
                   onChange={(e) => setUserFormDepartment(e.target.value)}
                   className="w-full tuh-glass-2 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
                 />
+                <datalist id="department-options">
+                  {(departmentOptions || []).map(d => <option key={d} value={d} />)}
+                </datalist>
+                {userFormRole !== 'System Administrator' && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1">
+                    แอดมินจะเห็นและจัดการได้เฉพาะเอกสาร แบบฟอร์ม ประวัติ และคำถามของแผนกนี้
+                  </p>
+                )}
               </div>
 
               <div>
@@ -236,8 +251,8 @@ export default function UsersPage() {
                     onChange={(e) => setUserFormRole(e.target.value)}
                     className="w-full tuh-glass-2 rounded-2xl py-2.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
                   >
-                    <option value="admin">admin</option>
-                    <option value="System Administrator">System Administrator</option>
+                    <option value="admin">admin (แอดมินแผนก)</option>
+                    <option value="System Administrator">System Administrator (SuperAdmin)</option>
                   </select>
                 </div>
 

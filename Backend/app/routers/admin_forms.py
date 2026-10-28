@@ -5,7 +5,7 @@ _parse_pages() ย้ายไปที่ app/services/form_service.py
 """
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -19,14 +19,31 @@ from app.routers.auth import get_current_user
 from app.models.models import User, Form as FormModel
 from app.schemas.schemas import FormResponse, FormCreate
 from app.services.form_service import _parse_pages
+from app.services.department_scope import (
+    check_department, department_column_filter, owner_department_for, require_super_admin, scope_department
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def _check_form_access(form: FormModel, user: User) -> None:
+    check_department(form.department, user, "คุณไม่มีสิทธิ์จัดการแบบฟอร์มของแผนกอื่น")
+
+
 @router.get("/forms", response_model=List[FormResponse])
-async def get_forms(db: AsyncSession = Depends(get_db)):
-    """Public endpoint — ดึงรายการแบบฟอร์ม"""
-    result = await db.execute(select(FormModel))
+async def get_forms(
+    department: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """รายการแบบฟอร์มสำหรับหน้าจัดการใน AdminWeb — แอดมินแผนกเห็นเฉพาะของแผนกตัวเอง
+    (เดิมเป็น public endpoint แต่มีแค่ AdminWeb เรียก — แชทบอทอ่านแบบฟอร์มจาก DB โดยตรง
+    และดาวน์โหลดไฟล์ผ่าน /api/forms/download/... ซึ่งยังเป็น public เหมือนเดิม)"""
+    query = select(FormModel)
+    scope = department_column_filter(FormModel.department, scope_department(current_user, department))
+    if scope is not None:
+        query = query.where(scope)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -42,7 +59,8 @@ async def create_form(
         name=body.name,
         filename=body.filename,
         page=body.page,
-        download_link=body.download_link
+        download_link=body.download_link,
+        department=owner_department_for(current_user, body.department)
     )
     db.add(new_form)
     await db.commit()
@@ -60,6 +78,7 @@ async def delete_form(
     form = result.scalar_one_or_none()
     if not form:
         raise HTTPException(status_code=404, detail="ไม่พบแบบฟอร์มนี้")
+    _check_form_access(form, current_user)
     await db.delete(form)
     await db.commit()
 
@@ -79,6 +98,7 @@ async def delete_form_compatibility(
     form = result.scalar_one_or_none()
     if not form:
         raise HTTPException(status_code=404, detail="ไม่พบแบบฟอร์มนี้")
+    _check_form_access(form, current_user)
 
     # Delete file from disk
     if form.filename:
@@ -110,6 +130,12 @@ async def upload_form_compatibility(
     if not form_name or not filename:
         raise HTTPException(status_code=400, detail="กรุณากรอกชื่อและเลือกไฟล์แบบฟอร์มให้ครบถ้วน")
     filename = safe_filename(filename)  # ป้องกัน Path Traversal จาก x-file-name header
+
+    # ชื่อแบบฟอร์มซ้ำกัน = อัปเดตแบบฟอร์มเดิม — อัปเดตทับของแผนกอื่นไม่ได้ (เช็คก่อนเขียนไฟล์)
+    result = await db.execute(select(FormModel).where(func.lower(FormModel.name) == func.lower(form_name)))
+    existing_form = result.scalar_one_or_none()
+    if existing_form:
+        _check_form_access(existing_form, current_user)
 
     post_data = await request.body()
 
@@ -161,9 +187,6 @@ async def upload_form_compatibility(
             temp_filepath.rename(final_filepath)
 
     # Save/Update in DB
-    result = await db.execute(select(FormModel).where(func.lower(FormModel.name) == func.lower(form_name)))
-    existing_form = result.scalar_one_or_none()
-
     host_header = request.headers.get("host", "localhost:8000")
     download_link = f"http://{host_header}/api/forms/download/{quote(final_filename)}"
 
@@ -186,7 +209,10 @@ async def upload_form_compatibility(
             name=form_name,
             filename=final_filename,
             page=page,
-            download_link=download_link
+            download_link=download_link,
+            department=owner_department_for(
+                current_user, unquote(request.headers.get("x-form-department", "").strip())
+            )
         )
         db.add(new_form)
         message = "บันทึกและอัปโหลดแบบฟอร์มสำเร็จ"
@@ -201,3 +227,25 @@ async def upload_form_compatibility(
         raise
 
     return {"success": True, "message": message}
+
+
+class UpdateFormDepartmentRequest(BaseModel):
+    id: str
+    department: Optional[str] = None  # None/"" = ยังไม่ระบุแผนก
+
+
+@router.post("/forms/update_department")
+async def update_form_department(
+    payload: UpdateFormDepartmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ย้ายแบบฟอร์มไปแผนกอื่น — SuperAdmin เท่านั้น"""
+    require_super_admin(current_user, "เฉพาะ SuperAdmin เท่านั้นที่ย้ายแผนกของแบบฟอร์มได้")
+    result = await db.execute(select(FormModel).where(FormModel.id == payload.id))
+    form = result.scalar_one_or_none()
+    if not form:
+        raise HTTPException(status_code=404, detail="ไม่พบแบบฟอร์มนี้")
+    form.department = (payload.department or "").strip() or None
+    await db.commit()
+    return {"success": True, "department": form.department}

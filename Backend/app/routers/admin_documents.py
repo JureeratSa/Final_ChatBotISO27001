@@ -29,6 +29,9 @@ from app.services.document_service import (
     _check_doc_ownership, _doc_to_response, _parse_exclude_pages, run_approval_pipeline
 )
 from app.services.rebuild_service import _delete_from_search_index, _trigger_rebuild_background
+from app.services.department_scope import (
+    UNASSIGNED, owner_department_for, require_super_admin, scope_department
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -37,12 +40,30 @@ UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+async def _get_owned_document(db: AsyncSession, filename: str, current_user: User) -> Document:
+    result = await db.execute(select(Document).where(Document.filename == safe_filename(filename)))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+    _check_doc_ownership(doc, current_user)
+    return doc
+
+
 @router.get("/documents", response_model=List[DocumentResponse])
 async def list_documents(
+    department: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(Document).order_by(Document.upload_date.desc()))
+    """แอดมินแผนกเห็นเฉพาะเอกสารของแผนกตัวเอง — SuperAdmin เห็นทั้งหมด หรือส่ง ?department=
+    เพื่อดูทีละแผนก (?department=__unassigned__ = เอกสารที่ยังไม่ระบุแผนก)"""
+    query = select(Document).order_by(Document.upload_date.desc())
+    dept = scope_department(current_user, department)
+    if dept == UNASSIGNED:
+        query = query.where(Document.department.is_(None))
+    elif dept is not None:
+        query = query.where(Document.department == dept)
+    result = await db.execute(query)
     docs = result.scalars().all()
     return [_doc_to_response(d) for d in docs]
 
@@ -88,6 +109,12 @@ async def upload_document(
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF เท่านั้น")
 
+    # ชื่อไฟล์ไม่ซ้ำกันทั้งระบบ — อัปโหลดทับไฟล์ของแผนกอื่นไม่ได้ (ต้องเช็คก่อนเขียนไฟล์ลงดิสก์)
+    existing_result = await db.execute(select(Document).where(Document.filename == filename))
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        _check_doc_ownership(existing, current_user)
+
     file_path = UPLOADS_DIR / filename
     with open(str(file_path), "wb") as f:
         f.write(file_content)
@@ -120,10 +147,6 @@ async def upload_document(
     with open(str(raw_text_path), "w", encoding="utf-8") as f:
         f.write(raw_text)
 
-    # Check if already exists
-    existing_result = await db.execute(select(Document).where(Document.filename == filename))
-    existing = existing_result.scalar_one_or_none()
-
     if existing:
         existing.status = "Step_Raw_Text"
         existing.size = file_size
@@ -142,7 +165,8 @@ async def upload_document(
             size=file_size,
             exclude_pages=exclude_pages,
             uploaded_by=current_user.display_name or current_user.username,
-            uploaded_by_id=current_user.id
+            uploaded_by_id=current_user.id,
+            department=owner_department_for(current_user)
         )
         db.add(doc_entry)
 
@@ -329,6 +353,29 @@ async def update_document_details(
     return {"success": True}
 
 
+class UpdateDocDepartmentRequest(BaseModel):
+    filename: str
+    department: Optional[str] = None  # None/"" = ยังไม่ระบุแผนก
+
+
+@router.post("/documents/update_department")
+async def update_document_department(
+    payload: UpdateDocDepartmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ย้ายเอกสารไปแผนกอื่น — SuperAdmin เท่านั้น (ประวัติคำตอบที่อิงเอกสารนี้ย้ายตามไปเอง
+    เพราะกรองประวัติด้วยแผนกปัจจุบันของเอกสาร ไม่ได้เก็บแผนกไว้ในประวัติ)"""
+    require_super_admin(current_user, "เฉพาะ SuperAdmin เท่านั้นที่ย้ายแผนกของเอกสารได้")
+    result = await db.execute(select(Document).where(Document.filename == payload.filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+    doc.department = (payload.department or "").strip() or None
+    await db.commit()
+    return {"success": True, "department": doc.department}
+
+
 class ApproveRequest(BaseModel):
     filename: str
     current_status: str
@@ -372,8 +419,10 @@ async def approve_document(
 @router.get("/documents/view_raw")
 async def view_raw_document(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
+    await _get_owned_document(db, filename, current_user)
     filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.raw.txt")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความดิบ")
@@ -386,8 +435,10 @@ async def view_raw_document(
 @router.get("/documents/view_cleaned")
 async def view_cleaned_document(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
+    await _get_owned_document(db, filename, current_user)
     filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.cleaned.md")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความที่เคลียร์แล้ว")
@@ -400,8 +451,10 @@ async def view_cleaned_document(
 @router.get("/documents/view_chunks")
 async def view_chunks_document(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
+    await _get_owned_document(db, filename, current_user)
     filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.chunks.json")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์พรีวิวแบ่ง Chunk")

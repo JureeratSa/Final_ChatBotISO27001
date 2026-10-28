@@ -31,6 +31,7 @@ from app.services.rag_service import (
 from app.core.security import safe_path
 from app.core.rate_limit import rate_limit_dependency
 from app.services.taught_keywords_service import expand_retrieval_query
+from app.services.department_scope import answer_documents
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -164,15 +165,18 @@ async def chat(
         if form.name and form.name in answer:
             form_links_out.append(FormLink(name=form.name, download_link=form.download_link))
 
+    # เอกสารที่คำตอบนี้อิงจริง — ใช้แยกประวัติ/คำถามที่ตอบไม่ได้ให้แอดมินแต่ละแผนก
+    answer_docs = answer_documents(rag_results, cited_results if citations else [])
+
     if is_unanswered:
-        background_tasks.add_task(save_unanswered, db, query)
+        background_tasks.add_task(save_unanswered, db, query, answer_docs)
 
     # ─── 9. บันทึกประวัติ ──────────────────────────────────────────────────
     history_id = f"history-{int(time.time() * 1000)}"
     chunk_ids = [res.get("chunk_id", res.get("id", 0)) for res in rag_results]
     referenced_docs = list(set(res["metadata"].get("source", "") for res in rag_results))
     background_tasks.add_task(
-        save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs
+        save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs, answer_docs
     )
 
     return ChatResponse(
@@ -218,7 +222,7 @@ async def serve_pdf(filename: str):
 
 # ─── Background Tasks ─────────────────────────────────────────────────────────
 
-async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_name, referenced_docs):
+async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_name, referenced_docs, cited_docs=None):
     """บันทึกประวัติการสนทนา (Background Task)"""
     try:
         from app.core.database import AsyncSessionLocal
@@ -230,7 +234,8 @@ async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_
                 response_time=round(elapsed, 4),
                 chunk_ids=",".join(map(str, chunk_ids)),
                 api_model=model_name,
-                referenced_docs=json.dumps(referenced_docs, ensure_ascii=False)
+                referenced_docs=json.dumps(referenced_docs, ensure_ascii=False),
+                cited_docs=json.dumps(cited_docs or [], ensure_ascii=False)
             )
             session.add(entry)
             await session.commit()
@@ -238,12 +243,12 @@ async def save_history(db, history_id, query, answer, chunk_ids, elapsed, model_
         logger.error("[History Save Error] %s", e)
 
 
-async def save_unanswered(db, query):
-    """บันทึกคำถามที่ตอบไม่ได้ (Background Task)"""
+async def save_unanswered(db, query, answer_docs=None):
+    """บันทึกคำถามที่ตอบไม่ได้ (Background Task) — answer_docs ใช้เดาแผนกที่เกี่ยวข้อง"""
     try:
         from app.core.database import AsyncSessionLocal
         from app.services.unanswered_service import record_unanswered_query
         async with AsyncSessionLocal() as session:
-            await record_unanswered_query(session, UnansweredSubmit(query=query))
+            await record_unanswered_query(session, UnansweredSubmit(query=query), answer_docs)
     except Exception as e:
         logger.error("[Unanswered Save Error] %s", e)

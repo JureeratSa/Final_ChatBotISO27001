@@ -46,7 +46,8 @@ async def legacy_admin_login(
         "token": token,
         "username": user.username,
         "role": user.role,
-        "name": user.display_name
+        "name": user.display_name,
+        "department": user.department
     }
 
 

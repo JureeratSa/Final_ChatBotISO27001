@@ -78,6 +78,11 @@ class Document(Base):
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="รหัสผู้ใช้งานที่อัปโหลด (Foreign Key เชื่อมกับ users.id)"
     )
 
+    # แผนกเจ้าของเอกสาร — แอดมินแผนกเห็น/แก้ได้เฉพาะเอกสารของแผนกตัวเอง (NULL = ยังไม่ระบุ เห็นแค่ SuperAdmin)
+    department: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, index=True, comment="แผนกเจ้าของเอกสาร (ตรงกับ users.department)"
+    )
+
     uploader: Mapped[Optional["User"]] = relationship("User", foreign_keys=[uploaded_by_id])
 
 
@@ -128,6 +133,10 @@ class ChatHistory(Base):
     chunk_ids: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="รหัส Chunks ที่ถูกดึงมาใช้อ้างอิง (คั่นด้วยจุลภาค)")
     api_model: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="ชื่อโมเดล AI หรือที่มาของคำตอบ (เช่น custom_faq, gemma)")
     referenced_docs: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="รายการเอกสารและเลขหน้าที่ใช้อ้างอิง (JSON String)")
+    cited_docs: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True,
+        comment="ชื่อไฟล์เอกสารที่คำตอบนี้อิงจริง (JSON array) — ใช้แยกประวัติตามแผนก, NULL = แถวเก่าก่อนมีคอลัมน์นี้"
+    )
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), comment="วันเวลาที่เกิดบทสนทนา")
 
     # ความสัมพันธ์แบบ 1-to-Many ไปยังตาราง Feedback
@@ -193,6 +202,10 @@ class UnansweredQuery(Base):
         DateTime(timezone=True), nullable=True, comment="วันเวลาที่ปิดรายการ (Resolved/Ignored)"
     )
     resolver: Mapped[Optional["User"]] = relationship("User", foreign_keys=[resolved_by_id])
+    department: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, index=True,
+        comment="แผนกที่น่าจะเกี่ยวข้อง (เดาจากเอกสารอันดับ 1 ที่ค้นเจอ) — NULL = เดาไม่ได้ เห็นแค่ SuperAdmin"
+    )
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), comment="วันเวลาที่ถูกถามครั้งแรก")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="วันเวลาที่ถูกถามล่าสุด"
@@ -213,6 +226,9 @@ class Form(Base):
     filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="ชื่อไฟล์ PDF ต้นฉบับ")
     page: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="หน้าที่ระบุในเอกสาร (เช่น '15-16')")
     download_link: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True, comment="URL สำหรับดาวน์โหลดไฟล์แบบฟอร์ม")
+    department: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True, index=True, comment="แผนกเจ้าของแบบฟอร์ม (NULL = ยังไม่ระบุ เห็นแค่ SuperAdmin)"
+    )
 
     @property
     def link(self) -> Optional[str]:
