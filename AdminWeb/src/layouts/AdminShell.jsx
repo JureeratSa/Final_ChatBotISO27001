@@ -301,7 +301,10 @@ export default function AdminShell({ children }) {
             <div className="mb-5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 font-bold text-sm flex items-start gap-3">
               <i className="fa-solid fa-lock text-lg mt-0.5"></i>
               <div>
-                รหัสผ่านของคุณหมดอายุแล้ว (ใช้งานครบ 90 วัน) กรุณาตั้งรหัสผ่านใหม่ด้านล่างก่อนใช้งานระบบ
+                {/* ไม่มีวันหมดอายุ = บัญชีที่ SuperAdmin สร้างพร้อมรหัสเริ่มต้น (นำเข้าจาก Excel) ยังไม่เคยตั้งรหัสเอง */}
+                {adminUser.password_expires_at
+                  ? 'รหัสผ่านของคุณหมดอายุแล้ว (ใช้งานครบ 90 วัน) กรุณาตั้งรหัสผ่านใหม่ด้านล่างก่อนใช้งานระบบ'
+                  : 'คุณกำลังใช้รหัสผ่านเริ่มต้นที่ผู้ดูแลระบบตั้งให้ กรุณาตั้งรหัสผ่านใหม่ของคุณเองด้านล่างก่อนใช้งานระบบ'}
                 <div className="text-xs font-semibold mt-1 opacity-80">เมื่อเปลี่ยนรหัสผ่านสำเร็จ ระบบจะให้เข้าสู่ระบบใหม่อีกครั้ง</div>
               </div>
             </div>

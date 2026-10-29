@@ -1,5 +1,14 @@
 import { useState } from 'react';
 
+export function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
  * useUsersState — จัดการบัญชีแอดมิน (User Management) CRUD ทั้งหมด
  * แยกออกมาจาก App.jsx เดิม
@@ -85,7 +94,51 @@ export function useUsersState(API_URL, fetch, showSuccess, showError) {
       .catch(err => showError(err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล"));
   };
 
+  // ── นำเข้าหลายคนจาก Excel (backend สร้างรหัสผ่านเริ่มต้นให้ คืนมาครั้งเดียวใน importResult) ──
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null); // {created, errors, new_departments}
+
+  const downloadImportTemplate = () => {
+    fetch(API_URL + '/api/auth/users/import/template')
+      .then(res => {
+        if (!res.ok) throw new Error("ดาวน์โหลด template ไม่สำเร็จ");
+        return res.blob();
+      })
+      .then(blob => saveBlob(blob, 'admin_import_template.xlsx'))
+      .catch(err => showError(err.message));
+  };
+
+  const handleImportUsers = (file) => {
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    setImporting(true);
+    setImportResult(null);
+    fetch(API_URL + '/api/auth/users/import', { method: 'POST', body: form })
+      .then(res => res.json().then(data => {
+        if (!res.ok) throw new Error(data.detail || "นำเข้าไม่สำเร็จ");
+        return data;
+      }))
+      .then(data => {
+        setImportResult(data);
+        if (data.created.length) {
+          showSuccess(`สร้างบัญชีแอดมินใหม่ ${data.created.length} บัญชีสำเร็จ`);
+          fetchUsers();
+        }
+      })
+      .catch(err => showError(err.message || "นำเข้าไม่สำเร็จ"))
+      .finally(() => setImporting(false));
+  };
+
   return {
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
     users,
     setUsers,
     loadingUsers,

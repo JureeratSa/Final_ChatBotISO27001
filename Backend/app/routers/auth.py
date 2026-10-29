@@ -5,10 +5,11 @@ Endpoints: /api/auth/login, /api/auth/refresh, /api/auth/logout, /api/auth/me
 """
 from datetime import datetime, timezone
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import null, select
 
 from app.core.database import get_db
 from app.core.security import (
@@ -26,6 +27,7 @@ from app.services.audit_service import set_audit
 from app.services.password_policy import (
     password_status, token_issued_before_password_change, validate_password
 )
+from app.services.user_import import build_template, generate_password, parse_rows
 
 # คำขอที่แอดมินรหัสผ่านหมดอายุยังทำได้ — นอกนั้นต้องเปลี่ยนรหัสผ่านก่อน
 _ALLOWED_WHEN_PASSWORD_EXPIRED = {"/api/admin/password/update", "/api/admin/logout"}
@@ -38,6 +40,13 @@ def _require_department(role: str, department) -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="กรุณาระบุแผนก/หมวดงานของแอดมิน (แอดมินจะเห็นเฉพาะข้อมูลของแผนกนี้)"
+        )
+
+def _require_super_admin(current_user: User) -> None:
+    if current_user.role != SUPER_ADMIN_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลผู้ใช้งานระบบ"
         )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -190,6 +199,82 @@ async def create_user(
     set_audit(request, detail={"target_user": new_user.username, "role": new_user.role,
                                "department": new_user.department})
     return new_user
+
+
+MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024
+
+
+async def _existing_departments(db: AsyncSession) -> List[str]:
+    rows = await db.execute(
+        select(User.department).where(User.role != SUPER_ADMIN_ROLE, User.department.is_not(None)).distinct()
+    )
+    return sorted(d for d in rows.scalars().all() if d and d.strip())
+
+
+@router.get("/users/import/template")
+async def download_user_import_template(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ไฟล์ Excel template สำหรับนำเข้าบัญชีแอดมินหลายคน (มีรายชื่อแผนกปัจจุบันในชีตวิธีกรอก)"""
+    _require_super_admin(current_user)
+    content = build_template(await _existing_departments(db))
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="admin_import_template.xlsx"'},
+    )
+
+
+@router.post("/users/import")
+async def import_users(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """นำเข้าบัญชีแอดมินจาก Excel + สร้างรหัสผ่านเริ่มต้นให้ทุกคน (ดู app/services/user_import.py)
+    มีแถวผิดแม้แถวเดียว → ไม่สร้างใครเลย คืน errors ให้แก้ไฟล์ — สำเร็จ → คืนรหัสผ่านเริ่มต้น (แสดงครั้งเดียว)"""
+    _require_super_admin(current_user)
+    content = await file.read(MAX_IMPORT_FILE_BYTES + 1)
+    if len(content) > MAX_IMPORT_FILE_BYTES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ไฟล์ใหญ่เกิน 2 MB")
+    try:
+        rows, errors = parse_rows(content)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    if rows:
+        existing = await db.execute(select(User.username).where(User.username.in_([r["username"] for r in rows])))
+        taken = {u.lower() for u in existing.scalars().all()}  # MySQL เทียบ username แบบไม่สนตัวพิมพ์
+        for r in [r for r in rows if r["username"].lower() in taken]:
+            errors.append({"row": r["row"], "username": r["username"], "message": "Username นี้มีอยู่แล้วในระบบ"})
+            rows.remove(r)
+    if errors or not rows:
+        errors.sort(key=lambda e: e["row"])
+        return {"created": [], "errors": errors or [{"row": None, "username": "", "message": "ไม่พบรายชื่อในไฟล์"}]}
+
+    known = set(await _existing_departments(db))
+    created = []
+    for r in rows:
+        password = generate_password(r["username"])
+        db.add(User(
+            username=r["username"],
+            # bcrypt ช้าโดยตั้งใจ (~0.2 วิ/คน) — ทำใน threadpool ไม่ให้ค้าง event loop ตอนนำเข้าหลายสิบคน
+            password_hash=await run_in_threadpool(hash_password, password),
+            display_name=r["display_name"],
+            role=r["role"],
+            department=r["department"],
+            # NULL = บังคับเปลี่ยนรหัสผ่านตอนล็อกอินครั้งแรก — ต้องใช้ null() เพราะ None เฉยๆ
+            # SQLAlchemy ตัดออกจาก INSERT แล้วไปใช้ server_default now() แทน
+            password_changed_at=null(),
+        ))
+        created.append({**r, "password": password})
+    await db.commit()
+
+    set_audit(request, detail={"imported_users": [r["username"] for r in created]})
+    new_departments = sorted({r["department"] for r in created if r["department"] and r["department"] not in known})
+    return {"created": created, "errors": [], "new_departments": new_departments}
 
 
 @router.put("/users/{user_id}", response_model=UserResponse)

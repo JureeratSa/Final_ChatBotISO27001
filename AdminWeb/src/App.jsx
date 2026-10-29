@@ -244,6 +244,13 @@ function App() {
     departments,
     fetchUsers,
     handleCreateOrUpdateUser,
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
   } = useUsersState(API_URL, fetch, showSuccess, showError);
 
   const {
@@ -579,6 +586,13 @@ function App() {
     setUnansweredEndDate,
     setUnansweredSortOrder,
     setUnansweredStartDate,
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
     setUserFormDepartment,
     setUserFormDisplayName,
     setUserFormIsActive,

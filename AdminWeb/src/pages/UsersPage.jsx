@@ -1,5 +1,6 @@
 import { useAdminContext } from '../context/AdminContext';
 import PasswordRules from '../components/PasswordRules';
+import UserImportModal from '../components/UserImportModal';
 
 /**
  * UsersPage — แท็บ "จัดการบัญชีแอดมิน" (เฉพาะ System Administrator) ตารางรายชื่อแอดมิน
@@ -31,6 +32,13 @@ export default function UsersPage() {
     userFormRole,
     userFormUsername,
     users,
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
   } = useAdminContext();
 
   return (
@@ -46,6 +54,13 @@ export default function UsersPage() {
                 คุณสามารถสร้าง แก้ไข หรือลบบัญชีแอดมิน รวมถึงรีเซ็ตรหัสผ่านและเปลี่ยนสิทธิ์การเข้าถึงระบบได้ที่นี่
               </p>
             </div>
+            <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setImportResult(null); setShowImportModal(true); }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs shadow-sm"
+            >
+              <i className="fa-solid fa-file-excel"></i> นำเข้าหลายคน (Excel)
+            </button>
             <button
               onClick={() => {
                 setUserFormMode('create');
@@ -62,6 +77,7 @@ export default function UsersPage() {
             >
               <i className="fa-solid fa-user-plus"></i> เพิ่มแอดมินใหม่
             </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -161,6 +177,16 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {showImportModal && (
+        <UserImportModal
+          importing={importing}
+          importResult={importResult}
+          onClose={() => { setShowImportModal(false); setImportResult(null); }}
+          onDownloadTemplate={downloadImportTemplate}
+          onImport={handleImportUsers}
+        />
+      )}
+
       {/* MODAL: ADD / EDIT ADMIN USER MODAL */}
       {showUserModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -198,6 +224,9 @@ export default function UsersPage() {
                   required
                   disabled={userFormMode === 'edit'}
                   placeholder="เช่น somchayd"
+                  // ไม่ให้เบราว์เซอร์เติม username/รหัสผ่านที่บันทึกไว้ตอนล็อกอิน (ของแอดมินที่ใช้งานอยู่) ลงฟอร์มนี้
+                  autoComplete="off"
+                  name="new-admin-username"
                   value={userFormUsername}
                   onChange={(e) => setUserFormUsername(e.target.value)}
                   className="w-full tuh-glass-2 disabled:opacity-50 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
@@ -236,6 +265,8 @@ export default function UsersPage() {
                 </label>
                 <input
                   type="password"
+                  autoComplete="new-password"
+                  name="new-admin-password"
                   required={userFormMode === 'create'}
                   placeholder={userFormMode === 'create' ? "พิมพ์รหัสผ่านสำหรับล็อกอิน..." : "ปล่อยว่างเพื่อไม่เปลี่ยน หรือพิมพ์รหัสใหม่..."}
                   value={userFormPassword}
