@@ -99,7 +99,7 @@ def test_backend_passes_db_documents_and_saves_durations(monkeypatch):
     monkeypatch.setattr(rebuild_service, "_sync_load_documents", lambda: docs)
     monkeypatch.setattr(rebuild_service, "_sync_save_durations", lambda d: calls.setdefault("saved", d))
     monkeypatch.setattr(rebuild_service, "_sync_update_rebuild_status", lambda *a, **k: calls.setdefault("status", []).append(a[0]))
-    monkeypatch.setattr(rebuild_db, "rebuild", lambda documents=None: calls.setdefault("docs", documents) and {"a.pdf": {"chunking_duration": 1.0}})
+    monkeypatch.setattr(rebuild_db, "rebuild", lambda documents=None, progress=None: calls.setdefault("docs", documents) and {"a.pdf": {"chunking_duration": 1.0}})
     import app.services.rag_service as rag_service
     monkeypatch.setattr(rag_service, "reload_retriever", lambda: True)
 

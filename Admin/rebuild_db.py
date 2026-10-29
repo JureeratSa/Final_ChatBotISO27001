@@ -221,7 +221,10 @@ def chunk_document_text(full_text, filename, start_chunk_id=1):
 
 # เรียกทุก def มาใช้งาน
 
-def rebuild(documents=None):
+EMBED_BATCH = 16  # encode ทีละชุดเพื่อรายงานความคืบหน้า (เวกเตอร์ที่ได้เหมือน encode ทั้งก้อน)
+
+
+def rebuild(documents=None, progress=None):
     """
     สร้างดัชนีค้นหา (ChromaDB + BM25) ใหม่ทั้งคลังจาก PDF ใน uploads/
 
@@ -233,10 +236,19 @@ def rebuild(documents=None):
       (ผลวัด 2026-10-08: 39/400 ของ context ที่ส่งให้ LLM มาจากหน้าที่ควรละเว้น เช่น ปก/สารบัญ)
     None = โหมด CLI (python Admin/rebuild_db.py) อ่าน db_documents.json แบบเดิม
 
+    progress: callback(percent 0-100, ข้อความขั้นตอน) ให้ Backend แสดงความคืบหน้าในหน้าแอดมิน (ไม่บังคับ)
+
     คืน {filename: {"chunking_duration", "embedding_duration"}} ให้ Backend บันทึกลง DB
     """
     import time
     start_time = time.perf_counter()
+
+    def report(pct, stage):
+        if progress:
+            try:
+                progress(pct, stage)
+            except Exception:
+                pass  # การรายงานความคืบหน้าห้ามทำให้ rebuild ล้ม
     
     # 1. โหลดการตั้งค่าระบบ AI
     db_settings_path = os.path.join(root_dir, "user", "backend", "db", "db_settings.json")
@@ -281,7 +293,16 @@ def rebuild(documents=None):
 
     combined_docs_data = []
     model = None
-    
+
+    # 0–80% = ไล่ทำทีละเอกสาร (เอกสารที่มี cache เสร็จแทบทันที เอกสารใหม่ไล่ตาม batch ของ embedding)
+    # 80–90% = บันทึก ChromaDB, 90–100% = สร้าง BM25
+    todo = [f for f in pdf_files if f in active_filenames]
+    done_docs = 0
+    report(0, "กำลังเตรียมเอกสาร")
+
+    def doc_progress(sub, stage):
+        report(80 * (done_docs + sub) / max(1, len(todo)), stage)
+
     for pdf in pdf_files:
         if pdf not in active_filenames:
             print(f"Skipping Inactive document: {pdf}")
@@ -327,8 +348,10 @@ def rebuild(documents=None):
             })
             chunking_duration = cached_data.get("chunking_duration", 0.0)
             embedding_duration = cached_data.get("embedding_duration", 0.0)
+            done_docs += 1
         else:
             print(f"-> คำนวณเวกเตอร์และสกัดคำใหม่สำหรับ: {pdf}")
+            doc_progress(0, f"กำลังสกัดข้อความ: {pdf}")
             
             default_filename = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
             default_md_path = os.path.join(root_dir, "sample_cleaned.md")
@@ -384,6 +407,7 @@ def rebuild(documents=None):
             
             if not chunks:
                 print(f"  Warning: No chunks generated for {pdf}")
+                done_docs += 1
                 continue
                 
             texts = [c["content"] for c in chunks]
@@ -395,8 +419,13 @@ def rebuild(documents=None):
                 from sentence_transformers import SentenceTransformer
                 model = SentenceTransformer("BAAI/bge-m3")
             emb_start = time.perf_counter()
-            embeddings_np = model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
-            embeddings_list = embeddings_np.tolist()
+            for b in range(0, len(texts), EMBED_BATCH):
+                doc_progress(b / len(texts), f"กำลังทำ embedding: {pdf}")
+                batch = model.encode(texts[b:b + EMBED_BATCH], show_progress_bar=False,
+                                     convert_to_numpy=True, normalize_embeddings=True)
+                embeddings_list.extend(batch.tolist())
+            done_docs += 1
+            doc_progress(0, f"ทำ embedding เสร็จ: {pdf}")
             embedding_duration = time.perf_counter() - emb_start
 
             # บันทึกลง Cache
@@ -459,6 +488,7 @@ def rebuild(documents=None):
     index_dir = os.path.join(root_dir, "index_db")
     os.makedirs(index_dir, exist_ok=True)
     
+    report(80, "กำลังบันทึกฐานข้อมูลเวกเตอร์ (ChromaDB)")
     if len(all_chunks) > 0:
         import numpy as np
         embeddings_np = np.array(all_embeddings_list, dtype=np.float32)
@@ -496,6 +526,7 @@ def rebuild(documents=None):
             documents=texts
         )
         print(f"บันทึก Chroma DB สำเร็จ (รวม {len(ids)} รายการ)")
+        report(90, "กำลังสร้างดัชนีคำสำคัญ (BM25)")
 
         # 3. บันทึก sample_chunks.json
         chunks_output_path = os.path.join(root_dir, "sample_chunks.json")
@@ -520,6 +551,7 @@ def rebuild(documents=None):
         with open(bm25_path, "wb") as f:
             pickle.dump(bm25_data, f)
         print("บันทึกดัชนี BM25 สำเร็จ")
+        report(100, "บันทึกดัชนีเสร็จ")
     else:
         print("คำเตือน: ไม่มี chunks ที่จะทำการดรรชนีเวกเตอร์")
         

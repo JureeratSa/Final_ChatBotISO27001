@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * useDocumentsState — โดเมนที่ใหญ่ที่สุดของ AdminWeb: รายการเอกสาร PDF, การอัปโหลด,
@@ -41,17 +41,46 @@ export function useDocumentsState(API_URL, fetch, showSuccess, showError, fetchS
   const [docSortOrder, setDocSortOrder] = useState('desc'); // default desc (newest first)
   const [docCurrentPage, setDocCurrentPage] = useState(1);
 
+  // สถานะดัชนีค้นหา — สถานะ Active ในตารางยังไม่ได้แปลว่าบอทใช้ได้ (embedding รันเบื้องหลังหลังอนุมัติ)
+  // {running, queued, percent, stage, error, pending: [filename], indexed: [filename]}
+  const [indexStatus, setIndexStatus] = useState(null);
+  const wasBuilding = useRef(false);
+
   // Reset document page when search query or sort field/order changes
   useEffect(() => {
     setDocCurrentPage(1);
   }, [docSearchQuery, docSortField, docSortOrder]);
+
+  const fetchIndexStatus = () => {
+    fetch(API_URL + '/api/admin/documents/index_status')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => data && setIndexStatus(data))
+      .catch(err => console.error("Error fetching index status:", err));
+  };
 
   const fetchDocuments = () => {
     fetch(API_URL + '/api/admin/documents')
       .then(r => r.json())
       .then(data => setDocuments(data))
       .catch(err => console.error("Error fetching documents:", err));
+    fetchIndexStatus();
   };
+
+  // ระหว่างสร้างฐานข้อมูล ถามความคืบหน้าทุก 2 วินาที — เสร็จแล้วโหลดตาราง/สถิติใหม่ครั้งเดียว
+  const isBuilding = Boolean(indexStatus && (indexStatus.running || indexStatus.queued > 0 || indexStatus.pending.length > 0));
+  useEffect(() => {
+    if (isBuilding) {
+      wasBuilding.current = true;
+      const t = setTimeout(fetchIndexStatus, 2000);
+      return () => clearTimeout(t);
+    }
+    if (wasBuilding.current) {
+      wasBuilding.current = false;
+      fetchDocuments();
+      fetchStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indexStatus]);
 
   const handleSort = (field) => {
     if (docSortField === field) {
@@ -376,6 +405,7 @@ export function useDocumentsState(API_URL, fetch, showSuccess, showError, fetchS
   return {
     documents,
     setDocuments,
+    indexStatus,
     dragOver,
     uploading,
     uploadProgress,

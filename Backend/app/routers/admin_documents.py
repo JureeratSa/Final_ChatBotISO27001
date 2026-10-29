@@ -28,7 +28,9 @@ from app.schemas.schemas import DocumentResponse, DocumentUpdate
 from app.services.document_service import (
     _check_doc_ownership, _doc_to_response, _parse_exclude_pages, run_approval_pipeline
 )
-from app.services.rebuild_service import _delete_from_search_index, _trigger_rebuild_background
+from app.services.rebuild_service import (
+    _delete_from_search_index, _trigger_rebuild_background, get_index_status, mark_pending
+)
 from app.services.department_scope import (
     UNASSIGNED, owner_department_for, require_super_admin, scope_department
 )
@@ -67,6 +69,24 @@ async def list_documents(
     result = await db.execute(query)
     docs = result.scalars().all()
     return [_doc_to_response(d) for d in docs]
+
+
+@router.get("/documents/index_status")
+async def documents_index_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ความคืบหน้าการสร้างฐานข้อมูลค้นหา + เอกสารที่อยู่ในดัชนีแล้วจริง (สถานะ Active ยังไม่พอ —
+    embedding รันเบื้องหลังหลังกดอนุมัติ) — คืนเฉพาะชื่อไฟล์ในขอบเขตแผนกของผู้เรียก"""
+    status_data = get_index_status()
+    query = select(Document.filename)
+    dept = scope_department(current_user, None)
+    if dept is not None:
+        query = query.where(Document.department == dept)
+    visible = set((await db.execute(query)).scalars().all())
+    status_data["pending"] = [f for f in status_data["pending"] if f in visible]
+    status_data["indexed"] = [f for f in status_data["indexed"] if f in visible]
+    return status_data
 
 
 @router.post("/documents/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -207,6 +227,7 @@ async def update_document(
     await db.refresh(doc)
 
     if body.status is not None or body.exclude_pages is not None:
+        mark_pending(doc.filename)
         background_tasks.add_task(_trigger_rebuild_background)
 
     return _doc_to_response(doc)
@@ -276,6 +297,7 @@ async def toggle_document(
     await db.commit()
     await db.refresh(doc)
 
+    mark_pending(filename)
     background_tasks.add_task(_trigger_rebuild_background)
     return {"success": True}
 
@@ -333,6 +355,7 @@ async def update_exclude_pages(
     await db.commit()
     await db.refresh(doc)
 
+    mark_pending(filename)
     background_tasks.add_task(_trigger_rebuild_background)
     return {"success": True}
 
@@ -420,6 +443,7 @@ async def approve_document(
     add_audit_detail(from_status=current_status, to_status=new_status)
 
     if current_status == "Step_Chunk_Preview":
+        mark_pending(filename)
         background_tasks.add_task(_trigger_rebuild_background)
 
     doc.status = new_status

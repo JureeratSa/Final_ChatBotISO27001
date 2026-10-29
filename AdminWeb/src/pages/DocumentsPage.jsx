@@ -18,6 +18,7 @@ export default function DocumentsPage() {
     docSortField,
     docSortOrder,
     documents,
+    indexStatus,
     dragOver,
     fetchDocuments,
     fetchForms,
@@ -336,10 +337,7 @@ export default function DocumentsPage() {
                                         </div>
                                       </div>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500">
-                                        <i className="fa-solid fa-circle-check"></i>
-                                        พร้อมใช้งาน
-                                      </span>
+                                      <IndexStateBadge doc={doc} indexStatus={indexStatus} />
                                     )}
                                   </td>
                                   <td className="px-6 py-4 text-center">
@@ -969,5 +967,65 @@ export default function DocumentsPage() {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * สถานะในฐานข้อมูลค้นหาของเอกสารที่ผ่าน pipeline แล้ว — เขียว "ฐานข้อมูลพร้อมใช้งาน" เฉพาะเมื่อบอทค้นเจอไฟล์นี้จริง
+ * (มี chunk ใน retriever ที่ใช้ตอบอยู่) ถ้ายังทำ embedding อยู่เป็นสีแดงพร้อมเปอร์เซ็นต์
+ */
+function IndexStateBadge({ doc, indexStatus }) {
+  if (doc.status !== 'Active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-500 dark:text-slate-400">
+        <i className="fa-solid fa-circle-pause"></i>
+        ปิดใช้งาน (บอทไม่ใช้ไฟล์นี้)
+      </span>
+    );
+  }
+  if (!indexStatus) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-500 dark:text-slate-400">
+        <i className="fa-solid fa-circle-notch animate-spin"></i>
+        กำลังตรวจสอบ...
+      </span>
+    );
+  }
+
+  const pending = indexStatus.pending.includes(doc.filename);
+  const indexed = indexStatus.indexed.includes(doc.filename);
+  if (indexed && !pending) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500">
+        <i className="fa-solid fa-circle-check"></i>
+        ฐานข้อมูลพร้อมใช้งาน
+      </span>
+    );
+  }
+
+  if (pending && !indexStatus.error) {
+    const percent = indexStatus.running ? indexStatus.percent : 0;
+    return (
+      <div className="inline-flex flex-col items-center gap-1 min-w-[150px]" title={indexStatus.stage}>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-500">
+          <i className="fa-solid fa-circle-notch animate-spin"></i>
+          {indexStatus.running ? `กำลังสร้างฐานข้อมูล ${percent}%` : 'รอคิวสร้างฐานข้อมูล'}
+        </span>
+        <div className="w-full h-1.5 rounded-full bg-red-500/10 overflow-hidden">
+          <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${percent}%` }} />
+        </div>
+        <span className="text-[10px] font-semibold text-red-400">ยังใช้ตอบคำถามไม่ได้</span>
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-500"
+      title={indexStatus.error || 'ไม่พบข้อความของไฟล์นี้ในฐานข้อมูลค้นหา — ลองปิดแล้วเปิดใช้งานใหม่เพื่อสร้างอีกครั้ง'}
+    >
+      <i className="fa-solid fa-circle-xmark"></i>
+      {indexStatus.error ? 'สร้างฐานข้อมูลไม่สำเร็จ' : 'ยังไม่อยู่ในฐานข้อมูล'}
+    </span>
   );
 }
