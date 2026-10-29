@@ -92,8 +92,12 @@ def highlight_pdf(pdf_path: str, chunks: List[Dict]) -> bytes:
                     rects = match_scanned_lines(chunk.get("content") or "", scanned_lines.get(pno + 1, []))
                     if rects:
                         page = page_objs.setdefault(pno, doc[pno])
+                        # กรอบจาก Tesseract อยู่ในพิกัดภาพที่เรนเดอร์แล้ว (หมุนตาม /Rotate) แต่ annotation ใช้พิกัด
+                        # หน้าก่อนหมุน — หน้าที่สแกนแนวนอนแล้วตั้ง rotation 90/270 ไว้ ถ้าไม่แปลงจะไฮไลท์เป็นแถบแนวตั้ง
+                        # แปลงเป็น quad (ไม่ใช่ Rect) เพื่อให้ทิศของบรรทัดหมุนตามด้วย ไม่งั้นไฮไลท์ออกมาเป็นวงรี
+                        to_page = page.derotation_matrix
                         for r in rects:
-                            annot = page.add_highlight_annot(fitz.Rect(r))
+                            annot = page.add_highlight_annot(fitz.Rect(r).quad * to_page)
                             annot.set_colors(stroke=HIGHLIGHT_RGB)
                             annot.update()
                 continue
