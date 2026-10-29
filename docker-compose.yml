@@ -1,0 +1,80 @@
+# TUH Chatbot AI — รันทั้งระบบด้วย Docker (คู่มือ: docs/DOCKER.md)
+#   docker compose up -d --build
+# Port ตามมาตรฐานโปรเจกต์: UserWeb 5173, AdminWeb 5174, Backend API 8000
+# (ชนกับ dev server — ปิด run_user_web.py / run_admin_web.py / run_backend.py ก่อน)
+# ฐานข้อมูลหลักยังเป็น TiDB Cloud ตามเดิม ไม่มี container ฐานข้อมูล
+name: tuh-chatbot
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    env_file: Backend/.env
+    environment:
+      # ทับค่า path ของเครื่อง Windows ใน Backend/.env ด้วย path ใน container
+      CHROMA_DB_DIR: /data/chroma
+      TESSERACT_CMD: ""
+      # ชื่อเครื่องเซิร์ฟเวอร์สำหรับ CORS (CORS_EXTRA_HOSTS) ตั้งใน Backend/.env — ไม่ใส่ในไฟล์นี้เพราะ repo เป็น public
+    ports:
+      - "8000:8000"
+    volumes:
+      # ChromaDB กับ index_db/bm25.pkl ต้องมาจาก rebuild ครั้งเดียวกันเสมอ — ย้าย/สำรองคู่กัน
+      - chroma:/data/chroma
+      - index_db:/app/index_db
+      - uploads:/app/uploads
+      # โมเดล bge-m3 (~2 GB) + ข้อมูลตัดคำ PyThaiNLP — ไม่ต้องดาวน์โหลดใหม่ทุกครั้งที่สร้าง container
+      - model_cache:/cache
+    restart: unless-stopped
+
+  userweb:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        APP: UserWeb
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  adminweb:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        APP: AdminWeb
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # URL เดิมสมัย XAMPP (:8080/tuh_chatbot_ai/) → redirect ไป 5173/5174 — ต้องปิด Apache ของ XAMPP ก่อน (ใช้ port เดียวกัน)
+  legacy-redirect:
+    image: nginx:1.27-alpine
+    # ใช้ configs แทน bind mount — Docker Desktop mount ไฟล์จากไดรฟ์ Z: (network share) ไม่ได้
+    configs:
+      - source: legacy_redirect
+        target: /etc/nginx/conf.d/default.conf
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+configs:
+  # เนื้อหาเขียนไว้ตรงนี้เลย (configs แบบ file: ก็ยังเป็น bind mount) — $$ = $ ของ nginx
+  legacy_redirect:
+    content: |
+      server {
+          listen 80;
+          server_tokens off;
+          location /tuh_chatbot_ai/admin { return 301 http://$$host:5174/; }
+          location / { return 301 http://$$host:5173/; }
+      }
+
+volumes:
+  chroma:
+  index_db:
+  uploads:
+  model_cache:

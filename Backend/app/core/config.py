@@ -57,6 +57,9 @@ class Settings(BaseSettings):
 
     # CORS
     FRONTEND_URL: str = "http://localhost:5173"
+    # ชื่อเครื่องเซิร์ฟเวอร์ที่ผู้ใช้ใช้เปิดเว็บแทน IP (คั่นด้วย ,) เช่น chatbot-server,chatbot-server.hospital.local
+    # อนุญาตเฉพาะ port 5173/5174/8080 แบบเดียวกับวง IP 172.30.x.x (ดู app/main.py)
+    CORS_EXTRA_HOSTS: str = ""
 
     # AI / LLM — ใช้ endpoint ของ GDCC (LiteLLM, รูปแบบ OpenAI /v1/chat/completions) ตั้งแต่ 2026-10
     # LITELLM_URL = base URL ที่ลงท้ายด้วย /v1 ; ชื่อโมเดลต้องตรงกับที่ endpoint นั้นให้บริการ
