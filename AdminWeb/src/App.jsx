@@ -119,6 +119,7 @@ function App() {
 
   const {
     documents,
+    indexStatus,
     dragOver,
     uploading,
     uploadProgress,
@@ -438,6 +439,7 @@ function App() {
     docSortField,
     docSortOrder,
     documents,
+    indexStatus,
     downloadCSV,
     dragOver,
     editDisplayName,
