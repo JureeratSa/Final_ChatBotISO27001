@@ -1,4 +1,5 @@
 import { useAdminContext } from '../context/AdminContext';
+import PasswordRules from '../components/PasswordRules';
 
 /**
  * UsersPage — แท็บ "จัดการบัญชีแอดมิน" (เฉพาะ System Administrator) ตารางรายชื่อแอดมิน
@@ -241,6 +242,11 @@ export default function UsersPage() {
                   onChange={(e) => setUserFormPassword(e.target.value)}
                   className="w-full tuh-glass-2 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
                 />
+                {(userFormMode === 'create' || userFormPassword) && (
+                  <div className="mt-2">
+                    <PasswordRules password={userFormPassword} username={userFormUsername} />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

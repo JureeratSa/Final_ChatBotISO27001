@@ -89,7 +89,8 @@ export function useAuth(API_URL, showSuccess, showError, setActiveTab) {
     // บันทึกการออกจากระบบลง audit log ก่อนลบ token (ยิงทิ้งไว้ ไม่รอผล — ล้มก็ออกจากระบบตามปกติ)
     // 'expired' = token ใช้ไม่ได้แล้ว (โดน 401) เรียกไปก็ถูกปฏิเสธ จึงไม่ต้องยิง
     const token = localStorage.getItem('tuh_admin_token');
-    if (token && reason !== 'expired') {
+    // 'password_changed' = token ถูกยกเลิกไปพร้อมการเปลี่ยนรหัสแล้ว (การเปลี่ยนรหัสถูกบันทึก log แล้ว)
+    if (token && reason !== 'expired' && reason !== 'password_changed') {
       const query = typeof reason === 'string' ? `?reason=${encodeURIComponent(reason)}` : '';
       window.fetch(API_URL + '/api/admin/logout' + query, {
         method: 'POST',

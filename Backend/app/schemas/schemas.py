@@ -6,16 +6,15 @@ from datetime import datetime
 from typing import Optional, List, Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-MIN_PASSWORD_LENGTH = 8
+from app.services.password_policy import MIN_PASSWORD_LENGTH, validate_password  # noqa: F401
 
 
 def _validate_password_strength(value: str) -> str:
-    """นโยบายรหัสผ่านขั้นต่ำ: ยาวอย่างน้อย 8 ตัว (เดิม 4 ตัวสั้นเกินไป เดาง่าย)"""
+    """นโยบายรหัสผ่านแอดมิน (ความยาว + ตัวพิมพ์ใหญ่/เล็ก/ตัวเลข/สัญลักษณ์ + ห้ามรหัสเดาง่าย)
+    — กฎเต็มอยู่ที่ app/services/password_policy.py"""
     if value is None:
         return value
-    if len(value) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"รหัสผ่านต้องมีความยาวอย่างน้อย {MIN_PASSWORD_LENGTH} ตัวอักษร")
-    return value
+    return validate_password(value)
 
 
 # ─── Auth Schemas ──────────────────────────────────────────────────────────────
@@ -33,6 +32,11 @@ class TokenResponse(BaseModel):
     display_name: str
     role: str
     department: Optional[str] = None
+    # อายุรหัสผ่าน (ดู password_policy.password_status) — AdminWeb ใช้แจ้งเตือน/บังคับเปลี่ยนรหัส
+    password_expires_at: Optional[str] = None
+    password_days_left: int = 0
+    password_expired: bool = False
+    password_expiring_soon: bool = False
 
 
 class RefreshRequest(BaseModel):
@@ -54,6 +58,11 @@ class UserCreate(BaseModel):
     department: Optional[str] = None
 
     _validate_password = field_validator("password")(_validate_password_strength)
+
+    @model_validator(mode="after")
+    def _password_not_username(self):
+        validate_password(self.password, self.username)
+        return self
 
 
 class UserUpdate(BaseModel):

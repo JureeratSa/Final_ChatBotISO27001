@@ -83,7 +83,8 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp": expire, "type": "access"})
+    # iat ใช้ตัด token ที่ออกก่อนเปลี่ยนรหัสผ่าน (ดู password_policy.token_issued_before_password_change)
+    to_encode.update({"exp": expire, "type": "access", "iat": int(datetime.now(timezone.utc).timestamp())})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -97,7 +98,7 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    to_encode.update({"exp": expire, "type": "refresh", "iat": int(datetime.now(timezone.utc).timestamp())})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 

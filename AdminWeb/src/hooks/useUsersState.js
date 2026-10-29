@@ -68,7 +68,11 @@ export function useUsersState(API_URL, fetch, showSuccess, showError) {
       .then(res => {
         if (!res.ok) {
           return res.json().then(data => {
-            throw new Error(data.detail || "บันทึกข้อมูลไม่สำเร็จ");
+            // 422 จาก Pydantic ส่ง detail เป็น list ของ {msg} (เช่น รหัสผ่านไม่ผ่านเกณฑ์) — ดึงข้อความออกมาแสดง
+            const detail = Array.isArray(data.detail)
+              ? data.detail.map(d => String(d.msg || '').replace(/^Value error, /, '')).join(' / ')
+              : data.detail;
+            throw new Error(detail || "บันทึกข้อมูลไม่สำเร็จ");
           });
         }
         return res.json();

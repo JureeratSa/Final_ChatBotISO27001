@@ -20,6 +20,7 @@ from app.routers.auth import get_current_user
 from app.models.models import User, AdminAuditLog
 from app.services.audit_service import set_audit
 from app.services.department_scope import require_super_admin
+from app.services.password_policy import password_problems, password_status
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -58,7 +59,8 @@ async def legacy_admin_login(
         "username": user.username,
         "role": user.role,
         "name": user.display_name,
-        "department": user.department
+        "department": user.department,
+        **password_status(user.password_changed_at)
     }
 
 
@@ -72,14 +74,20 @@ async def update_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """เปลี่ยนรหัสผ่านส่วนตัวของผู้ดูแลระบบที่กำลังล็อกอินอยู่"""
-    if len(payload.new_password) < 8:
-        raise HTTPException(status_code=400, detail="รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร")
+    """เปลี่ยนรหัสผ่านส่วนตัวของผู้ดูแลระบบที่กำลังล็อกอินอยู่ (ทำได้แม้รหัสผ่านหมดอายุ)
+    สำเร็จแล้ว token เดิมทุกตัวใช้ไม่ได้ — AdminWeb พาไปล็อกอินใหม่ด้วยรหัสผ่านใหม่"""
+    problems = password_problems(payload.new_password, current_user.username)
+    if verify_password(payload.new_password, current_user.password_hash):
+        problems.append("ต้องไม่ซ้ำกับรหัสผ่านเดิม")
+    if problems:
+        raise HTTPException(status_code=400, detail="รหัสผ่านไม่ผ่านเกณฑ์: " + ", ".join(problems))
 
+    from datetime import datetime, timezone
     from app.core.security import hash_password
     current_user.password_hash = hash_password(payload.new_password)
+    current_user.password_changed_at = datetime.now(timezone.utc)
     await db.commit()
-    return {"success": True, "detail": "เปลี่ยนรหัสผ่านสำเร็จแล้ว"}
+    return {"success": True, "detail": "เปลี่ยนรหัสผ่านสำเร็จแล้ว กรุณาเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่"}
 
 
 @router.post("/logout")

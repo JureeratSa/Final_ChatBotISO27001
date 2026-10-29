@@ -108,7 +108,7 @@ async def test_admin_can_list_users(client, admin_user, staff_user):
 async def test_non_admin_cannot_create_user(client, staff_user):
     resp = await client.post(
         "/api/auth/users",
-        json={"username": "newperson", "password": "Xx123456!", "display_name": "ใหม่", "role": "admin"},
+        json={"username": "newperson", "password": "Tuh#Chat2026q", "display_name": "ใหม่", "role": "admin"},
         headers=auth_header("staff01"),
     )
     assert resp.status_code == 403
@@ -117,7 +117,7 @@ async def test_non_admin_cannot_create_user(client, staff_user):
 async def test_admin_can_create_user(client, admin_user):
     resp = await client.post(
         "/api/auth/users",
-        json={"username": "newperson", "password": "Xx123456!", "display_name": "ใหม่", "role": "admin",
+        json={"username": "newperson", "password": "Tuh#Chat2026q", "display_name": "ใหม่", "role": "admin",
               "department": "งานการพยาบาล"},
         headers=auth_header("sysadmin"),
     )
@@ -130,7 +130,7 @@ async def test_department_admin_requires_department(client, admin_user):
     """แอดมินแผนกที่ไม่มีแผนกจะมองไม่เห็นข้อมูลอะไรเลย — จึงบังคับระบุแผนกตอนสร้าง"""
     resp = await client.post(
         "/api/auth/users",
-        json={"username": "nodept", "password": "Xx123456!", "display_name": "ไม่มีแผนก", "role": "admin"},
+        json={"username": "nodept", "password": "Tuh#Chat2026q", "display_name": "ไม่มีแผนก", "role": "admin"},
         headers=auth_header("sysadmin"),
     )
     assert resp.status_code == 400
@@ -152,7 +152,7 @@ async def test_admin_cannot_create_user_with_weak_password(client, admin_user):
 async def test_admin_cannot_create_duplicate_username(client, admin_user, staff_user):
     resp = await client.post(
         "/api/auth/users",
-        json={"username": "staff01", "password": "Xx123456!", "display_name": "ซ้ำ", "role": "admin"},
+        json={"username": "staff01", "password": "Tuh#Chat2026q", "display_name": "ซ้ำ", "role": "admin"},
         headers=auth_header("sysadmin"),
     )
     assert resp.status_code == 400

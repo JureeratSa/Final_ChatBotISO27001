@@ -111,7 +111,7 @@ function App() {
     showConfirmPassword,
     setShowConfirmPassword,
     handleUpdatePassword,
-  } = useProfile(API_URL, fetch, showSuccess, showError);
+  } = useProfile(API_URL, fetch, showSuccess, showError, handleLogout, adminUser.username);
 
   const { stats, fetchStats, trendDrawer, setTrendDrawer } = useDashboardData(API_URL, fetch);
 
@@ -322,8 +322,12 @@ function App() {
   });
 
   // Fetch data on login
+  // รหัสผ่านหมดอายุ (ครบ 90 วัน) — backend ตอบ 403 ทุกอย่างยกเว้นการเปลี่ยนรหัส จึงไม่ต้องดึงข้อมูล
+  // และล็อกไว้ที่หน้าโปรไฟล์จนกว่าจะเปลี่ยนรหัสแล้วล็อกอินใหม่
+  const passwordExpired = isLoggedIn && Boolean(adminUser.password_expired);
+
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && !adminUser.password_expired) {
       fetchStats();
       fetchDocuments();
       fetchFeedback();
@@ -377,12 +381,14 @@ function App() {
   const SUPER_ADMIN_TABS = ['users', 'settings', 'announcements', 'faqs', 'audit'];
   useEffect(() => {
     if (isLoggedIn && adminUser) {
-      if (adminUser.role !== 'System Administrator' && SUPER_ADMIN_TABS.includes(activeTab)) {
+      if (passwordExpired && activeTab !== 'profile') {
+        setActiveTab('profile');
+      } else if (adminUser.role !== 'System Administrator' && SUPER_ADMIN_TABS.includes(activeTab)) {
         setActiveTab('dashboard');
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn, activeTab, adminUser.role]);
+  }, [isLoggedIn, activeTab, adminUser.role, passwordExpired]);
 
   // Login View
   if (!isLoggedIn) {
@@ -495,6 +501,7 @@ function App() {
     moveToDepartment,
     newPassword,
     parseTimestamp,
+    passwordExpired,
     pendingUnansweredCount,
     preDisplayName,
     preExcludePages,

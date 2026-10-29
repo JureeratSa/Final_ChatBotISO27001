@@ -1,10 +1,14 @@
 import { useState } from 'react';
+import { isPasswordValid } from '../utils/passwordPolicy';
 
 /**
  * useProfile — ฟอร์มเปลี่ยนรหัสผ่านแอดมิน (หน้าโปรไฟล์) เรียก POST /api/admin/password/update
  * แยกออกมาจาก App.jsx เดิม
+ *
+ * เปลี่ยนรหัสสำเร็จแล้ว backend ทำให้ token เดิมใช้ไม่ได้ (ดู password_policy.token_issued_before_password_change)
+ * จึงออกจากระบบให้ทันที แล้วให้ล็อกอินใหม่ด้วยรหัสผ่านใหม่
  */
-export function useProfile(API_URL, fetch, showSuccess, showError) {
+export function useProfile(API_URL, fetch, showSuccess, showError, handleLogout, username) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -18,8 +22,8 @@ export function useProfile(API_URL, fetch, showSuccess, showError) {
       showError("รหัสผ่านไม่ตรงกัน");
       return;
     }
-    if (newPassword.length < 4) {
-      showError("รหัสผ่านสั้นเกินไป");
+    if (!isPasswordValid(newPassword, username)) {
+      showError("รหัสผ่านยังไม่ผ่านเงื่อนไขทุกข้อ");
       return;
     }
 
@@ -30,14 +34,15 @@ export function useProfile(API_URL, fetch, showSuccess, showError) {
     })
       .then(r => {
         if (!r.ok) {
-          return r.json().then(data => { throw new Error(data.error || "เปลี่ยนรหัสผ่านล้มเหลว") });
+          return r.json().then(data => { throw new Error(data.detail || data.error || "เปลี่ยนรหัสผ่านล้มเหลว") });
         }
         return r.json();
       })
       .then(data => {
-        showSuccess("เปลี่ยนรหัสผ่านแอดมินสำเร็จแล้ว (มีผลในการเข้าสู่ระบบครั้งถัดไป)");
         setNewPassword('');
         setConfirmPassword('');
+        handleLogout('password_changed');
+        showSuccess("เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่");
       })
       .catch(err => {
         showError(err.message);

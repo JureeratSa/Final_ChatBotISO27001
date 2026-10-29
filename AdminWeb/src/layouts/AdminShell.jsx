@@ -22,6 +22,7 @@ export default function AdminShell({ children }) {
     isDarkMode,
     isSidebarOpen,
     isSuperAdmin,
+    passwordExpired,
     pendingUnansweredCount,
     setDeleteModalState,
     setIsDarkMode,
@@ -295,6 +296,31 @@ export default function AdminShell({ children }) {
 
         {/* Content Box */}
         <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar z-10">
+          {/* แจ้งเตือนรหัสผ่าน: หมดอายุแล้ว (ใช้งานได้แค่หน้าโปรไฟล์) / ใกล้หมดอายุ (≤ 7 วัน) */}
+          {passwordExpired ? (
+            <div className="mb-5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 font-bold text-sm flex items-start gap-3">
+              <i className="fa-solid fa-lock text-lg mt-0.5"></i>
+              <div>
+                รหัสผ่านของคุณหมดอายุแล้ว (ใช้งานครบ 90 วัน) กรุณาตั้งรหัสผ่านใหม่ด้านล่างก่อนใช้งานระบบ
+                <div className="text-xs font-semibold mt-1 opacity-80">เมื่อเปลี่ยนรหัสผ่านสำเร็จ ระบบจะให้เข้าสู่ระบบใหม่อีกครั้ง</div>
+              </div>
+            </div>
+          ) : adminUser.password_expiring_soon && (
+            <div className="mb-5 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-sm flex flex-wrap items-center gap-3">
+              <i className="fa-solid fa-triangle-exclamation text-lg"></i>
+              <span className="flex-1 min-w-[200px]">
+                รหัสผ่านจะหมดอายุในอีก {adminUser.password_days_left} วัน ({adminUser.password_expires_at}) กรุณาเปลี่ยนรหัสผ่านก่อนครบกำหนด
+              </span>
+              {activeTab !== 'profile' && (
+                <button
+                  onClick={() => handleTabClick('profile')}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-4 rounded-xl transition active:scale-95"
+                >
+                  เปลี่ยนรหัสผ่าน
+                </button>
+              )}
+            </div>
+          )}
           {children}
         </div>
       </main>

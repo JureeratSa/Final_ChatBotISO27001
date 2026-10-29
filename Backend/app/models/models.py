@@ -41,6 +41,10 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="admin", comment="ระดับสิทธิ์ (System Administrator / Moderator)")
     department: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="แผนก/ฝ่ายที่สังกัด")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, comment="สถานะเปิด/ปิดการใช้งานบัญชี")
+    # อายุรหัสผ่าน 90 วันนับจากค่านี้ (ดู app/services/password_policy.py) — NULL = ถือว่าหมดอายุ ต้องตั้งใหม่
+    password_changed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, server_default=func.now(), comment="วันเวลาที่ตั้งรหัสผ่านล่าสุด (UTC)"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), comment="วันเวลาที่สร้างบัญชี")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="วันเวลาที่แก้ไขข้อมูลล่าสุด"

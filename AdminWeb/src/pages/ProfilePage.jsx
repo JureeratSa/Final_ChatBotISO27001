@@ -1,5 +1,7 @@
 import { useAdminContext } from '../context/AdminContext';
 import botAvatar from '../bot_avatar.jpg';
+import PasswordRules from '../components/PasswordRules';
+import { isPasswordValid } from '../utils/passwordPolicy';
 
 /**
  * ProfilePage — แท็บ "โปรไฟล์แอดมิน" แสดงข้อมูลบัญชีปัจจุบันและฟอร์มเปลี่ยนรหัสผ่าน
@@ -34,8 +36,22 @@ export default function ProfilePage() {
         <div className="border-t border-slate-100 dark:border-tuh-purple/20 pt-4 text-sm text-slate-500 dark:text-slate-400 font-bold space-y-2">
           <div className="flex justify-between">
             <span>Username:</span>
-            <span className="text-slate-800 dark:text-white">admin</span>
+            <span className="text-slate-800 dark:text-white">{adminUser.username}</span>
           </div>
+          {adminUser.department && (
+            <div className="flex justify-between">
+              <span>แผนก:</span>
+              <span className="text-slate-800 dark:text-white">{adminUser.department}</span>
+            </div>
+          )}
+          {adminUser.password_expires_at && (
+            <div className="flex justify-between">
+              <span>รหัสผ่านหมดอายุ:</span>
+              <span className={adminUser.password_expired ? 'text-rose-500' : adminUser.password_expiring_soon ? 'text-amber-500' : 'text-slate-800 dark:text-white'}>
+                {adminUser.password_expired ? 'หมดอายุแล้ว' : adminUser.password_expires_at}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -68,6 +84,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          <PasswordRules password={newPassword} username={adminUser.username} />
+
           <div>
             <label className="block text-sm font-bold mb-2">ยืนยันรหัสผ่านแอดมินใหม่อีกครั้ง</label>
             <div className="relative">
@@ -89,9 +107,18 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {confirmPassword && confirmPassword !== newPassword && (
+            <p className="text-xs font-bold text-rose-500"><i className="fa-solid fa-circle-xmark mr-1"></i>รหัสผ่านยืนยันไม่ตรงกัน</p>
+          )}
+
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            รหัสผ่านมีอายุ 90 วัน — เมื่อเปลี่ยนสำเร็จ ระบบจะออกจากระบบให้ และให้เข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่
+          </p>
+
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 bg-tuh-rose hover:bg-tuh-rose/90 text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98]"
+            disabled={!isPasswordValid(newPassword, adminUser.username) || newPassword !== confirmPassword}
+            className="inline-flex items-center gap-1.5 bg-tuh-rose hover:bg-tuh-rose/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 px-6 rounded-2xl hover:shadow-lg transition active:scale-[0.98]"
           >
             <i className="fa-solid fa-lock-open"></i> เปลี่ยนรหัสผ่านความปลอดภัย
           </button>

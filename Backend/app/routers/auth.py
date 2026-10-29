@@ -3,6 +3,7 @@ TUH Chatbot AI — Auth Router
 Endpoints: /api/auth/login, /api/auth/refresh, /api/auth/logout, /api/auth/me
 ครอบคลุมการ Manage Admin Users (GET/POST/PUT/DELETE /api/auth/users)
 """
+from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -22,6 +23,13 @@ from app.schemas.schemas import (
 )
 from app.services.department_scope import SUPER_ADMIN_ROLE
 from app.services.audit_service import set_audit
+from app.services.password_policy import (
+    password_status, token_issued_before_password_change, validate_password
+)
+
+# คำขอที่แอดมินรหัสผ่านหมดอายุยังทำได้ — นอกนั้นต้องเปลี่ยนรหัสผ่านก่อน
+_ALLOWED_WHEN_PASSWORD_EXPIRED = {"/api/admin/password/update", "/api/admin/logout"}
+PASSWORD_EXPIRED_DETAIL = "PASSWORD_EXPIRED: รหัสผ่านหมดอายุ (ครบ 90 วัน) กรุณาเปลี่ยนรหัสผ่านที่หน้าโปรไฟล์ก่อนใช้งาน"
 
 
 def _require_department(role: str, department) -> None:
@@ -39,10 +47,12 @@ security = HTTPBearer()
 # ─── Helper: Get current user from token ──────────────────────────────────────
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Dependency: ตรวจสอบ JWT Access Token และดึง User จาก DB"""
+    """Dependency: ตรวจสอบ JWT Access Token และดึง User จาก DB
+    + ตัด token ที่ออกก่อนเปลี่ยนรหัสผ่าน และล็อกแอดมินที่รหัสผ่านหมดอายุไว้แค่การเปลี่ยนรหัส"""
     try:
         payload = verify_access_token(credentials.credentials)
         username: str = payload.get("sub")
@@ -59,6 +69,12 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    if token_issued_before_password_change(payload.get("iat"), user.password_changed_at):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="รหัสผ่านถูกเปลี่ยนแล้ว กรุณาเข้าสู่ระบบใหม่")
+    if (password_status(user.password_changed_at)["password_expired"]
+            and request.url.path not in _ALLOWED_WHEN_PASSWORD_EXPIRED):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_EXPIRED_DETAIL)
     return user
 
 
@@ -87,7 +103,8 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
         username=user.username,
         display_name=user.display_name,
         role=user.role,
-        department=user.department
+        department=user.department,
+        **password_status(user.password_changed_at)
     )
 
 
@@ -108,6 +125,9 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if token_issued_before_password_change(payload.get("iat"), user.password_changed_at):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="รหัสผ่านถูกเปลี่ยนแล้ว กรุณาเข้าสู่ระบบใหม่")
 
     access_token = create_access_token({"sub": user.username})
     return AccessTokenResponse(access_token=access_token)
@@ -208,7 +228,13 @@ async def update_user(
     if body.display_name is not None:
         user.display_name = body.display_name
     if body.password is not None:
+        try:
+            validate_password(body.password, user.username)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         user.password_hash = hash_password(body.password)
+        # SuperAdmin ตั้งรหัสให้ = รหัสใหม่ เริ่มนับอายุ 90 วันใหม่ (token เดิมของบัญชีนั้นใช้ไม่ได้อีก)
+        user.password_changed_at = datetime.now(timezone.utc)
     if body.role is not None:
         user.role = body.role
     if body.department is not None:
