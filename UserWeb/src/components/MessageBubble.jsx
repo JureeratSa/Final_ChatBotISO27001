@@ -45,7 +45,8 @@ export const MessageBubble = ({
 
   return (
     <div
-      className={`flex gap-2 max-w-[60%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
+      // จอเล็ก/กลางให้ฟองกว้างขึ้น — คงไว้ 60% เฉพาะจอกว้าง (เดิม 60% ทุกจอ คำตอบยาวบน iPad/notebook บีบเป็นคอลัมน์แคบ)
+      className={`flex gap-2 max-w-[92%] md:max-w-[85%] xl:max-w-[75%] 2xl:max-w-[60%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
     >
       {/* 1. ไอคอนอวาตาร์ของผู้ส่ง (Bot หรือ User) */}
       {isBot ? (

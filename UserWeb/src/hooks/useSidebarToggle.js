@@ -8,8 +8,9 @@
 import { useState } from 'react';
 
 export function useSidebarToggle() {
-  // เปิด Sidebar เป็นค่าเริ่มต้นหากเปิดบนหน้าจอขนาดแท็บเล็ต/เดสก์ท็อป (>= 768px)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
+  // เปิด Sidebar เป็นค่าเริ่มต้นเฉพาะจอที่วางเมนูข้างแชทได้ (>= 1024px: notebook, MacBook, iPad แนวนอน)
+  // จอเล็กกว่านั้น (มือถือ, iPad แนวตั้ง) เมนูเป็นแผงลอยทับแชท จึงปิดไว้ก่อน
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   // เก็บ ID ข้อความที่เพิ่งถูกคัดลอก เพื่อแสดงสถานะสำเร็จ (ติ๊กถูก)
   const [copiedId, setCopiedId] = useState(null);
 
