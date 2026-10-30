@@ -17,6 +17,7 @@ from app.core.security import (
     verify_access_token, verify_refresh_token, create_access_token,
     verify_legacy_password
 )
+from app.core.rate_limit import check_login_allowed, login_throttle
 from app.models.models import User
 from app.schemas.schemas import (
     LoginRequest, TokenResponse, RefreshRequest, AccessTokenResponse,
@@ -93,17 +94,24 @@ async def get_current_user(
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Admin Login — คืน Access Token + Refresh Token"""
     set_audit(request, action="login_failed", username=body.username)
+    try:
+        ip = check_login_allowed(request, body.username)
+    except HTTPException:
+        set_audit(request, detail={"reason": "too_many_failures"})
+        raise
     result = await db.execute(
         select(User).where(User.username == body.username, User.is_active == True)
     )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.password_hash):
+        login_throttle.record_failure(ip, body.username)
         set_audit(request, detail={"reason": "invalid_credentials"})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
         )
+    login_throttle.reset(ip, body.username)
 
     set_audit(request, action="login_success")
     tokens = generate_token_pair(user.username)

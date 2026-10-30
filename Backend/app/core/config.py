@@ -127,6 +127,12 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 30
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+    # เชื่อ X-Forwarded-For เฉพาะเมื่อมี reverse proxy ของเราอยู่หน้า backend — ไม่งั้น client ปลอม IP ได้
+    TRUST_PROXY_HEADERS: bool = False
+    # กันเดารหัสผ่าน (ดู app/core/rate_limit.py LoginThrottle)
+    LOGIN_MAX_FAILURES_PER_IP_USER: int = 5
+    LOGIN_MAX_FAILURES_PER_USER: int = 10
+    LOGIN_FAILURE_WINDOW_MINUTES: int = 15
 
     _backend_dir = Path(__file__).parents[2]
     _root_dir = Path(__file__).parents[3]

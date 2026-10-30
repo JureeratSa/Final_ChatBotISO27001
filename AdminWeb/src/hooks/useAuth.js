@@ -66,6 +66,10 @@ export function useAuth(API_URL, showSuccess, showError, setActiveTab) {
       body: JSON.stringify({ username, password })
     })
       .then(res => {
+        // 429 = ล็อกอินผิดหลายครั้งจนถูกล็อกชั่วคราว — แสดงข้อความจาก backend (บอกเวลาที่ต้องรอ)
+        if (res.status === 429) {
+          return res.json().then(data => { throw new Error(data.detail || "ล็อกอินผิดหลายครั้งเกินไป กรุณารอสักครู่"); });
+        }
         if (!res.ok) throw new Error("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
         return res.json();
       })

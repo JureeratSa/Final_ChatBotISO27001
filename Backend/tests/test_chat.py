@@ -166,23 +166,32 @@ async def test_public_settings_returns_stored_values(client, db_session):
 
 # ─── Serve PDF — Path Traversal protection (CWE-22) ─────────────────────────────
 
+# /api/chat/documents/serve ใช้กฎเดียวกับ /api/documents/serve (public.active_document_path)
+# จึงแพตช์ UPLOADS_DIR ที่ public module
+
 async def test_serve_pdf_blocks_traversal_filename(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(chat_module, "UPLOADS_DIR", tmp_path)
+    import app.routers.public as public_module
+    monkeypatch.setattr(public_module, "UPLOADS_DIR", tmp_path)
 
     resp = await client.get(r"/api/chat/documents/serve/..\..\windows\win.ini")
     assert resp.status_code == 400
 
 
 async def test_serve_pdf_returns_404_for_missing_file(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(chat_module, "UPLOADS_DIR", tmp_path)
+    import app.routers.public as public_module
+    monkeypatch.setattr(public_module, "UPLOADS_DIR", tmp_path)
 
     resp = await client.get("/api/chat/documents/serve/missing.pdf")
     assert resp.status_code == 404
 
 
-async def test_serve_pdf_returns_existing_file(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(chat_module, "UPLOADS_DIR", tmp_path)
+async def test_serve_pdf_returns_existing_file(client, tmp_path, monkeypatch, db_session):
+    import app.routers.public as public_module
+    from app.models.models import Document
+    monkeypatch.setattr(public_module, "UPLOADS_DIR", tmp_path)
     (tmp_path / "welfare.pdf").write_bytes(b"%PDF-1.4 fake content")
+    db_session.add(Document(filename="welfare.pdf", display_name="welfare", status="Active"))
+    await db_session.commit()
 
     resp = await client.get("/api/chat/documents/serve/welfare.pdf")
     assert resp.status_code == 200

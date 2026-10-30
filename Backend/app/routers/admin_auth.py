@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.rate_limit import check_login_allowed, login_throttle
 from app.core.security import verify_password, create_access_token
 from app.routers.auth import get_current_user
 from app.models.models import User, AdminAuditLog
@@ -38,12 +39,19 @@ async def legacy_admin_login(
 ):
     # บันทึกทุกความพยายามล็อกอิน (audit log) — ไม่เก็บรหัสผ่านที่พิมพ์มา
     set_audit(request, action="login_failed", username=payload.username)
+    try:
+        ip = check_login_allowed(request, payload.username)
+    except HTTPException:
+        set_audit(request, detail={"reason": "too_many_failures"})
+        raise
     result = await db.execute(select(User).where(User.username == payload.username))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(payload.password, user.password_hash):
+        login_throttle.record_failure(ip, payload.username)
         set_audit(request, detail={"reason": "invalid_credentials"})
         raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+    login_throttle.reset(ip, payload.username)
 
     if not user.is_active:
         set_audit(request, detail={"reason": "account_disabled"})

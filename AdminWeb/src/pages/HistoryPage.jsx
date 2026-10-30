@@ -1,5 +1,6 @@
 import { useAdminContext } from '../context/AdminContext';
 import { DepartmentFilter } from '../components/DepartmentControls';
+import { openAdminPdf } from '../utils/adminPdf';
 
 /**
  * HistoryPage — แท็บ "ประวัติการตอบของบอท" สรุปจำนวนคำถาม ตัวกรองช่วงเวลา และตาราง
@@ -259,13 +260,11 @@ export default function HistoryPage() {
                               {log.chunk_ids.map(cid => {
                                 const chunkInfo = chunksMap[String(cid)] || chunksMap[Number(cid)];
                                 if (chunkInfo && chunkInfo.source) {
-                                  const pdfUrl = `${API_URL}/api/documents/serve/${encodeURIComponent(chunkInfo.source)}${chunkInfo.page ? `#page=${chunkInfo.page}` : ''}`;
                                   return (
                                     <a
                                       key={cid}
-                                      href={pdfUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                      href="#"
+                                      onClick={(e) => { e.preventDefault(); openAdminPdf(API_URL, chunkInfo.source, { page: chunkInfo.page }); }}
                                       className="bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded cursor-pointer transition-colors"
                                       title={`เปิดดู ${chunkInfo.source} หน้า ${chunkInfo.page || 1}`}
                                     >

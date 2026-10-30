@@ -6,7 +6,6 @@ import re
 import sys
 import asyncio
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 # Fix WinError 87 asyncio SSL bug on Windows
 if sys.platform == 'win32':
@@ -18,7 +17,6 @@ if sys.platform == 'win32':
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.audit_service import AuditLogMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import create_tables
@@ -192,11 +190,11 @@ app.include_router(admin_auth.router)
 app.include_router(public.router)
 
 
-# ─── Serve Static PDF Files ───────────────────────────────────────────────────
-
-uploads_path = Path(settings.UPLOADS_DIR)
-if uploads_path.exists():
-    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+# ─── Uploaded Files ───────────────────────────────────────────────────────────
+# ไม่ mount โฟลเดอร์ uploads เป็น static อีกแล้ว — เดิมเปิดให้โหลดทุกไฟล์โดยไม่ต้อง login (PDF ฉบับร่าง,
+# ข้อความที่สกัด/OCR, cache chunk+embedding, แบบฟอร์มทุกนามสกุล) ไม่มี frontend ใดใช้ /uploads/
+# ไฟล์ออกทาง endpoint ที่ตรวจสิทธิ์แล้วเท่านั้น: /api/documents/serve (เฉพาะ Active),
+# /api/admin/documents/file (แอดมิน ตามแผนก), /api/forms/download (แบบฟอร์ม)
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────

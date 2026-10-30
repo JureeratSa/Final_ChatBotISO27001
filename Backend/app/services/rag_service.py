@@ -239,6 +239,8 @@ def _thai_today() -> str:
 
 # ─── Main RAG Query Function ───────────────────────────────────────────────────
 
+LLM_HISTORY_MESSAGES = 10
+
 async def query_rag(
     query: str,
     results: List[Dict],
@@ -305,7 +307,8 @@ async def query_rag(
 
     # ─ Build Messages ─
     messages = [{"role": "system", "content": system_prompt}]
-    for msg in history:
+    # ส่งเฉพาะช่วงท้ายของบทสนทนาเข้า LLM — ประวัติมาจากเบราว์เซอร์ ไม่ควรกำหนดขนาด prompt ได้เอง
+    for msg in (history or [])[-LLM_HISTORY_MESSAGES:]:
         role = "user" if (msg.sender if hasattr(msg, 'sender') else msg.get("sender")) == "user" else "assistant"
         text = msg.text if hasattr(msg, 'text') else msg.get("text", "")
         if role == "assistant":

@@ -166,9 +166,22 @@ class DocumentUpdate(BaseModel):
 
 # ─── Chat Schemas ──────────────────────────────────────────────────────────────
 
+# ประวัติแชทมาจากเบราว์เซอร์ (UserWeb ส่ง 6 ข้อความล่าสุด) — เดิมไม่จำกัดทั้งจำนวนและความยาว
+# request เดียวแนบประวัติหลาย MB ส่งต่อเข้า LLM ได้ทั้งก้อน ตัดให้เหลือขนาดที่ใช้จริงแทนการปฏิเสธ
+# (คำตอบของบอทที่ยาวผิดปกติไม่ควรทำให้แชทถัดไปพัง)
+CHAT_HISTORY_MAX_MESSAGES = 20
+CHAT_MESSAGE_MAX_CHARS = 4000
+
+
 class ChatMessage(BaseModel):
-    sender: str  # "user" | "bot"
+    # เดิมเป็น str อะไรก็ได้ และทุกค่าที่ไม่ใช่ "user" ถูกส่งเข้า LLM เป็นข้อความของบอท
+    sender: Literal["user", "bot"]
     text: str
+
+    @field_validator("text")
+    @classmethod
+    def _truncate_text(cls, value: str) -> str:
+        return value[:CHAT_MESSAGE_MAX_CHARS]
 
 
 class ChatRequest(BaseModel):
@@ -176,6 +189,11 @@ class ChatRequest(BaseModel):
     query: str = Field(..., max_length=2000)
     history: List[ChatMessage] = []
     session_id: Optional[str] = None
+
+    @field_validator("history")
+    @classmethod
+    def _keep_recent_history(cls, value: List[ChatMessage]) -> List[ChatMessage]:
+        return value[-CHAT_HISTORY_MAX_MESSAGES:]
 
 
 class CitationInfo(BaseModel):

@@ -209,14 +209,9 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
 
 @router.get("/documents/serve/{filename}")
 async def serve_pdf(filename: str):
-    """Serve PDF ไฟล์ให้ User เปิดดูใน browser"""
-    try:
-        file_path = safe_path(UPLOADS_DIR, filename)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+    """Serve PDF ไฟล์ให้ User เปิดดูใน browser — เฉพาะเอกสาร Active (กฎเดียวกับ /api/documents/serve/)"""
+    from app.routers.public import active_document_path
+    file_path = await active_document_path(filename)
     return FileResponse(str(file_path), media_type="application/pdf")
 
 

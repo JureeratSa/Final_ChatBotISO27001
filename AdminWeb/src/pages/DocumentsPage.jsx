@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAdminContext } from '../context/AdminContext';
 import ChunkEditorGrid from '../components/documents/ChunkEditorGrid';
 import { DepartmentCell, DepartmentFilter } from '../components/DepartmentControls';
+import { openAdminPdf } from '../utils/adminPdf';
 
 /**
  * DocumentsPage — แท็บ "จัดการแฟ้มเอกสาร PDF" ครอบคลุมทั้ง pipeline อัปโหลด/คลีน/แบ่ง chunk
@@ -267,9 +268,8 @@ export default function DocumentsPage() {
                                 <tr key={doc.filename} className="hover:bg-slate-50/50 dark:hover:bg-tuh-indigo/10 transition">
                                   <td className="px-6 py-4 font-bold max-w-[200px] truncate text-tuh-navy dark:text-white" title={doc.filename}>
                                     <a
-                                      href={`${API_URL}/api/documents/download/${encodeURIComponent(doc.filename)}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
+                                      href="#"
+                                      onClick={(e) => { e.preventDefault(); openAdminPdf(API_URL, doc.filename, { download: true }); }}
                                       className="hover:text-tuh-rose hover:underline flex items-center transition"
                                     >
                                       <i className="fa-solid fa-file-pdf text-red-500 mr-2 shrink-0"></i>

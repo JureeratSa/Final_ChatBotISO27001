@@ -151,6 +151,15 @@ async def other_staff_user(db_session):
     )
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """ตัวนับ rate limit / ล็อกอินผิดเป็น state ระดับ module — ล้างทุกเทส ไม่ให้เทสหนึ่งไปล็อกอีกเทส"""
+    from app.core import rate_limit
+    rate_limit._hits.clear()
+    rate_limit.login_throttle._failures.clear()
+    yield
+
+
 def auth_header(username: str) -> dict:
     """สร้าง Authorization header จาก username โดยไม่ต้องยิง /login จริง (unit-level shortcut)"""
     token = create_access_token({"sub": username})

@@ -143,10 +143,13 @@ async def test_serve_pdf_blocks_path_traversal(client, tmp_path, monkeypatch):
     assert resp.status_code == 400
 
 
-async def test_download_pdf_returns_existing_file_as_attachment(client, tmp_path, monkeypatch):
+async def test_download_pdf_returns_existing_file_as_attachment(client, tmp_path, monkeypatch, db_session):
     import app.routers.public as public_module
+    from app.models.models import Document
     monkeypatch.setattr(public_module, "UPLOADS_DIR", tmp_path)
     (tmp_path / "welfare.pdf").write_bytes(b"%PDF-1.4 fake content")
+    db_session.add(Document(filename="welfare.pdf", display_name="welfare", status="Active"))
+    await db_session.commit()
 
     resp = await client.get("/api/documents/download/welfare.pdf")
     assert resp.status_code == 200

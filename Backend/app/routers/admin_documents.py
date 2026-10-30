@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -451,6 +452,27 @@ async def approve_document(
     await db.refresh(doc)
 
     return {"success": True, "new_status": new_status}
+
+
+@router.get("/documents/file")
+async def get_document_file(
+    filename: str,
+    download: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ไฟล์ PDF ต้นฉบับสำหรับแอดมิน (ทุกสถานะ รวมฉบับร่าง) — ตรวจสิทธิ์ตามแผนก
+    แทน /api/documents/download/ และ /serve/ ที่ตอนนี้ส่งให้คนทั่วไปเฉพาะเอกสาร Active"""
+    doc = await _get_owned_document(db, filename, current_user)
+    file_path = safe_path(UPLOADS_DIR, doc.filename)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+    return FileResponse(
+        str(file_path),
+        media_type="application/pdf",
+        filename=doc.filename,
+        content_disposition_type="attachment" if download else "inline",
+    )
 
 
 @router.get("/documents/view_raw")

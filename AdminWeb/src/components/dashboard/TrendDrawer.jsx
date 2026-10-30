@@ -3,6 +3,8 @@
  * แยกออกมาจาก DashboardPage.jsx เดิม (คืนค่า null ถ้าไม่มี
  * trendDrawer ที่จะแสดง เหมือนเงื่อนไข `{trendDrawer && (...)}` เดิม)
  */
+import { openAdminPdf } from '../../utils/adminPdf';
+
 export default function TrendDrawer({ trendDrawer, onClose, chunksMap, API_URL }) {
   if (!trendDrawer) return null;
 
@@ -54,13 +56,11 @@ export default function TrendDrawer({ trendDrawer, onClose, chunksMap, API_URL }
                     {log.chunk_ids.map(cid => {
                       const chunkInfo = chunksMap[String(cid)] || chunksMap[Number(cid)];
                       if (chunkInfo && chunkInfo.source) {
-                        const pdfUrl = `${API_URL}/api/documents/serve/${encodeURIComponent(chunkInfo.source)}${chunkInfo.page ? `#page=${chunkInfo.page}` : ''}`;
                         return (
                           <a
                             key={cid}
-                            href={pdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); openAdminPdf(API_URL, chunkInfo.source, { page: chunkInfo.page }); }}
                             className="bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 text-xs font-extrabold px-1.5 py-0.5 rounded cursor-pointer transition-colors"
                             title={`เปิดดู ${chunkInfo.source} หน้า ${chunkInfo.page || 1}`}
                           >

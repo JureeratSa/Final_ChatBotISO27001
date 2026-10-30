@@ -85,17 +85,28 @@ async def download_form_file(filename: str):
     )
 
 
+async def active_document_path(filename: str) -> Path:
+    """path ของ PDF ที่คนทั่วไปเปิดได้ — เฉพาะเอกสารที่มีในตาราง documents และสถานะ Active (บอทใช้ตอบอยู่)
+    เดิมส่งทุกไฟล์ในโฟลเดอร์ uploads ให้ใครก็ได้ รวมฉบับร่าง เอกสารที่ปิดใช้งาน และของทุกแผนก
+    ไม่ใช่ Active ตอบ 404 เหมือนไม่มีไฟล์ — ไม่บอกว่ามีเอกสารชื่อนี้อยู่ (แอดมินใช้ /api/admin/documents/file)"""
+    from app.core.database import AsyncSessionLocal  # ดูคอมเมนต์ compatibility_search ด้านล่าง
+    from app.models.models import Document
+
+    file_path = safe_path(UPLOADS_DIR, filename)
+    async with AsyncSessionLocal() as session:
+        status_ = (await session.execute(
+            select(Document.status).where(Document.filename == file_path.name)
+        )).scalar_one_or_none()
+    if status_ != "Active" or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+    return file_path
+
+
 @router.get("/api/documents/serve/{filename}")
 async def main_serve_pdf(filename: str, hl: Optional[str] = None):
     """เปิด PDF แบบ inline — ถ้ามี ?hl=<chunk_id,...> (ลิงก์จากแหล่งอ้างอิงในแชท) จะไฮไลท์สีฟ้าอ่อน
     ส่วนที่ใช้ตอบลงในสำเนาที่ส่งกลับ (ดู services/pdf_highlight.py) ไม่มี hl = ส่งไฟล์เดิม"""
-    try:
-        file_path = safe_path(UPLOADS_DIR, filename)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+    file_path = await active_document_path(filename)
 
     if hl:
         from app.services.pdf_highlight import parse_chunk_ids, find_chunks, highlight_pdf
@@ -114,15 +125,9 @@ async def main_serve_pdf(filename: str, hl: Optional[str] = None):
 
 @router.get("/api/documents/download/{filename}")
 async def main_download_pdf(filename: str):
-    """ดาวน์โหลดไฟล์ PDF ต้นฉบับ — เรียกจากลิงก์ดาวน์โหลดในตารางเอกสารของ AdminWeb
-    (ต่างจาก /api/documents/serve/ ที่เปิดดูแบบ inline ในเบราว์เซอร์)"""
-    try:
-        file_path = safe_path(UPLOADS_DIR, filename)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="ไม่พบไฟล์ PDF นี้")
+    """ดาวน์โหลดไฟล์ PDF ต้นฉบับ (เฉพาะเอกสาร Active — ต่างจาก /serve/ ที่เปิดดูแบบ inline)
+    AdminWeb เปลี่ยนไปใช้ /api/admin/documents/file?download=true แล้ว คงไว้ให้ลิงก์เดิมที่ถูกแชร์ไว้"""
+    file_path = await active_document_path(filename)
     return FileResponse(
         str(file_path),
         media_type="application/pdf",
