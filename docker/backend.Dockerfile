@@ -22,6 +22,23 @@ COPY Backend/requirements.txt docker/constraints.txt /tmp/
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1" \
     && pip install -r /tmp/requirements.txt -c /tmp/constraints.txt
 
+# SQL Server (เตรียมไว้ — ยังใช้ TiDB): build ด้วย --build-arg WITH_MSSQL=true เพื่อติดตั้ง Microsoft ODBC Driver 18
+# + pyodbc/aioodbc แล้วตั้ง DB_ENGINE=mssql ใน Backend/.env (ดู docs/SQLSERVER_MIGRATION.md)
+ARG WITH_MSSQL=false
+COPY Backend/requirements-mssql.txt /tmp/
+RUN if [ "$WITH_MSSQL" = "true" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends curl ca-certificates \
+        && . /etc/os-release \
+        && curl -fsSL -o /tmp/ms.deb "https://packages.microsoft.com/config/debian/${VERSION_ID%%.*}/packages-microsoft-prod.deb" \
+        && dpkg -i /tmp/ms.deb && rm /tmp/ms.deb \
+        && apt-get update \
+        && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc \
+        && apt-get purge -y curl && apt-get autoremove -y \
+        && rm -rf /var/lib/apt/lists/* \
+        && pip install -r /tmp/requirements-mssql.txt; \
+    fi
+
 RUN useradd --uid 1000 --create-home app \
     && mkdir -p /app/uploads /app/index_db /data/chroma /cache \
     && chown -R app:app /app /data /cache

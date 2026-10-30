@@ -32,7 +32,9 @@ target_metadata = Base.metadata
 # ALEMBIC_DATABASE_URL เผื่อ override ตอนรัน dry-run กับ DB อื่น (เช่น SQLite ตอนทดสอบ
 # migration script เอง) โดยไม่ต้องแก้ .env จริง — ปกติแล้วใช้ DATABASE_URL_SYNC จาก settings
 db_url = os.environ.get("ALEMBIC_DATABASE_URL") or settings.DATABASE_URL_SYNC
-config.set_main_option("sqlalchemy.url", db_url)
+# set_main_option ใช้ ConfigParser ที่ถือ % เป็นตัวแทนค่า — URL ของ SQL Server มี %20 (ชื่อ ODBC driver)
+# และรหัสผ่านที่มีอักขระพิเศษถูก encode เป็น %XX จึงต้อง escape เป็น %% ก่อน
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

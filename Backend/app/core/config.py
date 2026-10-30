@@ -21,15 +21,40 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # TiDB Cloud (MySQL) Database — ไม่มีค่า default: ต้องตั้งใน .env เสมอ
+    # Database — ไม่มีค่า default ของ host/user/password: ต้องตั้งใน .env เสมอ
+    # DB_ENGINE: "mysql" = TiDB Cloud (ใช้งานอยู่) | "mssql" = Microsoft SQL Server (เตรียมไว้ย้ายไป — ดู docs/SQLSERVER_MIGRATION.md)
+    DB_ENGINE: str = "mysql"
     DB_HOST: str
-    DB_PORT: int = 4000
+    DB_PORT: int = 4000          # TiDB = 4000, SQL Server ปกติ = 1433
     DB_USER: str
     DB_PASSWORD: str
     DB_NAME: str = "chatbot"
+    # เฉพาะ SQL Server — ชื่อ ODBC driver ที่ติดตั้งในเครื่อง/อิมเมจ และการเข้ารหัสการเชื่อมต่อ
+    DB_ODBC_DRIVER: str = "ODBC Driver 18 for SQL Server"
+    DB_ENCRYPT: bool = True
+    # True = ยอมรับใบรับรองที่ไม่ได้ออกโดย CA ที่เครื่องเชื่อ (เช่น self-signed ของ SQL Server ภายใน) — ใช้เท่าที่จำเป็น
+    DB_TRUST_SERVER_CERTIFICATE: bool = False
+
+    def _mssql_url(self, driver: str) -> str:
+        from sqlalchemy.engine import URL
+        return URL.create(
+            f"mssql+{driver}",
+            username=self.DB_USER,
+            password=self.DB_PASSWORD,   # URL.create escape อักขระพิเศษในรหัสผ่านให้เอง
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
+            query={
+                "driver": self.DB_ODBC_DRIVER,
+                "Encrypt": "yes" if self.DB_ENCRYPT else "no",
+                "TrustServerCertificate": "yes" if self.DB_TRUST_SERVER_CERTIFICATE else "no",
+            },
+        ).render_as_string(hide_password=False)
 
     @property
     def DATABASE_URL(self) -> str:
+        if self.DB_ENGINE == "mssql":
+            return self._mssql_url("aioodbc")
         return (
             f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -38,6 +63,8 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL_SYNC(self) -> str:
         """สำหรับ Alembic / sync operations"""
+        if self.DB_ENGINE == "mssql":
+            return self._mssql_url("pyodbc")
         return (
             f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

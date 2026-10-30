@@ -79,9 +79,11 @@ async def history_scope_filter(db: AsyncSession, user: User, requested: Optional
 
 
 def _like_json_item(value: str) -> str:
-    """pattern ของ LIKE ที่จับ "value" ใน JSON array (escape % และ _ ซึ่งพบบ่อยในชื่อไฟล์)"""
+    """pattern ของ LIKE ที่จับ "value" ใน JSON array (escape % และ _ ซึ่งพบบ่อยในชื่อไฟล์)
+    escape [ ด้วย — SQL Server ถือว่า [...] ใน LIKE เป็นชุดตัวอักษร (MySQL/TiDB อ่าน \\[ เป็น [ ตรงตัวเหมือนเดิม)"""
     item = json.dumps(value, ensure_ascii=False)
-    return "%" + item.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    return "%" + (item.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                  .replace("[", "\\[")) + "%"
 
 
 def history_department_filter(filenames: Iterable[str]):

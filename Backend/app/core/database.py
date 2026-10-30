@@ -10,19 +10,21 @@ from sqlalchemy.orm import DeclarativeBase
 from typing import AsyncGenerator
 
 from app.core.config import settings
+from app.core import mssql_types  # noqa: F401  — String/Text เป็น NVARCHAR บน SQL Server (ไม่มีผลกับ MySQL)
 
 # ─── 1. Async Database Engine ──────────────────────────────────────────────────
 # ตั้งค่า Connection Pool และเปิดใช้งาน SSL สำหรับ TiDB Serverless
 # - pool_size=10: จำนวน Connection หลักที่เปิดค้างไว้ใน Pool
 # - max_overflow=20: จำนวน Connection ชั่วคราวที่เปิดเพิ่มได้เมื่อมี Request หนาแน่น
 # - pool_pre_ping=True: ทดสอบ Ping ตรวจสอบ Connection ก่อนส่งให้ Query ป้องกัน Connection หลุด
+# SQL Server: การเข้ารหัสกำหนดใน URL (Encrypt / TrustServerCertificate — ดู config.py) ไม่ใช้ connect_args ssl
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    connect_args={"ssl": True}
+    connect_args={} if settings.DB_ENGINE == "mssql" else {"ssl": True}
 )
 
 # ─── 2. Async Session Factory ──────────────────────────────────────────────────
