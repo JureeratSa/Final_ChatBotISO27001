@@ -23,10 +23,30 @@ export const MessageBubble = ({
 }) => {
   const isBot = msg.sender === 'bot';
   const citations = isBot && Array.isArray(msg.citations) ? msg.citations : [];
+  const formLinks = isBot && Array.isArray(msg.formLinks) ? msg.formLinks.filter(f => f.download_link) : [];
+
+  // download_link ถูกบันทึกเป็น URL เต็มตาม host ของคนที่อัปโหลด (เช่น http://localhost:8000/...)
+  // ซึ่งเครื่องอื่นเปิดไม่ได้ — ใช้แค่ path แล้วต่อกับ API ของหน้าที่เปิดอยู่แทน
+  const formHref = (link) => {
+    try {
+      const { pathname } = new URL(link, apiUrl);
+      return pathname.startsWith('/api/forms/download/') ? `${apiUrl}${pathname}` : link;
+    } catch {
+      return link;
+    }
+  };
+
+  // บอทมักเขียนชื่อแบบฟอร์มในวงเล็บเหลี่ยม เช่น "[แบบฟอร์มเบิกยืดหยุ่น]" โดยไม่มี URL — แปลงเป็นลิงก์
+  // markdown ให้กดดาวน์โหลดได้ในเนื้อคำตอบ (ข้ามกรณีที่มี "(url)" ตามหลังอยู่แล้ว)
+  const linkFormNames = (text) => formLinks.reduce((out, f) => {
+    const escaped = f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return out.replace(new RegExp(`\\[${escaped}\\](?!\\()`, 'g'), `[${f.name}](${formHref(f.download_link)})`);
+  }, text || '');
 
   return (
     <div
-      className={`flex gap-2 max-w-[60%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
+      // จอเล็ก/กลางให้ฟองกว้างขึ้น — คงไว้ 60% เฉพาะจอกว้าง (เดิม 60% ทุกจอ คำตอบยาวบน iPad/notebook บีบเป็นคอลัมน์แคบ)
+      className={`flex gap-2 max-w-[92%] md:max-w-[85%] xl:max-w-[75%] 2xl:max-w-[60%] ${isBot ? 'mr-auto' : 'ml-auto flex-row-reverse'} animate-slide-in`}
     >
       {/* 1. ไอคอนอวาตาร์ของผู้ส่ง (Bot หรือ User) */}
       {isBot ? (
@@ -47,12 +67,25 @@ export const MessageBubble = ({
           ? 'p-3 rounded-2xl shadow-sm bg-slate-100 dark:bg-[#07010f] border border-slate-200/60 dark:border-tuh-purple/20 text-tuh-navy dark:text-white rounded-tl-sm'
           : 'p-3 rounded-2xl shadow-md bg-[#f8bbd0] text-black dark:bg-[#ad1457] dark:text-white rounded-tr-sm'
           }`}>
-          {parseMarkdown(msg.text)}
+          {parseMarkdown(linkFormNames(msg.text))}
         </div>
 
-        {/* 3. ส่วนแสดงรายการเอกสารอ้างอิง (Citations) */}
-        {isBot && citations.length > 0 && (
+        {/* 3. ส่วนแสดงรายการเอกสารอ้างอิง (Citations) และปุ่มดาวน์โหลดแบบฟอร์ม */}
+        {isBot && (citations.length > 0 || formLinks.length > 0) && (
           <div className="flex flex-wrap gap-1 px-0.5">
+            {formLinks.map((f, i) => (
+              <a
+                key={`form-${f.name}-${i}`}
+                href={formHref(f.download_link)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`ดาวน์โหลด ${f.name}`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-teal-500/10 text-teal-700 hover:bg-teal-500/20 dark:text-teal-300 dark:hover:bg-teal-400/20 transition-colors"
+              >
+                <i className="fa-solid fa-file-arrow-down"></i>
+                <span className="truncate max-w-[200px]">{f.name}</span>
+              </a>
+            ))}
             {citations.map((c, i) => (
               <a
                 key={`${c.source}-${i}`}

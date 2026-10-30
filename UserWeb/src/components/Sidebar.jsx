@@ -32,15 +32,16 @@ export const Sidebar = ({
 }) => {
   return (
     <>
-      {/* Backdrop สีดำโปร่งแสงสำหรับหน้าจอมือถือเมื่อเปิด Sidebar */}
+      {/* Backdrop สีดำโปร่งแสงเมื่อเปิด Sidebar แบบลอยทับ (มือถือ + iPad แนวตั้ง < 1024px) */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden transition-opacity duration-300"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      {/* โครงสร้างหลักของ Sidebar ด้านซ้าย */}
+      {/* โครงสร้างหลักของ Sidebar ด้านซ้าย — จอ < 1024px เป็นแผงลอยทับเนื้อหา, จอ ≥ 1024px อยู่ข้างแชท
+          (เดิมแยกที่ 768px ทำให้ iPad แนวตั้งเหลือพื้นที่แชทแคบ การ์ดคำถามบีบเป็นแท่งยาว) */}
       <aside
         style={{
           '--sidebar-width': isSidebarOpen ? `${fontSize === 'xl' ? Math.max(385, sidebarWidth + 60) :
@@ -48,7 +49,7 @@ export const Sidebar = ({
               sidebarWidth
             }px` : '0px'
         }}
-        className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md shadow-sm transition-all duration-300 md:static md:relative tuh-resizable-sidebar ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full md:translate-x-0 md:opacity-0 md:border-r-0 overflow-hidden'
+        className={`fixed inset-y-0 left-0 z-30 flex flex-col border-r border-slate-200 dark:border-tuh-purple/20 bg-white dark:bg-tuh-indigo/90 backdrop-blur-md shadow-sm transition-all duration-300 lg:static lg:relative tuh-resizable-sidebar ${isSidebarOpen ? 'translate-x-0 opacity-100 overflow-y-auto custom-scrollbar' :'-translate-x-full lg:translate-x-0 lg:opacity-0 lg:border-r-0 overflow-hidden'
           }`}
       >
         {/* 1. ส่วนหัว Sidebar: โลโก้และชื่อหน่วยงาน */}
@@ -89,8 +90,9 @@ export const Sidebar = ({
           </button>
         </div>
 
-        {/* 3. รายการประวัติการสนทนา (Session History) */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
+        {/* 3. รายการประวัติการสนทนา (Session History) — กันพื้นที่ขั้นต่ำไว้เสมอ: จอเตี้ย + ตัวอักษรใหญ่
+            เมนูตั้งค่าด้านล่างเคยดันจนประวัติเหลือแถบบางๆ ตอนนี้ถ้าไม่พอทั้งแถบเมนูจะเลื่อนลงแทน */}
+        <div className="flex-1 min-h-[9rem] overflow-y-auto px-3 py-2 custom-scrollbar">
           <div className="px-3 mb-2 flex items-baseline gap-1.5 select-none">
             <span className="text-sm font-bold text-tuh-indigo/50 dark:text-slate-300 uppercase tracking-wider">
               ประวัติการสนทนา
@@ -136,7 +138,8 @@ export const Sidebar = ({
                   {s.id !== sessions[0]?.id && (
                     <button
                       onClick={(e) => handleDeleteSession(s.id, e)}
-                      className="opacity-0 group-hover:opacity-100 hover:text-red-500 p-1 rounded-md text-tuh-indigo/40 dark:text-slate-400 hover:bg-tuh-indigo/20 transition-all shrink-0 ml-1.5"
+                      // จอสัมผัส (iPad) ไม่มี hover — แสดงปุ่มลบไว้ตลอด ไม่งั้นมองไม่เห็นและกดไม่ได้
+                      className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 hover:text-red-500 p-1 rounded-md text-tuh-indigo/40 dark:text-slate-400 hover:bg-tuh-indigo/20 transition-all shrink-0 ml-1.5"
                       title="ลบการสนทนานี้"
                     >
                       <i className="fa-solid fa-trash-can text-xs"></i>
@@ -218,7 +221,7 @@ export const Sidebar = ({
           <div
             onMouseDown={startResizing}
             onTouchStart={startTouchResizing}
-            className="hidden md:block absolute top-0 right-0 bottom-0 w-3 -mr-1.5 cursor-col-resize z-50 group"
+            className="hidden lg:block absolute top-0 right-0 bottom-0 w-3 -mr-1.5 cursor-col-resize z-50 group"
             title="ลากเพื่อปรับขนาดเมนู"
           >
             <div className="w-1 h-full mx-auto bg-transparent group-hover:bg-tuh-rose/40 dark:group-hover:bg-tuh-purple/40 transition-colors duration-150" />

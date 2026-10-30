@@ -7,7 +7,14 @@
 
 โครงสร้างนี้เป็นผลจาก reorganize ล่าสุด (commit `f4b9f05`) — **ถ้าเจอเอกสารหรือโค้ดที่อ้างถึง `v2/frontend`, `v2/admin`, `run_v2_frontend.py`, `run_admin_server.py` ถือว่าล้าสมัย** ให้ใช้ path/คำสั่งจริงด้านล่างแทน
 
-## รันระบบ (dev)
+## รันระบบ (production = Docker ตั้งแต่ 2026-10-29)
+```bash
+docker compose up -d --build     # UserWeb :5173, AdminWeb :5174, Backend :8000 (+ redirect URL เดิม XAMPP :8080)
+```
+ข้อมูล (ChromaDB, bm25.pkl, uploads, โมเดล) อยู่ใน Docker volume `tuh-chatbot_*` ไม่ใช่โฟลเดอร์ `uploads/`/`index_db/` บนไดรฟ์ Z: — รายละเอียดใน [docs/DOCKER.md](docs/DOCKER.md)
+XAMPP (`deploy_xampp.py`) เลิกใช้แล้ว (Apache ต้องปิดไว้ เพราะ port 8080 เป็นของ redirect)
+
+## รันระบบ (dev — ปิด Docker ก่อน เพราะใช้ port เดียวกัน)
 ```bash
 python run_backend.py      # Backend API   → http://localhost:8000
 python run_user_web.py     # UserWeb       → http://localhost:5173

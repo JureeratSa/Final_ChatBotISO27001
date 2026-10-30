@@ -10,9 +10,10 @@ monkeypatch ชื่อ _trigger_rebuild_background / _delete_from_search_index
 reference ที่ผูกไปแล้วในโมดูลอื่น
 """
 import logging
+import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,9 +117,53 @@ def _sync_save_durations(durations: dict) -> None:
         sync_engine.dispose()
 
 
+# ── ความคืบหน้าของการ rebuild (เก็บในหน่วยความจำของ process — rebuild รันใน threadpool ของ process เดียวกัน)
+# ใช้แสดงในคอลัมน์ "สถานะการทำงาน" ของ AdminWeb: เดิมกดอนุมัติขั้นสุดท้ายแล้วขึ้น "พร้อมใช้งาน" ทันที
+# ทั้งที่ embedding ยังรันอยู่เบื้องหลังอีกหลายนาที (ดู get_index_status)
+_rebuild_lock = threading.Lock()      # rebuild ทีละรอบ — สองรอบพร้อมกันเขียน ChromaDB/BM25 ทับกัน
+_progress_lock = threading.Lock()
+_progress = {"running": False, "queued": 0, "percent": 0, "stage": "", "error": None}
+# เอกสารที่รอให้ rebuild รอบใหม่ใส่ลงดัชนี {filename: เวลาที่ mark} — ใส่ตอนอนุมัติ/เปิดใช้งาน/แก้หน้าที่ละเว้น
+_pending: Dict[str, float] = {}
+
+
+def mark_pending(filename: str) -> None:
+    with _progress_lock:
+        _pending[filename] = time.time()
+
+
+def _set_progress(percent: Optional[float] = None, stage: Optional[str] = None, **extra) -> None:
+    with _progress_lock:
+        if percent is not None:
+            _progress["percent"] = max(0, min(100, int(percent)))
+        if stage is not None:
+            _progress["stage"] = stage
+        _progress.update(extra)
+
+
+def get_index_status() -> dict:
+    """สถานะดัชนีค้นหาตอนนี้ — indexed = เอกสารที่ retriever ที่ตอบคำถามอยู่จริงมี chunk ของไฟล์นั้น"""
+    from app.services.rag_service import get_retriever
+    chunks = getattr(get_retriever(), "bm25_chunks", None) or []
+    indexed = {(c.get("metadata") or {}).get("source") for c in chunks}
+    indexed.discard(None)
+    with _progress_lock:
+        return {**_progress, "pending": sorted(_pending), "indexed": sorted(indexed)}
+
+
 def _trigger_rebuild_background():
     """Background thread สำหรับ Rebuild Index"""
+    with _progress_lock:
+        _progress["queued"] += 1
+    with _rebuild_lock:
+        with _progress_lock:
+            _progress["queued"] -= 1
+        _run_rebuild()
+
+
+def _run_rebuild():
     start = time.time()
+    _set_progress(0, "กำลังเริ่มสร้างฐานข้อมูล", running=True, error=None)
     try:
         import sys
         admin_parent = str(Path(settings.ADMIN_DIR).parent)
@@ -127,13 +172,25 @@ def _trigger_rebuild_background():
 
         from Admin.rebuild_db import rebuild
         _sync_update_rebuild_status("processing", "กำลัง rebuild index...")
-        durations = rebuild(documents=_sync_load_documents())
+        # rebuild() รายงาน 0–95% ระหว่างทำ (embedding/ChromaDB/BM25) ส่วน 95–100% คือโหลด retriever ใหม่
+        durations = rebuild(documents=_sync_load_documents(),
+                            progress=lambda pct, stage: _set_progress(pct * 0.95, stage))
         _sync_save_durations(durations or {})
 
+        _set_progress(95, "กำลังโหลดฐานข้อมูลใหม่เข้าระบบค้นหา")
         from app.services.rag_service import reload_retriever
         reload_retriever()
 
+        # เอกสารที่ mark ไว้ก่อนเริ่มรอบนี้ถูกรวมในดัชนีแล้ว — ที่ mark ระหว่างรัน รอรอบถัดไป (ถูก trigger ไว้แล้ว)
+        with _progress_lock:
+            for name, marked_at in list(_pending.items()):
+                if marked_at <= start:
+                    del _pending[name]
+
         duration = round(time.time() - start, 2)
+        _set_progress(100, "เสร็จสิ้น", running=False)
         _sync_update_rebuild_status("success", f"Rebuild สำเร็จใน {duration} วินาที", duration=duration)
     except Exception as e:
+        logger.exception("[Rebuild Error]")
+        _set_progress(stage="ผิดพลาด", running=False, error=str(e))
         _sync_update_rebuild_status("error", f"เกิดข้อผิดพลาด: {e}")

@@ -28,7 +28,13 @@ from app.schemas.schemas import DocumentResponse, DocumentUpdate
 from app.services.document_service import (
     _check_doc_ownership, _doc_to_response, _parse_exclude_pages, run_approval_pipeline
 )
-from app.services.rebuild_service import _delete_from_search_index, _trigger_rebuild_background
+from app.services.rebuild_service import (
+    _delete_from_search_index, _trigger_rebuild_background, get_index_status, mark_pending
+)
+from app.services.department_scope import (
+    UNASSIGNED, owner_department_for, require_super_admin, scope_department
+)
+from app.services.audit_service import add_audit_detail
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -37,14 +43,50 @@ UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+async def _get_owned_document(db: AsyncSession, filename: str, current_user: User) -> Document:
+    result = await db.execute(select(Document).where(Document.filename == safe_filename(filename)))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+    _check_doc_ownership(doc, current_user)
+    return doc
+
+
 @router.get("/documents", response_model=List[DocumentResponse])
 async def list_documents(
+    department: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(Document).order_by(Document.upload_date.desc()))
+    """แอดมินแผนกเห็นเฉพาะเอกสารของแผนกตัวเอง — SuperAdmin เห็นทั้งหมด หรือส่ง ?department=
+    เพื่อดูทีละแผนก (?department=__unassigned__ = เอกสารที่ยังไม่ระบุแผนก)"""
+    query = select(Document).order_by(Document.upload_date.desc())
+    dept = scope_department(current_user, department)
+    if dept == UNASSIGNED:
+        query = query.where(Document.department.is_(None))
+    elif dept is not None:
+        query = query.where(Document.department == dept)
+    result = await db.execute(query)
     docs = result.scalars().all()
     return [_doc_to_response(d) for d in docs]
+
+
+@router.get("/documents/index_status")
+async def documents_index_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ความคืบหน้าการสร้างฐานข้อมูลค้นหา + เอกสารที่อยู่ในดัชนีแล้วจริง (สถานะ Active ยังไม่พอ —
+    embedding รันเบื้องหลังหลังกดอนุมัติ) — คืนเฉพาะชื่อไฟล์ในขอบเขตแผนกของผู้เรียก"""
+    status_data = get_index_status()
+    query = select(Document.filename)
+    dept = scope_department(current_user, None)
+    if dept is not None:
+        query = query.where(Document.department == dept)
+    visible = set((await db.execute(query)).scalars().all())
+    status_data["pending"] = [f for f in status_data["pending"] if f in visible]
+    status_data["indexed"] = [f for f in status_data["indexed"] if f in visible]
+    return status_data
 
 
 @router.post("/documents/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -85,27 +127,40 @@ async def upload_document(
     # เดิมเอา filename จาก header x-file-name ไปต่อ path ตรงๆ ส่ง "../../x.pdf" เขียนไฟล์
     # นอก UPLOADS_DIR ได้เลย
     filename = safe_filename(filename)
+    add_audit_detail(document=filename, document_name=display_name, size_bytes=file_size,
+                     exclude_pages=exclude_pages or None)
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF เท่านั้น")
+
+    # ชื่อไฟล์ไม่ซ้ำกันทั้งระบบ — อัปโหลดทับไฟล์ของแผนกอื่นไม่ได้ (ต้องเช็คก่อนเขียนไฟล์ลงดิสก์)
+    existing_result = await db.execute(select(Document).where(Document.filename == filename))
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        _check_doc_ownership(existing, current_user)
 
     file_path = UPLOADS_DIR / filename
     with open(str(file_path), "wb") as f:
         f.write(file_content)
 
     # Count PDF pages and extract raw text for Step 1
+    # หน้าที่เป็นภาพสแกนจะถูก OCR ด้วย Typhoon (Admin/pdf_ocr.py) และเก็บ cache ไว้ให้ rebuild ใช้ต่อ
+    # OCR ใช้เวลาหลายวินาทีต่อหน้า จึงรันใน threadpool เพื่อไม่ให้ event loop ค้าง
     pages = None
     raw_text_blocks = []
     try:
-        import fitz
-        import re
-        doc_pdf = fitz.open(str(file_path))
-        pages = len(doc_pdf)
-        for i, page in enumerate(doc_pdf):
-            page_text = page.get_text()
-            # Clean Thai spacing and split sara-am characters
-            cleaned_page_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', page_text)
-            raw_text_blocks.append(f"# Page {i+1}\n{cleaned_page_text}")
-        doc_pdf.close()
+        import sys
+        admin_parent = str(Path(settings.ADMIN_DIR).parent)
+        if admin_parent not in sys.path:
+            sys.path.insert(0, admin_parent)
+        from Admin.pdf_ocr import extract_pages
+        from starlette.concurrency import run_in_threadpool
+
+        page_list = await run_in_threadpool(
+            extract_pages, str(file_path), _parse_exclude_pages(exclude_pages)
+        )
+        pages = len(page_list)
+        for p in page_list:
+            raw_text_blocks.append(f"# Page {p['page']}\n{p['text']}")
     except Exception as parse_err:
         logger.error("Error parsing raw text on upload: %s", parse_err)
         raw_text_blocks = ["(ไม่สามารถถอดข้อความภาษาไทยได้)"]
@@ -114,10 +169,6 @@ async def upload_document(
     raw_text_path = UPLOADS_DIR / f"{filename}.raw.txt"
     with open(str(raw_text_path), "w", encoding="utf-8") as f:
         f.write(raw_text)
-
-    # Check if already exists
-    existing_result = await db.execute(select(Document).where(Document.filename == filename))
-    existing = existing_result.scalar_one_or_none()
 
     if existing:
         existing.status = "Step_Raw_Text"
@@ -137,10 +188,12 @@ async def upload_document(
             size=file_size,
             exclude_pages=exclude_pages,
             uploaded_by=current_user.display_name or current_user.username,
-            uploaded_by_id=current_user.id
+            uploaded_by_id=current_user.id,
+            department=owner_department_for(current_user)
         )
         db.add(doc_entry)
 
+    add_audit_detail(department=doc_entry.department, replaced_existing=bool(existing) or None)
     await db.commit()
     await db.refresh(doc_entry)
 
@@ -160,6 +213,8 @@ async def update_document(
     if not doc:
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
+    add_audit_detail(changed_fields=sorted(body.model_dump(exclude_none=True)),
+                     new_status=body.status, new_display_name=body.display_name)
 
     if body.status is not None:
         doc.status = body.status
@@ -172,6 +227,7 @@ async def update_document(
     await db.refresh(doc)
 
     if body.status is not None or body.exclude_pages is not None:
+        mark_pending(doc.filename)
         background_tasks.add_task(_trigger_rebuild_background)
 
     return _doc_to_response(doc)
@@ -195,7 +251,7 @@ async def delete_document(
         file_path.unlink()
 
     # Delete associated workflow files
-    for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
+    for ext in [".raw.txt", ".cleaned.md", ".chunks.json", ".ocr.json"]:
         assoc_file = safe_path(UPLOADS_DIR, f"{filename}{ext}")
         if assoc_file.exists():
             assoc_file.unlink()
@@ -236,10 +292,12 @@ async def toggle_document(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(from_status=doc.status, to_status="Active" if active else "Inactive")
     doc.status = "Active" if active else "Inactive"
     await db.commit()
     await db.refresh(doc)
 
+    mark_pending(filename)
     background_tasks.add_task(_trigger_rebuild_background)
     return {"success": True}
 
@@ -264,7 +322,7 @@ async def delete_document_post(
         file_path.unlink()
 
     # Delete associated workflow files
-    for ext in [".raw.txt", ".cleaned.md", ".chunks.json"]:
+    for ext in [".raw.txt", ".cleaned.md", ".chunks.json", ".ocr.json"]:
         assoc_file = safe_path(UPLOADS_DIR, f"{filename}{ext}")
         if assoc_file.exists():
             assoc_file.unlink()
@@ -292,10 +350,12 @@ async def update_exclude_pages(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(exclude_pages=",".join(map(str, exclude_pages)))
     doc.exclude_pages = ",".join(map(str, exclude_pages))
     await db.commit()
     await db.refresh(doc)
 
+    mark_pending(filename)
     background_tasks.add_task(_trigger_rebuild_background)
     return {"success": True}
 
@@ -318,10 +378,37 @@ async def update_document_details(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(new_display_name=payload.display_name.strip() or doc.filename)
     doc.display_name = payload.display_name.strip() or doc.filename
     await db.commit()
     await db.refresh(doc)
     return {"success": True}
+
+
+class UpdateDocDepartmentRequest(BaseModel):
+    filename: str
+    department: Optional[str] = None  # None/"" = ยังไม่ระบุแผนก
+
+
+@router.post("/documents/update_department")
+async def update_document_department(
+    payload: UpdateDocDepartmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ย้ายเอกสารไปแผนกอื่น — SuperAdmin เท่านั้น (ประวัติคำตอบที่อิงเอกสารนี้ย้ายตามไปเอง
+    เพราะกรองประวัติด้วยแผนกปัจจุบันของเอกสาร ไม่ได้เก็บแผนกไว้ในประวัติ)"""
+    require_super_admin(current_user, "เฉพาะ SuperAdmin เท่านั้นที่ย้ายแผนกของเอกสารได้")
+    result = await db.execute(select(Document).where(Document.filename == payload.filename))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
+    new_department = (payload.department or "").strip() or None
+    add_audit_detail(document=doc.filename, document_name=doc.display_name,
+                     from_department=doc.department or "ยังไม่ระบุ", to_department=new_department or "ยังไม่ระบุ")
+    doc.department = new_department
+    await db.commit()
+    return {"success": True, "department": doc.department}
 
 
 class ApproveRequest(BaseModel):
@@ -353,8 +440,10 @@ async def approve_document(
 
     exclude_pages = _parse_exclude_pages(doc.exclude_pages)
     new_status = run_approval_pipeline(filename, current_status, exclude_pages)
+    add_audit_detail(from_status=current_status, to_status=new_status)
 
     if current_status == "Step_Chunk_Preview":
+        mark_pending(filename)
         background_tasks.add_task(_trigger_rebuild_background)
 
     doc.status = new_status
@@ -367,8 +456,10 @@ async def approve_document(
 @router.get("/documents/view_raw")
 async def view_raw_document(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
+    await _get_owned_document(db, filename, current_user)
     filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.raw.txt")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความดิบ")
@@ -381,8 +472,10 @@ async def view_raw_document(
 @router.get("/documents/view_cleaned")
 async def view_cleaned_document(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
+    await _get_owned_document(db, filename, current_user)
     filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.cleaned.md")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์ข้อความที่เคลียร์แล้ว")
@@ -395,8 +488,10 @@ async def view_cleaned_document(
 @router.get("/documents/view_chunks")
 async def view_chunks_document(
     filename: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
+    await _get_owned_document(db, filename, current_user)
     filepath = safe_path(UPLOADS_DIR, f"{safe_filename(filename)}.chunks.json")
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์พรีวิวแบ่ง Chunk")
@@ -425,6 +520,7 @@ async def update_content_document(
         raise HTTPException(status_code=404, detail="ไม่พบเอกสารนี้")
     _check_doc_ownership(doc, current_user)
 
+    add_audit_detail(content_type=content_type)
     safe_name = safe_filename(filename)
     if content_type == "raw":
         if not isinstance(content, str):

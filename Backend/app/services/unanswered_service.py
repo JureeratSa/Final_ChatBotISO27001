@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.models import UnansweredQuery, User
 from app.schemas.schemas import UnansweredSubmit, UnansweredUpdate
+from app.services.department_scope import guess_department
 
 
 def _clear_resolution(item: UnansweredQuery) -> None:
@@ -24,14 +25,19 @@ def _clear_resolution(item: UnansweredQuery) -> None:
     item.resolved_at = None
 
 
-async def record_unanswered_query(db: AsyncSession, body: UnansweredSubmit) -> None:
-    """จับคู่คำถามซ้ำแบบไม่สนตัวพิมพ์ใหญ่เล็ก (ilike) เพิ่ม count แทนสร้างแถวใหม่"""
+async def record_unanswered_query(db: AsyncSession, body: UnansweredSubmit, answer_docs=None) -> None:
+    """จับคู่คำถามซ้ำแบบไม่สนตัวพิมพ์ใหญ่เล็ก (ilike) เพิ่ม count แทนสร้างแถวใหม่
+    answer_docs = เอกสารที่ค้นเจอใกล้เคียงที่สุด ใช้เดาว่าคำถามนี้ควรไปอยู่กับแผนกไหน"""
+    department = await guess_department(db, answer_docs or [])
     result = await db.execute(
         select(UnansweredQuery).where(UnansweredQuery.query.ilike(body.query.strip()))
     )
     existing = result.scalar_one_or_none()
     if existing:
         existing.count += 1
+        # รายการเดิมที่ยังเดาแผนกไม่ได้ เติมแผนกให้ (ที่มีแผนกแล้วไม่เปลี่ยน — แอดมินแผนกนั้นอาจกำลังแก้อยู่)
+        if not existing.department and department:
+            existing.department = department
         # ถูกถามซ้ำแล้วบอทยังตอบไม่ได้ทั้งที่แอดมินปิดว่า "แก้ไขแล้ว" = วิธีแก้ยังไม่ได้ผล
         # เปิดรายการกลับเป็น Pending ให้แอดมินเห็นอีกครั้ง (Ignored ไม่เปิดคืน เพราะตั้งใจไม่แก้)
         if existing.status == "Resolved":
@@ -42,7 +48,8 @@ async def record_unanswered_query(db: AsyncSession, body: UnansweredSubmit) -> N
             id=f"unans-{int(time.time() * 1000)}",
             query=body.query.strip(),
             count=1,
-            status="Pending"
+            status="Pending",
+            department=department
         ))
     await db.commit()
 

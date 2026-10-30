@@ -4,7 +4,7 @@ pydantic>=2.0.0
 pydantic-settings>=2.0.0
 
 # Database
-sqlalchemy>=2.0.0
+sqlalchemy[asyncio]>=2.0.0  # [asyncio] = greenlet — ไม่มีแล้ว AsyncSession import ไม่ได้ (เครื่อง dev มีติดมาเอง แต่ Docker ไม่มี)
 aiomysql>=0.2.0
 pymysql>=1.1.0
 cryptography>=42.0.0
@@ -29,3 +29,9 @@ PyMuPDF>=1.24.0
 
 # Utils
 python-dotenv>=1.0.0
+openpyxl>=3.1  # นำเข้าบัญชีแอดมินจาก Excel (app/services/user_import.py)
+
+# OCR หน้าสแกน: ตำแหน่งคำจาก Tesseract + จับคู่บรรทัดกับ chunk (Admin/pdf_ocr.py)
+pytesseract>=0.3.10
+pillow>=10.0
+rapidfuzz>=3.6

@@ -4,7 +4,7 @@ TUH Chatbot AI — Admin Router: Unanswered Queries
 ย้าย business logic ไปที่ app/services/unanswered_service.py
 """
 import json
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -18,6 +18,10 @@ from app.models.models import User, UnansweredQuery
 from app.schemas.schemas import UnansweredResponse, UnansweredUpdate, UnansweredSubmit
 from app.services.unanswered_service import record_unanswered_query, analyze_query, apply_unanswered_update
 from app.services.taught_keywords_service import invalidate_cache as invalidate_taught_keywords
+from app.services.audit_service import add_audit_detail
+from app.services.department_scope import (
+    check_department, department_column_filter, require_super_admin, scope_department
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -40,19 +44,31 @@ def _to_response(u: UnansweredQuery) -> UnansweredResponse:
         resolved_by=u.resolver.display_name if u.resolver else None,
         resolved_at=_fmt(u.resolved_at),
         search_keywords=json.loads(u.search_keywords or "[]"),
+        department=u.department,
     )
+
+
+def _check_unanswered_access(item: UnansweredQuery, user: User) -> None:
+    add_audit_detail(question=(item.query or "")[:200], department=item.department)
+    check_department(item.department, user, "คุณไม่มีสิทธิ์จัดการคำถามของแผนกอื่น")
 
 
 @router.get("/unanswered", response_model=List[UnansweredResponse])
 async def get_unanswered(
+    department: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
+    """แอดมินแผนกเห็นเฉพาะคำถามที่เดาได้ว่าเป็นของแผนกตัวเอง — ที่เดาไม่ได้ (NULL) เห็นแค่ SuperAdmin"""
+    query = (
         select(UnansweredQuery)
         .options(selectinload(UnansweredQuery.resolver))
         .order_by(UnansweredQuery.count.desc())
     )
+    scope = department_column_filter(UnansweredQuery.department, scope_department(current_user, department))
+    if scope is not None:
+        query = query.where(scope)
+    result = await db.execute(query)
     return [_to_response(u) for u in result.scalars().all()]
 
 
@@ -78,6 +94,9 @@ async def update_unanswered(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
+    _check_unanswered_access(item, current_user)
+    add_audit_detail(from_status=item.status, to_status=body.status,
+                     resolution_type=body.resolution_type, ignore_reason=body.ignore_reason)
     apply_unanswered_update(item, body, current_user)
     await db.commit()
     invalidate_taught_keywords()
@@ -96,8 +115,40 @@ async def delete_unanswered(
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
+    _check_unanswered_access(item, current_user)
     await db.delete(item)
     await db.commit()
+
+
+class UnansweredDepartmentRequest(BaseModel):
+    department: Optional[str] = None  # None/"" = ยังไม่ระบุแผนก
+
+
+@router.put("/unanswered/{query_id}/department", response_model=UnansweredResponse)
+async def update_unanswered_department(
+    query_id: str,
+    body: UnansweredDepartmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ส่งคำถามต่อให้แผนกอื่น (ระบบเดาแผนกผิดหรือเดาไม่ได้) — SuperAdmin เท่านั้น"""
+    require_super_admin(current_user, "เฉพาะ SuperAdmin เท่านั้นที่ส่งคำถามต่อให้แผนกอื่นได้")
+    result = await db.execute(
+        select(UnansweredQuery)
+        .options(selectinload(UnansweredQuery.resolver))
+        .where(UnansweredQuery.id == query_id)
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="ไม่พบรายการนี้")
+    new_department = (body.department or "").strip() or None
+    add_audit_detail(question=(item.query or "")[:200], from_department=item.department or "ยังไม่ระบุ",
+                     to_department=new_department or "ยังไม่ระบุ")
+    item.department = new_department
+    await db.commit()
+    await db.refresh(item)
+    await db.refresh(item, attribute_names=["resolver"])
+    return _to_response(item)
 
 
 @router.post("/unanswered/analyze")

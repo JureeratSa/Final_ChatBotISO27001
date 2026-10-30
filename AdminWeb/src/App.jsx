@@ -20,6 +20,7 @@ import FaqsPage from './pages/FaqsPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
+import AuditLogsPage from './pages/AuditLogsPage';
 import { useTheme } from './hooks/useTheme';
 import { useAuth } from './hooks/useAuth';
 import { useProfile } from './hooks/useProfile';
@@ -32,6 +33,7 @@ import { useUsersState } from './hooks/useUsersState';
 import { useFeedbackAndUnansweredState } from './hooks/useFeedbackAndUnansweredState';
 import { useHistoryState } from './hooks/useHistoryState';
 import { useDeleteConfirmation } from './hooks/useDeleteConfirmation';
+import { useDepartments } from './hooks/useDepartments';
 
 // กำหนด URL ของ Backend API (อ่านจาก .env หรือ fallback เป็น host ปัจจุบันที่พอร์ต 8000)
 const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
@@ -92,6 +94,14 @@ function App() {
   } = useAuth(API_URL, showSuccess, showError, setActiveTab);
 
   const {
+    isSuperAdmin,
+    departmentOptions,
+    fetchDepartments,
+    moveToDepartment,
+    matchesDepartment,
+  } = useDepartments(API_URL, fetch, adminUser, showSuccess, showError);
+
+  const {
     newPassword,
     setNewPassword,
     confirmPassword,
@@ -101,7 +111,7 @@ function App() {
     showConfirmPassword,
     setShowConfirmPassword,
     handleUpdatePassword,
-  } = useProfile(API_URL, fetch, showSuccess, showError);
+  } = useProfile(API_URL, fetch, showSuccess, showError, handleLogout, adminUser.username);
 
   const { stats, fetchStats, trendDrawer, setTrendDrawer } = useDashboardData(API_URL, fetch);
 
@@ -109,6 +119,7 @@ function App() {
 
   const {
     documents,
+    indexStatus,
     dragOver,
     uploading,
     uploadProgress,
@@ -233,6 +244,13 @@ function App() {
     departments,
     fetchUsers,
     handleCreateOrUpdateUser,
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
   } = useUsersState(API_URL, fetch, showSuccess, showError);
 
   const {
@@ -293,7 +311,9 @@ function App() {
     filteredHistory,
     downloadCSV,
     getSatisfactionStatsByPeriod,
-  } = useHistoryState(API_URL, fetch, feedback);
+    historyDepartment,
+    setHistoryDepartment,
+  } = useHistoryState(API_URL, fetch, feedback, documents);
 
   const { confirmDelete } = useDeleteConfirmation({
     API_URL,
@@ -310,8 +330,12 @@ function App() {
   });
 
   // Fetch data on login
+  // รหัสผ่านหมดอายุ (ครบ 90 วัน) — backend ตอบ 403 ทุกอย่างยกเว้นการเปลี่ยนรหัส จึงไม่ต้องดึงข้อมูล
+  // และล็อกไว้ที่หน้าโปรไฟล์จนกว่าจะเปลี่ยนรหัสแล้วล็อกอินใหม่
+  const passwordExpired = isLoggedIn && Boolean(adminUser.password_expired);
+
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && !adminUser.password_expired) {
       fetchStats();
       fetchDocuments();
       fetchFeedback();
@@ -323,6 +347,7 @@ function App() {
       fetchHistoryChunksMap();
       fetchForms();
       fetchAnnouncements();
+      fetchDepartments();
       if (adminUser.role === 'System Administrator') {
         fetchUsers();
       }
@@ -352,17 +377,26 @@ function App() {
     if (isLoggedIn && activeTab === 'users' && adminUser.role === 'System Administrator') {
       fetchUsers();
     }
+    // รายชื่อแผนกมาจากบัญชีแอดมิน — โหลดใหม่ตอนกลับจากหน้าจัดการบัญชี (อาจเพิ่มแผนกใหม่ไว้)
+    if (isLoggedIn && isSuperAdmin && activeTab !== 'users') {
+      fetchDepartments();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isLoggedIn, adminUser.role]);
 
-  // Safety redirect: If a non-System Administrator lands on users or settings tab, redirect them to dashboard
+  // Safety redirect: แอดมินแผนกเข้าแท็บส่วนกลาง (บัญชีแอดมิน / ตั้งค่า AI / ประกาศ / FAQ ปุ่มหน้าแรก)
+  // ไม่ได้ — backend ปฏิเสธการแก้ไขอยู่แล้ว ฝั่งนี้แค่ไม่ให้เปิดหน้าที่ใช้งานไม่ได้
+  const SUPER_ADMIN_TABS = ['users', 'settings', 'announcements', 'faqs', 'audit'];
   useEffect(() => {
     if (isLoggedIn && adminUser) {
-      if (adminUser.role !== 'System Administrator' && (activeTab === 'users' || activeTab === 'settings')) {
+      if (passwordExpired && activeTab !== 'profile') {
+        setActiveTab('profile');
+      } else if (adminUser.role !== 'System Administrator' && SUPER_ADMIN_TABS.includes(activeTab)) {
         setActiveTab('dashboard');
       }
     }
-  }, [isLoggedIn, activeTab, adminUser.role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, activeTab, adminUser.role, passwordExpired]);
 
   // Login View
   if (!isLoggedIn) {
@@ -405,12 +439,14 @@ function App() {
     confirmPassword,
     currentUnanswered,
     departments,
+    departmentOptions,
     deleteModalState,
     docCurrentPage,
     docSearchQuery,
     docSortField,
     docSortOrder,
     documents,
+    indexStatus,
     downloadCSV,
     dragOver,
     editDisplayName,
@@ -419,6 +455,11 @@ function App() {
     expandedChunk,
     faqAnswer,
     feedback,
+    fetch,
+    fetchDocuments,
+    fetchForms,
+    fetchHistory,
+    fetchUnanswered,
     filteredHistory,
     formName,
     formPage,
@@ -452,6 +493,7 @@ function App() {
     handleUpdatePassword,
     handleViewPreview,
     history,
+    historyDepartment,
     historyEndDate,
     historyLimit,
     historyPeriod,
@@ -459,12 +501,16 @@ function App() {
     historyStartDate,
     isAnnFormOpen,
     isDarkMode,
+    isSuperAdmin,
     isSidebarOpen,
     loadingHistory,
     loadingPreview,
     loadingUsers,
+    matchesDepartment,
+    moveToDepartment,
     newPassword,
     parseTimestamp,
+    passwordExpired,
     pendingUnansweredCount,
     preDisplayName,
     preExcludePages,
@@ -503,6 +549,7 @@ function App() {
     setFormName,
     setFormPage,
     setFormSearchQuery,
+    setHistoryDepartment,
     setHistoryEndDate,
     setHistoryLimit,
     setHistoryPeriod,
@@ -539,6 +586,13 @@ function App() {
     setUnansweredEndDate,
     setUnansweredSortOrder,
     setUnansweredStartDate,
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
     setUserFormDepartment,
     setUserFormDisplayName,
     setUserFormIsActive,
@@ -582,13 +636,14 @@ function App() {
         {activeTab === 'dashboard' && <DashboardPage />}
         {activeTab === 'satisfaction' && <SatisfactionPage />}
         {activeTab === 'documents' && <DocumentsPage />}
-        {activeTab === 'announcements' && <AnnouncementsPage />}
+        {activeTab === 'announcements' && isSuperAdmin && <AnnouncementsPage />}
         {activeTab === 'logs' && <LogsPage />}
         {activeTab === 'history' && <HistoryPage />}
-        {activeTab === 'faqs' && <FaqsPage />}
+        {activeTab === 'faqs' && isSuperAdmin && <FaqsPage />}
         {activeTab === 'settings' && adminUser.role === 'System Administrator' && <SettingsPage />}
         {activeTab === 'profile' && <ProfilePage />}
         {activeTab === 'users' && adminUser.role === 'System Administrator' && <UsersPage />}
+        {activeTab === 'audit' && isSuperAdmin && <AuditLogsPage />}
       </AdminShell>
     </AdminContext.Provider>
   );

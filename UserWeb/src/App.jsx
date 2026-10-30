@@ -29,7 +29,33 @@ import { useChatInput } from './hooks/useChatInput';
 import { useFeedbackModal } from './hooks/useFeedbackModal';
 import { useDislikeModal } from './hooks/useDislikeModal';
 import { useAnnouncements } from './hooks/useAnnouncements';
-import { useUserIp } from './hooks/useUserIp';
+
+// เบอร์ติดต่อมุมขวาบน — จอแคบกว่า 1280px (iPad แนวนอน, notebook ที่เปิดเมนูซ้าย) ตัดคำว่า "ระบบมีปัญหา"
+// ออกให้ป้ายสั้นลง เดิมป้ายยาวล้นขอบขวาจนเบอร์ถูกตัด
+function PhoneContactText() {
+  // ห่อด้วย span เดียว — ป้ายแม่เป็น flex มี gap ถ้าแยกเป็นหลายลูก จะมีช่องว่างแทรกกลางคำ
+  return (
+    <span>
+      <span className="hidden xl:inline">ระบบมีปัญหา</span>ติดต่อ 8471 หรือ 8343
+    </span>
+  );
+}
+
+// หน้าต้อนรับ: วางมาสคอตข้างข้อความเมื่อจอกว้างพอ — ตัวอักษรใหญ่ทำให้ทั้งเมนูซ้ายและข้อความกว้างขึ้น ถ้าวางข้างกัน
+// บน notebook การ์ดคำถามจะบีบเหลือคำละบรรทัด จึงเรียงบน-ล่างไปจนจอกว้างขึ้นตามขนาดตัวอักษร
+// (เขียนชื่อ class เต็มทุกตัว — Tailwind สร้าง CSS เฉพาะ class ที่เห็นเป็นข้อความในโค้ด)
+// mascotCap: จอเตี้ย (≤ 760px) + ตัวอักษรใหญ่ ย่อรูปลงให้ช่องพิมพ์ยังอยู่ในจอ — ตัวอักษรปกติคงขนาดเดิม
+const WELCOME_LAYOUT = {
+  normal: { row: 'lg:flex-row lg:gap-2', mascotBox: 'lg:w-auto', mascot: 'lg:mb-0', text: 'lg:items-start lg:text-left', mascotCap: '' },
+  large: {
+    row: 'min-[1440px]:flex-row min-[1440px]:gap-2', mascotBox: 'min-[1440px]:w-auto', mascot: 'min-[1440px]:mb-0',
+    text: 'min-[1440px]:items-start min-[1440px]:text-left', mascotCap: '[@media(max-height:760px)]:max-h-[170px]',
+  },
+  xl: {
+    row: '2xl:flex-row 2xl:gap-2', mascotBox: '2xl:w-auto', mascot: '2xl:mb-0',
+    text: '2xl:items-start 2xl:text-left', mascotCap: '[@media(max-height:760px)]:max-h-[150px]',
+  },
+};
 
 function App() {
   // ─── 1. Core Interface & Styling Hooks ────────────────────────────────────────
@@ -37,6 +63,7 @@ function App() {
   const { isDarkMode, setIsDarkMode, currentMascot, currentBotAvatar } = useTheme(); // จัดการธีมและรูปมาสคอต
   const { sidebarWidth, startResizing, startTouchResizing } = useSidebarResize(); // ระบบลากปรับขนาด Sidebar
   const { fontSize, setFontSize } = useFontSize(); // ปรับขนาดตัวอักษร (small / normal / large)
+  const welcomeLayout = WELCOME_LAYOUT[fontSize] || WELCOME_LAYOUT.normal;
   const { isSidebarOpen, setIsSidebarOpen, copiedId, handleCopyMessage } = useSidebarToggle(); // เปิด/ปิด Sidebar และคัดลอกข้อความ
 
 
@@ -77,7 +104,6 @@ function App() {
   } = useDislikeModal();
 
   const { activeAnnouncements, showAnnModal, handleCloseAnnModal } = useAnnouncements();
-  const userIp = useUserIp();
 
   const {
     inputValue, setInputValue, isTyping,
@@ -187,7 +213,7 @@ function App() {
             /* ==================== STATE A: หน้าจอเริ่มต้น (เมื่อไม่มีการสนทนา) ==================== */
             <div className="w-full h-full flex flex-col relative overflow-hidden">
               {/* ส่วนหัว */}
-              <div className="w-full p-5 md:p-7 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0 z-20">
+              <div className="w-full p-5 md:p-7 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between shrink-0 z-20">
                 {/* ส่วนซ้าย: ปุ่มเมนูแฮมเบอร์เกอร์และเมนูแบบเลื่อนลง */}
                 <div className="flex items-center gap-3">
                   {!isSidebarOpen && (
@@ -205,29 +231,30 @@ function App() {
                 </div>
 
                 {/* ส่วนขวา: ปุ่มติดต่อ */}
-                <div className="hidden md:flex items-center gap-2">
-                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
-                    <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
-                    IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
-                  </span>
-                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
+                <div className="hidden md:flex items-center gap-2 shrink-0">
+                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-white/55 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm whitespace-nowrap">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
-                    ระบบมีปัญหาติดต่อ 8471 หรือ 8343
+                    <PhoneContactText />
                   </span>
                 </div>
               </div>
 
               {/* เนื้อหาตรงกลาง */}
-              <div className="flex-1 w-full overflow-y-auto custom-scrollbar z-10 px-4 md:px-8 pb-8 flex flex-col select-none justify-center">
-                <div className="flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-2 max-w-5xl mx-auto animate-fade-in my-auto py-6 w-full">
+              {/* ไม่ใส่ justify-center ที่กล่องเลื่อน — จัดกลางด้วย my-auto ของลูกแทน: ถ้าเนื้อหาสูงกว่าจอ (จอเตี้ย/ตัวอักษรใหญ่)
+                  justify-center ทำให้ส่วนบนถูกตัดและเลื่อนขึ้นไปดูไม่ได้ */}
+              <div className="flex-1 w-full overflow-y-auto custom-scrollbar z-10 px-4 md:px-8 pb-8 flex flex-col select-none">
+                {/* ข้างกัน/บน-ล่าง ตามความกว้างจอและขนาดตัวอักษร (ดู WELCOME_LAYOUT) */}
+                <div className={`flex flex-col items-center justify-center gap-6 max-w-5xl mx-auto animate-fade-in my-auto py-6 w-full ${welcomeLayout.row}`}>
                   {/* ส่วนซ้าย: รูปมาสคอตหมาที่ขยายใหญ่ขึ้น */}
-                  <div className="flex-shrink-0 flex justify-center items-center order-1 lg:order-1 w-full lg:w-auto">
+                  <div className={`flex-shrink-0 flex justify-center items-center w-full ${welcomeLayout.mascotBox}`}>
                     <img
                       src={currentMascot}
+                      // ขนาดเป็น px (ตัวอักษรปกติเท่าเดิมทุกจอ) — เดิมเป็น rem พอเลือกตัวอักษร "ใหญ่สุด" รูปขยายตาม
+                      // 1.4 เท่าจนเนื้อหาล้นจอ notebook; จอ md (iPad แนวตั้ง) ใช้ขนาดเท่า lg เพราะเรียงแนวตั้งมีที่เหลือเยอะ
                       className={`${isDarkMode
-                          ? "w-48 md:w-64 lg:w-72 xl:w-96 max-h-[10rem] md:max-h-[13.75rem] lg:max-h-[18.75rem] xl:max-h-[26.25rem]"
-                          : "w-36 md:w-44 lg:w-60 xl:w-80 max-h-[8.125rem] md:max-h-[11.25rem] lg:max-h-[16.25rem] xl:max-h-[23.75rem]"
-                        } h-auto object-contain animate-mascot-float mb-3 lg:mb-0`}
+                          ? "w-[192px] md:w-[288px] xl:w-[384px] max-h-[160px] md:max-h-[300px] xl:max-h-[420px]"
+                          : "w-[144px] md:w-[240px] xl:w-[320px] max-h-[130px] md:max-h-[260px] xl:max-h-[380px]"
+                        } ${welcomeLayout.mascotCap} h-auto object-contain animate-mascot-float mb-3 ${welcomeLayout.mascot}`}
                       style={isDarkMode ? {
                         WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)',
                         maskImage: 'radial-gradient(ellipse at center, rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0) 100%)'
@@ -237,7 +264,7 @@ function App() {
                   </div>
 
                   {/* ส่วนขวา: ข้อความ ช่องแชท และ FAQ */}
-                  <div className="flex-1 flex flex-col items-center lg:items-start text-center lg:text-left max-w-xl w-full order-2 lg:order-2">
+                  <div className={`flex-1 flex flex-col items-center text-center max-w-xl w-full ${welcomeLayout.text}`}>
                     <div className="mb-4 max-w-xl leading-relaxed">
                       {welcomeMessage.includes('\n') ? (
                         <>
@@ -304,8 +331,8 @@ function App() {
             /* ==================== STATE B: หน้าต่างแชทแบบเต็มหน้าจอ (เมื่อมีการสนทนา) ==================== */
             <div className="w-full h-full flex flex-col bg-white/85 dark:bg-[#1B2062]/85 backdrop-blur-md overflow-hidden z-10 transition-all duration-300 animate-slide-in">
               {/* ส่วนหัวของหน้าต่างแชท */}
-              <header className="p-4 md:px-6 md:py-4 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/50 dark:bg-[#1B2062]/50 flex flex-col lg:flex-row gap-3 lg:gap-0 items-start lg:items-center justify-between shrink-0">
-                <div className="flex items-center gap-3 w-full lg:w-auto">
+              <header className="p-4 md:px-6 md:py-4 border-b border-slate-200 dark:border-tuh-purple/20 bg-white/50 dark:bg-[#1B2062]/50 flex flex-row gap-3 items-center justify-between shrink-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   {!isSidebarOpen && (
                     <button
                       onClick={() => setIsSidebarOpen(true)}
@@ -315,7 +342,7 @@ function App() {
                       <i className="fa-solid fa-bars text-lg"></i>
                     </button>
                   )}
-                  <div className="min-w-0 flex-1 lg:flex-initial">
+                  <div className="min-w-0 flex-1">
                     <h1 className="text-lg md:text-xl font-extrabold tracking-tight text-tuh-navy dark:text-white flex items-center gap-2">
                       <span className="text-tuh-coral shrink-0"><i className="fa-solid fa-circle-nodes"></i></span>
                       <span className="text-tuh-gradient font-black truncate font-roboto">TUH Chatbot AI</span>
@@ -325,14 +352,10 @@ function App() {
                     </p>
                   </div>
                 </div>
-                <div className="hidden md:flex w-full lg:w-auto justify-start lg:justify-end shrink-0 pl-12 md:pl-0 lg:pl-0 gap-2">
-                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
-                    <i className="fa-solid fa-desktop text-tuh-indigo/60 dark:text-slate-400 text-xs md:text-sm"></i>
-                    IP: <span className="text-tuh-purple dark:text-purple-300 ml-1">{userIp}</span>
-                  </span>
-                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm">
+                <div className="hidden md:flex justify-end shrink-0 gap-2">
+                  <span className="font-extrabold text-tuh-indigo/80 dark:text-slate-200 bg-slate-100 dark:bg-tuh-indigo/40 px-5 py-2 rounded-2xl border border-slate-300 dark:border-white/25 flex items-center gap-1.5 shadow-sm whitespace-nowrap">
                     <i className="fa-solid fa-phone text-tuh-rose animate-pulse text-xs md:text-sm"></i>
-                    ระบบมีปัญหาติดต่อ 8471 หรือ 8343
+                    <PhoneContactText />
                   </span>
                 </div>
               </header>
@@ -370,7 +393,7 @@ function App() {
                   ))
                 )}
                 {isTyping && (
-                  <div className="flex gap-2 max-w-[90%] mr-auto animate-slide-in">
+                  <div className="flex gap-2 max-w-[92%] md:max-w-[85%] mr-auto animate-slide-in">
                     <img
                       src={currentBotAvatar}
                       alt="Bot Icon"

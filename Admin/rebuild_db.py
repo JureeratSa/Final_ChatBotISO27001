@@ -124,17 +124,12 @@ def generate_table_description(table_markdown, heading, page_num):
     desc = f"ตารางแสดงข้อมูลรายละเอียด{heading_info} (หน้า {page_num}){columns_info}"
     return desc
 
-def extract_text_from_pdf(filepath):
-    """แกะตัวหนังสือจากไฟล์ PDF ทีละหน้า"""
-    pages_text = []
-    doc = fitz.open(filepath)
-    for page in doc:
-        raw_text = page.get_text()
-        # Clean Thai spacing and split sara-am characters
-        cleaned_text = re.sub(r'([ก-ฮ][่้๊๋]?)\s+า', r'\1ำ', raw_text)
-        pages_text.append(cleaned_text)
-    doc.close()
-    return pages_text
+def extract_text_from_pdf(filepath, skip_pages=()):
+    """แกะตัวหนังสือจากไฟล์ PDF ทีละหน้า — หน้าที่เป็นภาพสแกนอ่านด้วย Typhoon OCR (ดู Admin/pdf_ocr.py)
+    คืน (ข้อความแต่ละหน้า, set ของเลขหน้าที่ได้ข้อความจาก OCR)"""
+    from Admin.pdf_ocr import extract_pages
+    pages = extract_pages(filepath, skip_pages=skip_pages)
+    return [p["text"] for p in pages], {p["page"] for p in pages if p["is_scanned"]}
 
 # Chunking
 
@@ -226,7 +221,10 @@ def chunk_document_text(full_text, filename, start_chunk_id=1):
 
 # เรียกทุก def มาใช้งาน
 
-def rebuild(documents=None):
+EMBED_BATCH = 16  # encode ทีละชุดเพื่อรายงานความคืบหน้า (เวกเตอร์ที่ได้เหมือน encode ทั้งก้อน)
+
+
+def rebuild(documents=None, progress=None):
     """
     สร้างดัชนีค้นหา (ChromaDB + BM25) ใหม่ทั้งคลังจาก PDF ใน uploads/
 
@@ -238,10 +236,19 @@ def rebuild(documents=None):
       (ผลวัด 2026-10-08: 39/400 ของ context ที่ส่งให้ LLM มาจากหน้าที่ควรละเว้น เช่น ปก/สารบัญ)
     None = โหมด CLI (python Admin/rebuild_db.py) อ่าน db_documents.json แบบเดิม
 
+    progress: callback(percent 0-100, ข้อความขั้นตอน) ให้ Backend แสดงความคืบหน้าในหน้าแอดมิน (ไม่บังคับ)
+
     คืน {filename: {"chunking_duration", "embedding_duration"}} ให้ Backend บันทึกลง DB
     """
     import time
     start_time = time.perf_counter()
+
+    def report(pct, stage):
+        if progress:
+            try:
+                progress(pct, stage)
+            except Exception:
+                pass  # การรายงานความคืบหน้าห้ามทำให้ rebuild ล้ม
     
     # 1. โหลดการตั้งค่าระบบ AI
     db_settings_path = os.path.join(root_dir, "user", "backend", "db", "db_settings.json")
@@ -286,7 +293,16 @@ def rebuild(documents=None):
 
     combined_docs_data = []
     model = None
-    
+
+    # 0–80% = ไล่ทำทีละเอกสาร (เอกสารที่มี cache เสร็จแทบทันที เอกสารใหม่ไล่ตาม batch ของ embedding)
+    # 80–90% = บันทึก ChromaDB, 90–100% = สร้าง BM25
+    todo = [f for f in pdf_files if f in active_filenames]
+    done_docs = 0
+    report(0, "กำลังเตรียมเอกสาร")
+
+    def doc_progress(sub, stage):
+        report(80 * (done_docs + sub) / max(1, len(todo)), stage)
+
     for pdf in pdf_files:
         if pdf not in active_filenames:
             print(f"Skipping Inactive document: {pdf}")
@@ -332,14 +348,17 @@ def rebuild(documents=None):
             })
             chunking_duration = cached_data.get("chunking_duration", 0.0)
             embedding_duration = cached_data.get("embedding_duration", 0.0)
+            done_docs += 1
         else:
             print(f"-> คำนวณเวกเตอร์และสกัดคำใหม่สำหรับ: {pdf}")
+            doc_progress(0, f"กำลังสกัดข้อความ: {pdf}")
             
             default_filename = "ประกาศ มธ.สวัสดิการด้านสุขภาพ พ.ศ.2566.pdf"
             default_md_path = os.path.join(root_dir, "sample_cleaned.md")
             is_default_and_unchanged = (pdf == default_filename and os.path.exists(default_md_path))
             
             chunk_start = time.perf_counter()
+            scanned_pages = set()
             if is_default_and_unchanged:
                 print("  Loading pre-cleaned markdown for default document...")
                 with open(default_md_path, "r", encoding="utf-8") as f:
@@ -367,7 +386,9 @@ def rebuild(documents=None):
                     
                 full_text = "".join(reconstructed_blocks)
             else:
-                pages = extract_text_from_pdf(pdf_path)
+                pages, scanned_pages = extract_text_from_pdf(pdf_path, skip_pages=exclude_pages)
+                if scanned_pages:
+                    print(f"  หน้าสแกน (OCR): {len(scanned_pages)} หน้า")
                 text_blocks = []
                 for i, page_text in enumerate(pages):
                     page_num = i + 1
@@ -378,10 +399,15 @@ def rebuild(documents=None):
                 full_text = "\n\n".join(text_blocks)
                 
             chunks, _ = chunk_document_text(full_text, pdf, start_chunk_id=1)
+            # บอกว่า chunk ไหนมาจาก OCR — หน้าสแกนไม่มีชั้นข้อความใน PDF จึงไฮไลท์อ้างอิงไม่ได้
+            for c in chunks:
+                if c["metadata"]["page"] in scanned_pages:
+                    c["metadata"]["is_scanned"] = True
             chunking_duration = time.perf_counter() - chunk_start
             
             if not chunks:
                 print(f"  Warning: No chunks generated for {pdf}")
+                done_docs += 1
                 continue
                 
             texts = [c["content"] for c in chunks]
@@ -393,8 +419,13 @@ def rebuild(documents=None):
                 from sentence_transformers import SentenceTransformer
                 model = SentenceTransformer("BAAI/bge-m3")
             emb_start = time.perf_counter()
-            embeddings_np = model.encode(texts, show_progress_bar=True, convert_to_numpy=True, normalize_embeddings=True)
-            embeddings_list = embeddings_np.tolist()
+            for b in range(0, len(texts), EMBED_BATCH):
+                doc_progress(b / len(texts), f"กำลังทำ embedding: {pdf}")
+                batch = model.encode(texts[b:b + EMBED_BATCH], show_progress_bar=False,
+                                     convert_to_numpy=True, normalize_embeddings=True)
+                embeddings_list.extend(batch.tolist())
+            done_docs += 1
+            doc_progress(0, f"ทำ embedding เสร็จ: {pdf}")
             embedding_duration = time.perf_counter() - emb_start
 
             # บันทึกลง Cache
@@ -457,6 +488,7 @@ def rebuild(documents=None):
     index_dir = os.path.join(root_dir, "index_db")
     os.makedirs(index_dir, exist_ok=True)
     
+    report(80, "กำลังบันทึกฐานข้อมูลเวกเตอร์ (ChromaDB)")
     if len(all_chunks) > 0:
         import numpy as np
         embeddings_np = np.array(all_embeddings_list, dtype=np.float32)
@@ -494,6 +526,7 @@ def rebuild(documents=None):
             documents=texts
         )
         print(f"บันทึก Chroma DB สำเร็จ (รวม {len(ids)} รายการ)")
+        report(90, "กำลังสร้างดัชนีคำสำคัญ (BM25)")
 
         # 3. บันทึก sample_chunks.json
         chunks_output_path = os.path.join(root_dir, "sample_chunks.json")
@@ -518,6 +551,7 @@ def rebuild(documents=None):
         with open(bm25_path, "wb") as f:
             pickle.dump(bm25_data, f)
         print("บันทึกดัชนี BM25 สำเร็จ")
+        report(100, "บันทึกดัชนีเสร็จ")
     else:
         print("คำเตือน: ไม่มี chunks ที่จะทำการดรรชนีเวกเตอร์")
         

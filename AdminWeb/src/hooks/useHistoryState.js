@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { UNASSIGNED } from './useDepartments';
 
 /**
  * useHistoryState — ประวัติการตอบของบอท (ChatHistory), การกรองตามช่วงเวลา/วันที่, ส่งออก CSV,
@@ -9,7 +10,7 @@ import { useState, useEffect } from 'react';
  * เดิมอยู่ใกล้กับ state ของ History ในไฟล์เดิม (จัดกลุ่มตามตำแหน่งเดิมในซอร์สโค้ด) แต่คำนวณจาก
  * ข้อมูล feedback ของอีกโดเมนหนึ่ง
  */
-export function useHistoryState(API_URL, fetch, feedback) {
+export function useHistoryState(API_URL, fetch, feedback, documents = []) {
   const [history, setHistory] = useState([]);
   const [chunksMap, setChunksMap] = useState({});
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -20,6 +21,8 @@ export function useHistoryState(API_URL, fetch, feedback) {
   const [historySortOrder, setHistorySortOrder] = useState('desc'); // 'desc' = newest first, 'asc' = oldest first
   const [historyStartDate, setHistoryStartDate] = useState('');
   const [historyEndDate, setHistoryEndDate] = useState('');
+  // ตัวกรองแผนกของ SuperAdmin ('' = ทุกแผนก) — แอดมินแผนกได้ประวัติเฉพาะแผนกตัวเองจาก API อยู่แล้ว
+  const [historyDepartment, setHistoryDepartment] = useState('');
   const [historyLimit, setHistoryLimit] = useState(() => {
     return localStorage.getItem('tuh_admin_history_limit') || '1000';
   });
@@ -61,9 +64,22 @@ export function useHistoryState(API_URL, fetch, feedback) {
       .finally(() => setLoadingHistory(false));
   };
 
+  // แผนกของประวัติ = แผนกของเอกสารที่คำตอบอิงจริง (cited_docs) — แถวเก่าที่ยังไม่มี cited_docs
+  // (null) ใช้ทุกเอกสารที่ค้นเจอแทน ตรงกับกติกาฝั่ง backend (department_scope.history_department_filter)
+  const docDepartment = Object.fromEntries(documents.map(d => [d.filename, d.department || null]));
+  const inHistoryDepartment = (log) => {
+    if (!historyDepartment) return true;
+    const docs = log.cited_docs ?? log.referenced_docs ?? [];
+    if (historyDepartment === UNASSIGNED) {
+      return docs.some(f => f in docDepartment && !docDepartment[f]);
+    }
+    return docs.some(f => docDepartment[f] === historyDepartment);
+  };
+
   const filteredHistory = history.filter(log => {
     const logDate = parseTimestamp(log.timestamp);
     if (!logDate) return false;
+    if (!inHistoryDepartment(log)) return false;
 
     // If custom range is set, filter by it instead of the predefined period
     if (historyStartDate || historyEndDate) {
@@ -320,6 +336,8 @@ export function useHistoryState(API_URL, fetch, feedback) {
     fetchHistory,
     filteredHistory,
     downloadCSV,
+    historyDepartment,
+    setHistoryDepartment,
     getSatisfactionStatsByPeriod,
   };
 }

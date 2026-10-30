@@ -15,6 +15,8 @@ from app.core.config import settings
 from app.core.security import safe_path
 from app.models.models import Document, User
 from app.schemas.schemas import DocumentResponse
+from app.services.department_scope import check_department
+from app.services.audit_service import add_audit_detail
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,18 +44,20 @@ def _doc_to_response(doc: Document) -> DocumentResponse:
         chunking_duration=doc.chunking_duration,
         embedding_duration=doc.embedding_duration,
         upload_date=doc.upload_date.strftime("%Y-%m-%d %H:%M:%S") if doc.upload_date else "",
-        uploaded_by=doc.uploaded_by
+        uploaded_by=doc.uploaded_by,
+        department=doc.department
     )
 
 
 def _check_doc_ownership(doc: Document, current_user: User):
-    if current_user.role == "System Administrator":
-        return
-    if doc.uploaded_by not in [current_user.username, current_user.display_name]:
-        raise HTTPException(
-            status_code=403,
-            detail="คุณไม่มีสิทธิ์แก้ไขหรือดำเนินการกับเอกสารที่ผู้อื่นเป็นผู้อัปโหลด"
-        )
+    # ทุก endpoint ของเอกสารผ่านตรงนี้ — ระบุใน audit log ว่าทำกับเอกสารไหน (บันทึกแม้ถูกปฏิเสธ)
+    add_audit_detail(document=doc.filename, document_name=doc.display_name, department=doc.department)
+    # เดิมเทียบ uploaded_by กับชื่อผู้ใช้ (เอกสารเป็นของ "คน") — เปลี่ยนเป็นของ "แผนก" ให้แอดมิน
+    # ทุกคนในแผนกช่วยกันดูแลได้ และเอกสารไม่ตกค้างเมื่อคนอัปโหลดย้าย/ลาออก
+    check_department(
+        doc.department, current_user,
+        "คุณไม่มีสิทธิ์แก้ไขหรือดำเนินการกับเอกสารของแผนกอื่น"
+    )
 
 
 def run_approval_pipeline(filename: str, current_status: str, exclude_pages: List[int]) -> str:

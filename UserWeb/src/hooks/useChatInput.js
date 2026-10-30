@@ -191,6 +191,8 @@ export function useChatInput({
           sender: 'bot',
           text: botResponseText,
           citations: data.citations || [],
+          // แบบฟอร์มที่คำตอบพูดถึง (backend จับจากชื่อแบบฟอร์มในคำตอบ) — แสดงเป็นปุ่มดาวน์โหลดใต้คำตอบ
+          formLinks: data.form_links || [],
           timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
         };
 

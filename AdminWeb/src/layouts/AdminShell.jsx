@@ -1,6 +1,7 @@
 import { useAdminContext } from '../context/AdminContext';
 import dog from '../dog.png';
 import botAvatar from '../bot_avatar.jpg';
+import PrivacyNotice from '../components/PrivacyNotice';
 
 /**
  * AdminShell — โครง layout หลักหลัง login (sidebar navigation + top bar) ครอบเนื้อหา
@@ -20,6 +21,8 @@ export default function AdminShell({ children }) {
     history,
     isDarkMode,
     isSidebarOpen,
+    isSuperAdmin,
+    passwordExpired,
     pendingUnansweredCount,
     setDeleteModalState,
     setIsDarkMode,
@@ -121,13 +124,16 @@ export default function AdminShell({ children }) {
             <span>จัดการเอกสาร PDF</span>
           </button>
 
-          <button
-            onClick={() => handleTabClick('announcements')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
-          >
-            <i className="fa-solid fa-bullhorn text-sm"></i>
-            <span>สร้างและจัดการประกาศ</span>
-          </button>
+          {/* ประกาศ / FAQ ปุ่มหน้าแรก เป็นส่วนกลางของระบบ — เฉพาะ SuperAdmin */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabClick('announcements')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'announcements' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-bullhorn text-sm"></i>
+              <span>สร้างและจัดการประกาศ</span>
+            </button>
+          )}
 
           <button
             onClick={() => handleTabClick('logs')}
@@ -155,13 +161,15 @@ export default function AdminShell({ children }) {
             <span>ประวัติการตอบของบอท</span>
           </button>
 
-          <button
-            onClick={() => handleTabClick('faqs')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'faqs' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
-          >
-            <i className="fa-solid fa-book text-sm"></i>
-            <span>คู่มือตอบกลับ (FAQs)</span>
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabClick('faqs')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'faqs' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-book text-sm"></i>
+              <span>คู่มือตอบกลับ (FAQs)</span>
+            </button>
+          )}
 
 
           {adminUser.role === 'System Administrator' && (
@@ -171,6 +179,16 @@ export default function AdminShell({ children }) {
             >
               <i className="fa-solid fa-users text-sm"></i>
               <span>จัดการบัญชีแอดมิน</span>
+            </button>
+          )}
+
+          {isSuperAdmin && (
+            <button
+              onClick={() => handleTabClick('audit')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === 'audit' ? 'tuh-sidebar-active' : 'tuh-sidebar-inactive font-semibold'}`}
+            >
+              <i className="fa-solid fa-shield-halved text-sm"></i>
+              <span>บันทึกการเข้าใช้งาน</span>
             </button>
           )}
 
@@ -246,6 +264,7 @@ export default function AdminShell({ children }) {
                 {activeTab === 'settings' && <i className="fa-solid fa-sliders"></i>}
                 {activeTab === 'profile' && <i className="fa-solid fa-user-gear"></i>}
                 {activeTab === 'users' && <i className="fa-solid fa-users"></i>}
+                {activeTab === 'audit' && <i className="fa-solid fa-shield-halved"></i>}
               </span>
               <span className={`${activeTab === 'dashboard' ? 'text-tuh-gradient-light' : 'text-tuh-gradient'} font-black`}>
                 {activeTab === 'dashboard' && 'ภาพรวม'}
@@ -258,19 +277,53 @@ export default function AdminShell({ children }) {
                 {activeTab === 'settings' && 'การตั้งค่าระบบ AI แชทบอท'}
                 {activeTab === 'profile' && 'โปรไฟล์ผู้ดูแลระบบ'}
                 {activeTab === 'users' && 'จัดการบัญชีแอดมินระบบ'}
+                {activeTab === 'audit' && 'บันทึกการเข้าใช้งานของแอดมิน'}
               </span>
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            {/* แจ้งว่าการดำเนินการในระบบผู้ดูแลถูกบันทึก (audit log) */}
+            <PrivacyNotice
+              variant="admin"
+              className="w-9 h-9 justify-center rounded-full text-tuh-indigo/70 dark:text-slate-300 hover:text-tuh-rose hover:bg-slate-100 dark:hover:bg-tuh-indigo/50 text-lg"
+            />
             <span className="hidden md:inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full bg-tuh-pink/30 text-tuh-rose border border-tuh-rose/20 dark:bg-tuh-rose/25 dark:text-white dark:border-none shadow-sm">
               <img src={botAvatar} alt="Avatar" className="w-7 h-7 rounded-full object-cover shadow-sm" />
-              {adminUser.name} ({adminUser.role})
+              {adminUser.name} ({isSuperAdmin ? 'SuperAdmin' : (adminUser.department || adminUser.role)})
             </span>
           </div>
         </header>
 
         {/* Content Box */}
         <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar z-10">
+          {/* แจ้งเตือนรหัสผ่าน: หมดอายุแล้ว (ใช้งานได้แค่หน้าโปรไฟล์) / ใกล้หมดอายุ (≤ 7 วัน) */}
+          {passwordExpired ? (
+            <div className="mb-5 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 font-bold text-sm flex items-start gap-3">
+              <i className="fa-solid fa-lock text-lg mt-0.5"></i>
+              <div>
+                {/* ไม่มีวันหมดอายุ = บัญชีที่ SuperAdmin สร้างพร้อมรหัสเริ่มต้น (นำเข้าจาก Excel) ยังไม่เคยตั้งรหัสเอง */}
+                {adminUser.password_expires_at
+                  ? 'รหัสผ่านของคุณหมดอายุแล้ว (ใช้งานครบ 90 วัน) กรุณาตั้งรหัสผ่านใหม่ด้านล่างก่อนใช้งานระบบ'
+                  : 'คุณกำลังใช้รหัสผ่านเริ่มต้นที่ผู้ดูแลระบบตั้งให้ กรุณาตั้งรหัสผ่านใหม่ของคุณเองด้านล่างก่อนใช้งานระบบ'}
+                <div className="text-xs font-semibold mt-1 opacity-80">เมื่อเปลี่ยนรหัสผ่านสำเร็จ ระบบจะให้เข้าสู่ระบบใหม่อีกครั้ง</div>
+              </div>
+            </div>
+          ) : adminUser.password_expiring_soon && (
+            <div className="mb-5 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-sm flex flex-wrap items-center gap-3">
+              <i className="fa-solid fa-triangle-exclamation text-lg"></i>
+              <span className="flex-1 min-w-[200px]">
+                รหัสผ่านจะหมดอายุในอีก {adminUser.password_days_left} วัน ({adminUser.password_expires_at}) กรุณาเปลี่ยนรหัสผ่านก่อนครบกำหนด
+              </span>
+              {activeTab !== 'profile' && (
+                <button
+                  onClick={() => handleTabClick('profile')}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-4 rounded-xl transition active:scale-95"
+                >
+                  เปลี่ยนรหัสผ่าน
+                </button>
+              )}
+            </div>
+          )}
           {children}
         </div>
       </main>

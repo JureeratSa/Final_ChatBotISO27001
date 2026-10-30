@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAdminContext } from '../context/AdminContext';
 import ResolveUnansweredModal from '../components/unanswered/ResolveUnansweredModal';
 import { RESOLUTION_LABELS, IGNORE_REASON_LABELS } from '../components/unanswered/unansweredLabels';
+import { DepartmentCell, DepartmentFilter } from '../components/DepartmentControls';
 
 /**
  * LogsPage — แท็บ "คำถามที่บอทตอบไม่ได้" ตารางรายการคำถามค้างพร้อมตัวกรองช่วงวันที่และการเรียงลำดับ
@@ -10,7 +11,11 @@ import { RESOLUTION_LABELS, IGNORE_REASON_LABELS } from '../components/unanswere
  */
 export default function LogsPage() {
   const {
+    fetchUnanswered,
     handleResolveUnanswered,
+    isSuperAdmin,
+    matchesDepartment,
+    moveToDepartment,
     parseTimestamp,
     setUnansweredEndDate,
     setUnansweredSortOrder,
@@ -23,6 +28,67 @@ export default function LogsPage() {
 
   // { item, mode: 'resolve' | 'ignore' } ของรายการที่กำลังเปิด modal อยู่
   const [modalState, setModalState] = useState(null);
+  // ตัวกรองแผนกของ SuperAdmin ('' = ทุกแผนก) — แอดมินแผนกได้เฉพาะคำถามของแผนกตัวเองจาก API อยู่แล้ว
+  const [unansweredDepartment, setUnansweredDepartment] = useState('');
+
+  // รายการหลังกรองช่วงวันที่ + เรียงลำดับ — ใช้ทั้งตารางและไฟล์ CSV ให้ตรงกับที่เห็นบนจอ
+  let processed = unanswered.filter(log => matchesDepartment(log.department, unansweredDepartment));
+
+  // Filter by date range if specified
+  if (unansweredStartDate) {
+    const start = new Date(unansweredStartDate);
+    start.setHours(0, 0, 0, 0);
+    processed = processed.filter(log => {
+      const d = parseTimestamp(log.timestamp);
+      return d >= start;
+    });
+  }
+  if (unansweredEndDate) {
+    const end = new Date(unansweredEndDate);
+    end.setHours(23, 59, 59, 999);
+    processed = processed.filter(log => {
+      const d = parseTimestamp(log.timestamp);
+      return d <= end;
+    });
+  }
+
+  // Sort by date
+  processed.sort((a, b) => {
+    const dateA = parseTimestamp(a.timestamp);
+    const dateB = parseTimestamp(b.timestamp);
+    return unansweredSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+  });
+
+  const downloadUnansweredCSV = () => {
+    if (processed.length === 0) return;
+    const statusLabel = { Pending: 'รอการตรวจเช็ค', Resolved: 'แก้ไขแล้ว', Ignored: 'ไม่แก้ไข' };
+    const headers = ["ข้อความคำถาม", "แผนก", "ถามซ้ำ (ครั้ง)", "ถามล่าสุดเมื่อ", "สถานะ", "วิธีแก้ / เหตุผลที่ไม่แก้", "คำค้นที่สอน", "หมายเหตุ", "แก้ไขโดย"];
+    const rows = processed.map(log => [
+      log.query,
+      log.department || 'ยังไม่ระบุแผนก',
+      log.count,
+      log.timestamp,
+      statusLabel[log.status] || log.status,
+      log.status === 'Ignored' ? IGNORE_REASON_LABELS[log.ignore_reason] : RESOLUTION_LABELS[log.resolution_type],
+      (log.search_keywords || []).join(", "),
+      log.note,
+      log.resolved_by
+    ]);
+    const csvContent = [
+      "﻿" + headers.map(h => `"${h.replace(/"/g, '""')}"`).join(","),
+      ...rows.map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `unanswered_questions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 animate-slide-in">
@@ -32,6 +98,8 @@ export default function LogsPage() {
 
           {/* Date filtering & sorting controls for unanswered logs */}
           <div className="flex flex-wrap items-center gap-3">
+            <DepartmentFilter value={unansweredDepartment} onChange={setUnansweredDepartment} />
+
             {/* Sort Selector */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">เรียงตามวัน:</span>
@@ -79,6 +147,14 @@ export default function LogsPage() {
                 ล้างค่า
               </button>
             )}
+
+            <button
+              onClick={downloadUnansweredCSV}
+              disabled={processed.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs shadow-sm hover:shadow"
+            >
+              <i className="fa-solid fa-file-csv"></i> ดาวน์โหลด CSV
+            </button>
           </div>
         </div>
 
@@ -87,6 +163,7 @@ export default function LogsPage() {
             <thead>
               <tr className="bg-slate-100 dark:bg-tuh-navy/30 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-tuh-purple/20">
                 <th className="px-6 py-4">ข้อความคำถาม</th>
+                {isSuperAdmin && <th className="px-6 py-4">แผนก</th>}
                 <th className="px-6 py-4 text-center">ถามซ้ำ (จำนวน)</th>
                 <th className="px-6 py-4 whitespace-nowrap">ถามล่าสุดเมื่อ</th>
                 <th className="px-6 py-4 text-center">สถานะ</th>
@@ -95,37 +172,10 @@ export default function LogsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-tuh-purple/10 text-sm font-semibold">
               {(() => {
-                let processed = [...unanswered];
-
-                // Filter by date range if specified
-                if (unansweredStartDate) {
-                  const start = new Date(unansweredStartDate);
-                  start.setHours(0, 0, 0, 0);
-                  processed = processed.filter(log => {
-                    const d = parseTimestamp(log.timestamp);
-                    return d >= start;
-                  });
-                }
-                if (unansweredEndDate) {
-                  const end = new Date(unansweredEndDate);
-                  end.setHours(23, 59, 59, 999);
-                  processed = processed.filter(log => {
-                    const d = parseTimestamp(log.timestamp);
-                    return d <= end;
-                  });
-                }
-
-                // Sort by date
-                processed.sort((a, b) => {
-                  const dateA = parseTimestamp(a.timestamp);
-                  const dateB = parseTimestamp(b.timestamp);
-                  return unansweredSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-                });
-
                 if (processed.length === 0) {
                   return (
                     <tr>
-                      <td colSpan="5" className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
+                      <td colSpan={isSuperAdmin ? 6 : 5} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-bold">
                         {unanswered.length === 0 ? 'ไม่มีคำถามที่ค้างการตอบในขณะนี้' : 'ไม่พบรายการที่ตรงกับเงื่อนไขเวลาที่ระบุ'}
                       </td>
                     </tr>
@@ -147,6 +197,14 @@ export default function LogsPage() {
                           </div>
                         )}
                       </td>
+                      {isSuperAdmin && (
+                        <td className="px-6 py-4">
+                          <DepartmentCell
+                            value={log.department}
+                            onMove={(dept) => moveToDepartment('unanswered', log.id, dept).then(ok => ok && fetchUnanswered())}
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-center font-black">
                         {log.count} ครั้ง
                       </td>

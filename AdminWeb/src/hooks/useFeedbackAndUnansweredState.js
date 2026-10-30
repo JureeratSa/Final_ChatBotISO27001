@@ -70,28 +70,22 @@ export function useFeedbackAndUnansweredState(API_URL, fetch, showSuccess, showE
 
   // เพิ่มคู่คำถาม-คำตอบลง settings.custom_faqs (บอทจับคู่ด้วย "ข้อความคำถาม FAQ อยู่ในคำถามผู้ใช้")
   // ใช้ร่วมกันทั้ง AnswerFaqModal ของ Dashboard และ ResolveUnansweredModal ของหน้า Logs
+  // ยิง POST /api/admin/custom_faqs (เพิ่มทีละข้อ) แทน POST /api/admin/settings ทั้งก้อน เพราะ
+  // /settings แก้ได้เฉพาะ SuperAdmin — แอดมินแผนกต้องสอน FAQ จากคำถามที่ตอบไม่ได้ได้ด้วย
   const saveCustomFaq = (question, answer) => {
-    const newFaq = {
-      id: `faq-${Date.now()}`,
-      question: question.trim(),
-      answer: answer,
-      timestamp: new Date().toLocaleDateString('th-TH')
-    };
-    const updatedSettings = { ...settings, custom_faqs: [...(settings.custom_faqs || []), newFaq] };
-
-    return fetch(API_URL + '/api/admin/settings', {
+    return fetch(API_URL + '/api/admin/custom_faqs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedSettings)
+      body: JSON.stringify({ question: question.trim(), answer })
     })
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : { success: false }))
       .then(data => {
         if (!data.success) {
           showError("เกิดข้อผิดพลาดในการลงทะเบียนคำตอบ");
           return false;
         }
         showSuccess("ลงทะเบียนคู่มือคำตอบ (FAQ) สำเร็จ บอทจะตอบด้วยคำตอบนี้ในแชททันที");
-        setSettings(updatedSettings);
+        setSettings(prev => ({ ...prev, custom_faqs: data.custom_faqs }));
         return true;
       })
       .catch(() => {

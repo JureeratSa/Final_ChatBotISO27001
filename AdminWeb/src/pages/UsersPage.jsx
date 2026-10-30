@@ -1,4 +1,6 @@
 import { useAdminContext } from '../context/AdminContext';
+import PasswordRules from '../components/PasswordRules';
+import UserImportModal from '../components/UserImportModal';
 
 /**
  * UsersPage — แท็บ "จัดการบัญชีแอดมิน" (เฉพาะ System Administrator) ตารางรายชื่อแอดมิน
@@ -22,6 +24,7 @@ export default function UsersPage() {
     setUserFormUsername,
     showUserModal,
     userFormDepartment,
+    departmentOptions,
     userFormDisplayName,
     userFormIsActive,
     userFormMode,
@@ -29,6 +32,13 @@ export default function UsersPage() {
     userFormRole,
     userFormUsername,
     users,
+    showImportModal,
+    setShowImportModal,
+    importing,
+    importResult,
+    setImportResult,
+    downloadImportTemplate,
+    handleImportUsers,
   } = useAdminContext();
 
   return (
@@ -44,6 +54,13 @@ export default function UsersPage() {
                 คุณสามารถสร้าง แก้ไข หรือลบบัญชีแอดมิน รวมถึงรีเซ็ตรหัสผ่านและเปลี่ยนสิทธิ์การเข้าถึงระบบได้ที่นี่
               </p>
             </div>
+            <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setImportResult(null); setShowImportModal(true); }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-4 rounded-xl active:scale-[0.98] transition flex items-center gap-2 text-xs shadow-sm"
+            >
+              <i className="fa-solid fa-file-excel"></i> นำเข้าหลายคน (Excel)
+            </button>
             <button
               onClick={() => {
                 setUserFormMode('create');
@@ -60,6 +77,7 @@ export default function UsersPage() {
             >
               <i className="fa-solid fa-user-plus"></i> เพิ่มแอดมินใหม่
             </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -159,6 +177,16 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {showImportModal && (
+        <UserImportModal
+          importing={importing}
+          importResult={importResult}
+          onClose={() => { setShowImportModal(false); setImportResult(null); }}
+          onDownloadTemplate={downloadImportTemplate}
+          onImport={handleImportUsers}
+        />
+      )}
+
       {/* MODAL: ADD / EDIT ADMIN USER MODAL */}
       {showUserModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -196,6 +224,9 @@ export default function UsersPage() {
                   required
                   disabled={userFormMode === 'edit'}
                   placeholder="เช่น somchayd"
+                  // ไม่ให้เบราว์เซอร์เติม username/รหัสผ่านที่บันทึกไว้ตอนล็อกอิน (ของแอดมินที่ใช้งานอยู่) ลงฟอร์มนี้
+                  autoComplete="off"
+                  name="new-admin-username"
                   value={userFormUsername}
                   onChange={(e) => setUserFormUsername(e.target.value)}
                   className="w-full tuh-glass-2 disabled:opacity-50 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
@@ -203,14 +234,28 @@ export default function UsersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">หมวดงาน / แผนก (Department)</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                  หมวดงาน / แผนก (Department)
+                  {userFormRole !== 'System Administrator' && <span className="text-red-500"> *</span>}
+                </label>
+                {/* แผนกเป็นข้อความอิสระ — เลือกจากรายการเดิมเพื่อไม่ให้สะกดต่างกันจนกลายเป็นคนละแผนก */}
                 <input
                   type="text"
-                  placeholder="เช่น ไอที, ประชาสัมพันธ์, การเงิน"
+                  list="department-options"
+                  required={userFormRole !== 'System Administrator'}
+                  placeholder="เช่น งานสารสนเทศ, งานการพยาบาล"
                   value={userFormDepartment}
                   onChange={(e) => setUserFormDepartment(e.target.value)}
                   className="w-full tuh-glass-2 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
                 />
+                <datalist id="department-options">
+                  {(departmentOptions || []).map(d => <option key={d} value={d} />)}
+                </datalist>
+                {userFormRole !== 'System Administrator' && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1">
+                    แอดมินจะเห็นและจัดการได้เฉพาะเอกสาร แบบฟอร์ม ประวัติ และคำถามของแผนกนี้
+                  </p>
+                )}
               </div>
 
               <div>
@@ -220,12 +265,19 @@ export default function UsersPage() {
                 </label>
                 <input
                   type="password"
+                  autoComplete="new-password"
+                  name="new-admin-password"
                   required={userFormMode === 'create'}
                   placeholder={userFormMode === 'create' ? "พิมพ์รหัสผ่านสำหรับล็อกอิน..." : "ปล่อยว่างเพื่อไม่เปลี่ยน หรือพิมพ์รหัสใหม่..."}
                   value={userFormPassword}
                   onChange={(e) => setUserFormPassword(e.target.value)}
                   className="w-full tuh-glass-2 rounded-2xl py-3 px-4 focus:outline-none focus:border-tuh-rose transition font-semibold text-sm text-tuh-navy dark:text-white"
                 />
+                {(userFormMode === 'create' || userFormPassword) && (
+                  <div className="mt-2">
+                    <PasswordRules password={userFormPassword} username={userFormUsername} />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -236,8 +288,8 @@ export default function UsersPage() {
                     onChange={(e) => setUserFormRole(e.target.value)}
                     className="w-full tuh-glass-2 rounded-2xl py-2.5 px-3 focus:outline-none focus:border-tuh-rose transition font-bold text-xs text-tuh-navy dark:text-white"
                   >
-                    <option value="admin">admin</option>
-                    <option value="System Administrator">System Administrator</option>
+                    <option value="admin">admin (แอดมินแผนก)</option>
+                    <option value="System Administrator">System Administrator (SuperAdmin)</option>
                   </select>
                 </div>
 

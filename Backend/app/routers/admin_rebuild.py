@@ -15,6 +15,7 @@ from app.routers.auth import get_current_user
 from app.models.models import User, SystemSettings
 from app.schemas.schemas import RebuildStatus
 from app.services.rebuild_service import _get_or_create_settings_row, _trigger_rebuild_background
+from app.services.department_scope import require_super_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -25,7 +26,9 @@ async def trigger_rebuild(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Trigger การ Rebuild Vector Index ใน Background"""
+    """Trigger การ Rebuild Vector Index ใน Background — SuperAdmin เท่านั้น (อัปโหลด/อนุมัติ/ปิดเอกสาร
+    ของแอดมินแผนก trigger rebuild ให้เองอยู่แล้ว ไม่ต้องกดปุ่มนี้)"""
+    require_super_admin(current_user, "การ Rebuild ฐานข้อมูลทั้งระบบทำได้เฉพาะ SuperAdmin")
     cfg = await _get_or_create_settings_row(db)
     if cfg.rebuild_status == "processing":
         return RebuildStatus(status="processing", message="กำลังประมวลผลอยู่แล้ว กรุณารอสักครู่")

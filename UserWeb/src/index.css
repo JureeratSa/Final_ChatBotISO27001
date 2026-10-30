@@ -179,11 +179,20 @@ html {
   transition: width 0.05s ease-out;
 }
 
-@media (max-width: 767px) {
+/* จอ < 1024px (มือถือ, iPad แนวตั้ง) Sidebar เป็นแผงลอยทับ — ความกว้างคงที่ ไม่ใช้ค่าที่ลากปรับไว้บนจอใหญ่ */
+@media (max-width: 1023px) {
   .tuh-resizable-sidebar {
     width: 280px !important;
     min-width: 280px !important;
     max-width: 280px !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tuh-resizable-sidebar {
+    width: 320px !important;
+    min-width: 320px !important;
+    max-width: 320px !important;
   }
 }
 

@@ -2,6 +2,7 @@
 TUH Chatbot AI v2 — FastAPI Main Application Entry Point
 Tech Lead Architecture: FastAPI + Pydantic + SQLAlchemy Async + PostgreSQL
 """
+import re
 import sys
 import asyncio
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ if sys.platform == 'win32':
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.services.audit_service import AuditLogMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -149,7 +151,16 @@ allowed_origins = [
 # bypass เช่น "http://172.30.1.1.evil.com") และพอร์ตเฉพาะ 5173/5174/8080
 # (UserWeb/AdminWeb dev server + XAMPP build) เท่านั้น ไม่เปิดกว้างทุกพอร์ตหรือทุก subnet
 _octet = r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
-allowed_origin_regex = rf"^http://172\.30\.{_octet}\.{_octet}:(?:5173|5174|8080)$"
+# + ชื่อเครื่องเซิร์ฟเวอร์ (CORS_EXTRA_HOSTS) — เปิดเว็บด้วยชื่อเครื่องแทน IP แล้ว IP เปลี่ยน (DHCP) ลิงก์ก็ยังใช้ได้
+# เดิมเปิดด้วยชื่อเครื่องแล้วหน้าเว็บขึ้นแต่ login ไม่ได้ ("Failed to fetch") เพราะ preflight ถูกปฏิเสธ
+_hosts = "|".join(
+    [rf"172\.30\.{_octet}\.{_octet}"]
+    + [re.escape(h.strip()) for h in settings.CORS_EXTRA_HOSTS.split(",") if h.strip()]
+)
+allowed_origin_regex = rf"(?i)^http://(?:{_hosts}):(?:5173|5174|8080)$"
+
+# บันทึกการเข้าสู่ระบบ/การแก้ไขข้อมูลของแอดมิน (audit log) — เพิ่มก่อน CORS ให้ CORS อยู่ชั้นนอกสุด
+app.add_middleware(AuditLogMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

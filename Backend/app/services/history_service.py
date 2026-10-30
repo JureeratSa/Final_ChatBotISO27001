@@ -17,5 +17,6 @@ def history_row_to_response(h: ChatHistory) -> HistoryResponse:
         chunk_ids=[int(x) for x in (h.chunk_ids or "").split(",") if x.strip().isdigit()],
         api_model=h.api_model,
         referenced_docs=json.loads(h.referenced_docs or "[]"),
+        cited_docs=json.loads(h.cited_docs) if h.cited_docs is not None else None,
         timestamp=h.timestamp.strftime("%Y-%m-%d %H:%M:%S") if h.timestamp else ""
     )

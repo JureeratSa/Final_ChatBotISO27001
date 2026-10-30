@@ -48,7 +48,7 @@ export function useAuth(API_URL, showSuccess, showError, setActiveTab) {
 
     return window.fetch(url, options).then(res => {
       if (res.status === 401 && isAdmin && !isLogin && !isFeedbackOrUnansweredSubmit) {
-        logoutRef();
+        logoutRef('expired');
       }
       return res;
     });
@@ -84,7 +84,20 @@ export function useAuth(API_URL, showSuccess, showError, setActiveTab) {
       });
   };
 
-  const handleLogout = () => {
+  // reason: 'idle' เมื่อระบบออกให้อัตโนมัติ (onClick ส่ง event มา ถือเป็นการกดออกเอง)
+  const handleLogout = (reason) => {
+    // บันทึกการออกจากระบบลง audit log ก่อนลบ token (ยิงทิ้งไว้ ไม่รอผล — ล้มก็ออกจากระบบตามปกติ)
+    // 'expired' = token ใช้ไม่ได้แล้ว (โดน 401) เรียกไปก็ถูกปฏิเสธ จึงไม่ต้องยิง
+    const token = localStorage.getItem('tuh_admin_token');
+    // 'password_changed' = token ถูกยกเลิกไปพร้อมการเปลี่ยนรหัสแล้ว (การเปลี่ยนรหัสถูกบันทึก log แล้ว)
+    if (token && reason !== 'expired' && reason !== 'password_changed') {
+      const query = typeof reason === 'string' ? `?reason=${encodeURIComponent(reason)}` : '';
+      window.fetch(API_URL + '/api/admin/logout' + query, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        keepalive: true
+      }).catch(() => { });
+    }
     localStorage.removeItem('tuh_admin_token');
     localStorage.removeItem('tuh_admin_user');
     localStorage.removeItem('tuh_admin_active_tab');
@@ -104,7 +117,7 @@ export function useAuth(API_URL, showSuccess, showError, setActiveTab) {
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        handleLogout();
+        handleLogout('idle');
         showError("เซสชันหมดอายุเนื่องจากไม่มีการใช้งานเกิน 10 นาที");
       }, 10 * 60 * 1000);
     };

@@ -15,6 +15,10 @@ from app.utils.sanitize import sanitize_html
 from app.routers.auth import get_current_user
 from app.models.models import User, Announcement
 from app.schemas.schemas import AnnouncementResponse, AnnouncementCreate, AnnouncementUpdate
+from app.services.department_scope import require_super_admin
+from app.services.audit_service import add_audit_detail
+
+_SUPER_ONLY = "ประกาศเป็นส่วนกลางของระบบ เฉพาะ SuperAdmin เท่านั้นที่จัดการได้"
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -34,9 +38,11 @@ async def create_announcement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    require_super_admin(current_user, _SUPER_ONLY)
     data = body.model_dump()
     data["content"] = sanitize_html(data.get("content"))  # กัน Stored XSS จาก CKEditor ก่อนเก็บ DB
     ann = Announcement(**data)
+    add_audit_detail(announcement=ann.title)
     ann.created_by = current_user.display_name or current_user.username
     ann.created_by_id = current_user.id
     db.add(ann)
@@ -52,10 +58,12 @@ async def update_announcement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    require_super_admin(current_user, _SUPER_ONLY)
     result = await db.execute(select(Announcement).where(Announcement.id == ann_id))
     ann = result.scalar_one_or_none()
     if not ann:
         raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
+    add_audit_detail(announcement_id=ann.id, announcement=ann.title)
     data = body.model_dump(exclude_none=True)
     if "content" in data:
         data["content"] = sanitize_html(data["content"])
@@ -72,10 +80,12 @@ async def delete_announcement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    require_super_admin(current_user, _SUPER_ONLY)
     result = await db.execute(select(Announcement).where(Announcement.id == ann_id))
     ann = result.scalar_one_or_none()
     if not ann:
         raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
+    add_audit_detail(announcement_id=ann.id, announcement=ann.title)
     await db.delete(ann)
     await db.commit()
 
@@ -109,6 +119,8 @@ async def create_announcement_compatibility(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    require_super_admin(current_user, _SUPER_ONLY)
+    add_audit_detail(announcement=payload.title)
     ann = Announcement(
         title=payload.title,
         content=sanitize_html(payload.content),
@@ -131,10 +143,12 @@ async def update_announcement_compatibility(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    require_super_admin(current_user, _SUPER_ONLY)
     result = await db.execute(select(Announcement).where(Announcement.id == payload.id))
     ann = result.scalar_one_or_none()
     if not ann:
         raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
+    add_audit_detail(announcement_id=ann.id, announcement=ann.title)
 
     ann.title = payload.title
     ann.content = sanitize_html(payload.content)
@@ -155,10 +169,12 @@ async def delete_announcement_compatibility(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    require_super_admin(current_user, _SUPER_ONLY)
     result = await db.execute(select(Announcement).where(Announcement.id == payload.id))
     ann = result.scalar_one_or_none()
     if not ann:
         raise HTTPException(status_code=404, detail="ไม่พบประกาศนี้")
+    add_audit_detail(announcement_id=ann.id, announcement=ann.title)
 
     await db.delete(ann)
     await db.commit()

@@ -145,9 +145,10 @@ async def compatibility_search(
     from app.services.rag_service import (
         get_retriever, query_rag, contains_profanity, is_chit_chat,
         build_citations, is_unanswered_response, has_reliable_context, find_matching_faq,
-        split_used_sources, condense_question,
+        split_used_sources, cites_sources_explicitly, condense_question,
     )
     from app.routers.chat import save_history, save_unanswered
+    from app.services.department_scope import answer_documents
     from app.services.taught_keywords_service import expand_retrieval_query
 
     start_time = time.time()
@@ -215,21 +216,26 @@ async def compatibility_search(
             forms=forms_list
         )
         # ตัด tag [SOURCES: ...] ออก และเก็บเฉพาะชิ้นที่ LLM ใช้จริงไว้ทำ citation (เหมือน chat.py)
+        explicit_sources = cites_sources_explicitly(answer, rag_results)
         answer, cited_results = split_used_sources(answer, rag_results)
 
         elapsed = time.time() - start_time
 
         # Unanswered check — เช็ค model_used ก่อนเสมือน chat.py (ดูคอมเมนต์ที่นั่นสำหรับเหตุผล)
         is_unanswered = is_unanswered_response(answer, model_used)
-        if is_unanswered:
-            background_tasks.add_task(save_unanswered, db, query)
 
         # Citations — ใช้ has_reliable_context() เหมือน chat.py แทนเช็คแค่ rag_results ไม่ว่าง
         # (ดูเหตุผลเต็มใน rag_service.has_reliable_context — retriever คืน top_k เสมอไม่ว่า
         # คำถามจะเกี่ยวกับเอกสารจริงหรือไม่ เช็คแค่ไม่ว่างเดิมจึงเกือบไม่มีความหมาย)
         citations = []
-        if has_reliable_context(rag_results, used_rag) and not is_unanswered and cited_results:
+        # คำตอบที่ตอบได้บางส่วนยังแนบ citation ถ้า LLM ระบุเลขแหล่งอ้างอิงมาเอง (เหมือน chat.py)
+        if has_reliable_context(rag_results, used_rag) and cited_results and (not is_unanswered or explicit_sources):
             citations = await build_citations(db, cited_results)
+
+        # เอกสารที่คำตอบนี้อิงจริง — ใช้แยกประวัติ/คำถามที่ตอบไม่ได้ตามแผนก (เหมือน chat.py)
+        answer_docs = answer_documents(rag_results, cited_results if citations else [])
+        if is_unanswered:
+            background_tasks.add_task(save_unanswered, db, query, answer_docs)
 
         # Log history in background
         history_id = f"history-{int(time.time() * 1000)}"
@@ -237,13 +243,20 @@ async def compatibility_search(
         referenced_docs = list(set(res["metadata"].get("source", "") for res in rag_results if isinstance(res, dict) and "metadata" in res))
 
         background_tasks.add_task(
-            save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs
+            save_history, db, history_id, query, answer, chunk_ids, elapsed, model_used, referenced_docs, answer_docs
         )
+
+        # ลิงก์ดาวน์โหลดแบบฟอร์มที่คำตอบพูดถึง (เหมือน chat.py ขั้นที่ 8 — UserWeb เรียก endpoint นี้)
+        form_links = [
+            {"name": f.name, "download_link": f.download_link}
+            for f in forms_list if f.name and f.download_link and f.name in answer
+        ]
 
         return {
             "answer": answer,
             "results": rag_results,
             "citations": citations,
+            "form_links": form_links,
         }
 
 
