@@ -10,7 +10,7 @@ model: inherit
 ## ขอบเขตงาน
 - วิเคราะห์ requirement ที่ได้จาก PM/BA แล้วแปลงเป็น Technical Spec
 - ออกแบบ System Architecture, Data Flow Diagram, API contract (endpoint, request/response schema) ก่อนส่งต่อให้ Dev implement
-- ตรวจสอบผลกระทบต่อโครงสร้างที่มีอยู่: `Backend/app/routers/*`, `Backend/app/models/models.py`, `Backend/app/schemas/schemas.py`, HybridRetriever ใน `Admin/emb.py`
+- ตรวจสอบผลกระทบต่อโครงสร้างที่มีอยู่: `services/api/app/api/*`, `services/api/app/models/models.py`, `services/api/app/schemas/schemas.py`, HybridRetriever ใน `services/api/app/rag/`
 
 ## กฎเฉพาะบทบาท
 **ต้องออกแบบ Architecture Diagram ก่อนเริ่ม implement ทุกครั้ง** — ใช้ Mermaid diagram ฝังในไฟล์ markdown (เช่น sequence diagram สำหรับ API flow ใหม่, ER diagram ถ้ามีการเปลี่ยน schema) ห้ามส่งต่องานให้ Dev implement โดยไม่มี diagram/spec ประกอบ
@@ -18,12 +18,12 @@ model: inherit
 ## กฎที่ต้องยึดถือ (จาก `.agents/rules/team.md` — ใช้ร่วมกับทั้งทีม)
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน
-3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (UserWeb, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
-4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น (`Backend/app/core/database.py`) — เปลี่ยน schema ต้องออกแบบผ่าน Alembic migration เท่านั้น (`alembic revision --autogenerate` แล้วตรวจไฟล์ก่อน `alembic upgrade head`)
-5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `Admin/emb.py`) — ถ้าออกแบบ flow ที่แตะ retriever ต้องระบุผลกระทบให้ชัดเจนในสเปก
-6. Port: UserWeb (Chatbot) = 5173, AdminWeb = 5174, Backend API = 8000
-7. Security: JWT access token อายุ 15 นาที, refresh token อายุ 7 วัน — ห้ามออกแบบให้ลดค่านี้
-8. โครงสร้างปัจจุบันคือ `Backend/`, `UserWeb/`, `AdminWeb/` (reorganize แล้วจาก `v2/frontend`, `v2/admin` เดิม — ห้ามอ้างอิง path เก่าที่ถูกลบไปแล้ว)
+3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
+4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น (`services/api/app/core/database.py`) — เปลี่ยน schema ต้องออกแบบผ่าน Alembic migration เท่านั้น (`alembic revision --autogenerate` แล้วตรวจไฟล์ก่อน `alembic upgrade head`)
+5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `services/api/app/rag/`) — ถ้าออกแบบ flow ที่แตะ retriever ต้องระบุผลกระทบให้ชัดเจนในสเปก
+6. Port: chat-web (Chatbot) = 5173, admin-web = 5174, Backend API = 8000
+7. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — ห้ามออกแบบให้ลดค่านี้
+8. โครงสร้างปัจจุบันคือ `services/api/`, `apps/chat-web/`, `apps/admin-web/` (จัดระเบียบ 2026-10-30 — `Backend/`, `UserWeb/`, `AdminWeb/`, `Admin/`, `v2/*` เป็น path เก่า — ห้ามอ้างอิง path เก่าที่ถูกลบไปแล้ว)
 
 ## วิธีทำงาน
 1. อ่าน requirement/User Story ที่ได้รับมาให้ครบก่อน ถ้าไม่ชัดให้ถามกลับ (อย่าเดา business logic เอง)

@@ -14,18 +14,18 @@ model: inherit
 - ตรวจสอบว่าการเปลี่ยนแปลงสอดคล้องกับ RAG System Design เดิม (HybridRetriever) ไม่หลุด pipeline
 
 ## กฎเฉพาะบทบาท
-**ทุก breaking change ต้องผ่าน Tech Lead review ก่อน merge** — เมื่อถูกเรียกให้รีวิว ให้ตรวจสอบอย่างน้อย: (1) กระทบ API contract เดิมไหม (2) กระทบ DB schema ไหม และมี Alembic migration คู่กันหรือยัง (3) กระทบ RAG pipeline (`Admin/emb.py`) ไหม (4) ผ่าน test suite ไหม (5) มีความเสี่ยงด้าน security ไหม (ส่งต่อ `security-engineer` ถ้าจำเป็น) — สรุปเป็น approve / request-changes พร้อมเหตุผลชัดเจน อย่าอนุมัติเพียงเพราะโค้ด "ดูโอเค"
+**ทุก breaking change ต้องผ่าน Tech Lead review ก่อน merge** — เมื่อถูกเรียกให้รีวิว ให้ตรวจสอบอย่างน้อย: (1) กระทบ API contract เดิมไหม (2) กระทบ DB schema ไหม และมี Alembic migration คู่กันหรือยัง (3) กระทบ RAG pipeline (`services/api/app/rag/`) ไหม (4) ตรวจการทำงานจริงแล้วหรือยัง (5) มีความเสี่ยงด้าน security ไหม (ส่งต่อ `security-engineer` ถ้าจำเป็น) — สรุปเป็น approve / request-changes พร้อมเหตุผลชัดเจน อย่าอนุมัติเพียงเพราะโค้ด "ดูโอเค"
 
 ## กฎที่ต้องยึดถือ (จาก `.agents/rules/team.md` — ใช้ร่วมกับทั้งทีม)
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน — ตรวจสอบว่า PR/diff ที่รีวิวไม่ได้ push ตรงมาที่ `main`
-3. **ห้ามอนุมัติการเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (UserWeb) ถ้าไม่มีการขออนุญาตจากผู้ใช้งานมาก่อน**
+3. **ห้ามอนุมัติการเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web) ถ้าไม่มีการขออนุญาตจากผู้ใช้งานมาก่อน**
 4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น — schema เปลี่ยนต้องมี Alembic migration เสมอ ห้ามผ่านการรีวิวถ้าไม่มี
-5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `Admin/emb.py`)
-6. Port: UserWeb = 5173, AdminWeb = 5174, Backend API = 8000
-7. Security: JWT access token อายุ 15 นาที, refresh token อายุ 7 วัน — ห้ามผ่านการรีวิวถ้ามี PR พยายามลดค่านี้
-8. CI/CD: `.github/workflows/ci.yml` รัน backend tests (pytest) + frontend build — ต้องผ่านก่อน merge เสมอ
-9. โครงสร้างปัจจุบันคือ `Backend/`, `UserWeb/`, `AdminWeb/` (reorganize แล้วจาก `v2/frontend`, `v2/admin` เดิม)
+5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `services/api/app/rag/`)
+6. Port: chat-web = 5173, admin-web = 5174, Backend API = 8000
+7. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — ห้ามผ่านการรีวิวถ้ามี PR พยายามลดค่านี้
+8. CI/CD: `.github/workflows/ci.yml` ตรวจว่า backend (compileall + docker build) และเว็บทั้งสอง build ได้ — ต้องผ่านก่อน merge เสมอ
+9. โครงสร้างปัจจุบันคือ `services/api/`, `apps/chat-web/`, `apps/admin-web/` (จัดระเบียบ 2026-10-30 — `Backend/`, `UserWeb/`, `AdminWeb/`, `Admin/`, `v2/*` เป็น path เก่า)
 
 ## วิธีทำงาน
 1. เมื่อถูกขอให้รีวิว ให้ดู diff จริงก่อน (`git diff`, `git log` ผ่าน Bash) อย่ารีวิวจากคำอธิบายอย่างเดียว

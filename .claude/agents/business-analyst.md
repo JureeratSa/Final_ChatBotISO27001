@@ -18,15 +18,15 @@ model: inherit
 ## กฎที่ต้องยึดถือ (จาก `.agents/rules/team.md` — ใช้ร่วมกับทั้งทีม)
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน
-3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (UserWeb, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
+3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
 4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น — เปลี่ยน schema ต้องผ่าน Alembic migration เท่านั้น
-5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `Admin/emb.py`)
-6. Port: UserWeb (Chatbot) = 5173, AdminWeb = 5174, Backend API = 8000
-7. Security: JWT access token อายุ 15 นาที, refresh token อายุ 7 วัน — ห้ามลดค่า
-8. โครงสร้างปัจจุบันคือ `Backend/`, `UserWeb/`, `AdminWeb/` (reorganize แล้วจาก `v2/frontend`, `v2/admin` เดิม)
+5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `services/api/app/rag/`)
+6. Port: chat-web (Chatbot) = 5173, admin-web = 5174, Backend API = 8000
+7. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — ห้ามลดค่า
+8. โครงสร้างปัจจุบันคือ `services/api/`, `apps/chat-web/`, `apps/admin-web/` (จัดระเบียบ 2026-10-30 — `Backend/`, `UserWeb/`, `AdminWeb/`, `Admin/`, `v2/*` เป็น path เก่า)
 
 ## วิธีทำงาน
 1. อ่านคำขอของผู้ใช้งานให้ครบ ถามกลับถ้าเจตนา/บริบทธุรกิจยังไม่ชัด
-2. สำรวจ flow ที่มีอยู่จริงในระบบ (เช่นหน้า `UserWeb`/`AdminWeb`, endpoint ที่เกี่ยวข้องใน `Backend/app/routers/`) เพื่อเข้าใจ process ปัจจุบันก่อนเสนอ requirement ใหม่
+2. สำรวจ flow ที่มีอยู่จริงในระบบ (เช่นหน้า `apps/chat-web`/`apps/admin-web`, endpoint ที่เกี่ยวข้องใน `services/api/app/api/`) เพื่อเข้าใจ process ปัจจุบันก่อนเสนอ requirement ใหม่
 3. เขียนสรุป BRD/FRS สั้นๆ ชัดเจน: ปัญหาที่ต้องแก้, ผู้ใช้งานกลุ่มไหนได้ประโยชน์, เกณฑ์ว่า feature "ตอบโจทย์" คืออะไร
 4. ส่งต่อให้ PM (วางแผน sprint) หรือ SA (ออกแบบ architecture) ตามความเหมาะสม

@@ -19,13 +19,13 @@ model: inherit
 ## กฎที่ต้องยึดถือ (จาก `.agents/rules/team.md` — ใช้ร่วมกับทั้งทีม)
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน
-3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (UserWeb, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
-4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น (`Backend/app/core/database.py`) — เปลี่ยน schema ต้องผ่าน Alembic migration เท่านั้น
-5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `Admin/emb.py`) ห้ามแก้ pipeline โดยไม่จำเป็น
-6. Port: UserWeb (Chatbot) = 5173, AdminWeb = 5174, Backend API = 8000
-7. Security: JWT access token อายุ 15 นาที, refresh token อายุ 7 วัน — ห้ามลดค่า
-8. รัน dev server ผ่าน `python run_backend.py`, `python run_user_web.py`, `python run_admin_web.py` จาก root (ดู README.md)
-9. โครงสร้างปัจจุบันคือ `Backend/`, `UserWeb/`, `AdminWeb/` (reorganize แล้วจาก `v2/frontend`, `v2/admin` เดิม — ห้ามอ้างอิง path เก่าที่ถูกลบไปแล้ว)
+3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
+4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น (`services/api/app/core/database.py`) — เปลี่ยน schema ต้องผ่าน Alembic migration เท่านั้น
+5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `services/api/app/rag/`) ห้ามแก้ pipeline โดยไม่จำเป็น
+6. Port: chat-web (Chatbot) = 5173, admin-web = 5174, Backend API = 8000
+7. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — ห้ามลดค่า
+8. รัน dev server ผ่าน `python infra/scripts/dev.py api|chat|admin` จาก root (ดู README.md)
+9. โครงสร้างปัจจุบันคือ `services/api/`, `apps/chat-web/`, `apps/admin-web/` (จัดระเบียบ 2026-10-30 — `Backend/`, `UserWeb/`, `AdminWeb/`, `Admin/`, `v2/*` เป็น path เก่า — ห้ามอ้างอิง path เก่าที่ถูกลบไปแล้ว)
 
 ## วิธีทำงาน
 1. อ่าน request จากผู้ใช้งาน แยกแยะว่าเป็น feature ใหม่ / bug fix / ปรับปรุง
