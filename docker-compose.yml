@@ -1,6 +1,11 @@
 # TUH Chatbot AI — รันทั้งระบบด้วย Docker (คู่มือ: docs/DOCKER.md)
 #   docker compose up -d --build
-# Port ตามมาตรฐานโปรเจกต์: UserWeb 5173, AdminWeb 5174, Backend API 8000
+# เข้าใช้ผ่าน HTTPS ที่ reverse proxy (Caddy) ตัวเดียว:
+#   https://<host>/        แชทบอท (UserWeb)
+#   https://<host>/admin/  ระบบแอดมิน (AdminWeb)
+#   https://<host>/api/    Backend API
+# port เดิม 5173 / 5174 / 8080 กลายเป็นตัว redirect ไป HTTPS (bookmark เดิมยังใช้ได้)
+# backend เปิดเฉพาะ 127.0.0.1:8000 ไว้ให้เครื่องเซิร์ฟเวอร์เองใช้ตรวจ/ดูแล — เครื่องอื่นต้องผ่าน HTTPS
 # (ชนกับ dev server — ปิด run_user_web.py / run_admin_web.py / run_backend.py ก่อน)
 # ฐานข้อมูลหลักยังเป็น TiDB Cloud ตามเดิม ไม่มี container ฐานข้อมูล
 name: tuh-chatbot
@@ -16,8 +21,10 @@ services:
       CHROMA_DB_DIR: /data/chroma
       TESSERACT_CMD: ""
       # ชื่อเครื่องเซิร์ฟเวอร์สำหรับ CORS (CORS_EXTRA_HOSTS) ตั้งใน Backend/.env — ไม่ใส่ในไฟล์นี้เพราะ repo เป็น public
+      # คำขอจากเครื่องอื่นเข้ามาทาง proxy เท่านั้น — X-Forwarded-For ที่ proxy ตั้งให้จึงเชื่อได้ (ใช้แยก IP ของ rate limit)
+      TRUST_PROXY_HEADERS: "true"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       # ChromaDB กับ index_db/bm25.pkl ต้องมาจาก rebuild ครั้งเดียวกันเสมอ — ย้าย/สำรองคู่กัน
       - chroma:/data/chroma
@@ -33,8 +40,7 @@ services:
       dockerfile: docker/web.Dockerfile
       args:
         APP: UserWeb
-    ports:
-      - "5173:80"
+        VITE_API_URL: same-origin
     depends_on:
       - backend
     restart: unless-stopped
@@ -45,32 +51,91 @@ services:
       dockerfile: docker/web.Dockerfile
       args:
         APP: AdminWeb
-    ports:
-      - "5174:80"
+        VITE_API_URL: same-origin
+        BASE: /admin/
     depends_on:
       - backend
     restart: unless-stopped
 
-  # URL เดิมสมัย XAMPP (:8080/tuh_chatbot_ai/) → redirect ไป 5173/5174 — ต้องปิด Apache ของ XAMPP ก่อน (ใช้ port เดียวกัน)
-  legacy-redirect:
-    image: nginx:1.27-alpine
-    # ใช้ configs แทน bind mount — Docker Desktop mount ไฟล์จากไดรฟ์ Z: (network share) ไม่ได้
+  # Reverse proxy + TLS — ทุกคำขอจากเครื่องอื่นเข้าทางนี้ทางเดียว (แทน legacy-redirect เดิม)
+  proxy:
+    image: caddy:2.10-alpine
     configs:
-      - source: legacy_redirect
-        target: /etc/nginx/conf.d/default.conf
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    environment:
+      # ชื่อ/IP ที่ผู้ใช้ใช้เปิดเว็บ (คั่นด้วย ,) — ใบรับรองออกให้ตามรายการนี้ ตั้งใน .env ที่ root ของ repo
+      # (ไม่ใส่ค่าจริงในไฟล์นี้เพราะ repo เป็น public) ไม่ตั้ง = localhost อย่างเดียว
+      TLS_HOSTS: ${TLS_HOSTS:-localhost}
+      # ชื่อหลักของเครื่อง — คนที่เปิดด้วย IP (bookmark เดิม http://<IP>:5173) ถูกส่งไปที่ชื่อนี้แทน
+      TLS_PRIMARY_HOST: ${TLS_PRIMARY_HOST:-localhost}
     ports:
-      - "8080:80"
+      - "443:443"
+      - "5173:5173"
+      - "5174:5174"
+      - "8080:8080"
+      # port 80 (redirect http → https) ปิดไว้ — เครื่อง Windows นี้ระบบใช้ port 80 อยู่ บน VM Linux เพิ่ม "80:80" ได้
+    volumes:
+      # CA ภายใน + ใบรับรองที่ Caddy ออกให้ — ต้องเก็บไว้ ไม่งั้นทุกเครื่องต้องติดตั้ง CA ใหม่
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - userweb
+      - adminweb
     restart: unless-stopped
 
 configs:
-  # เนื้อหาเขียนไว้ตรงนี้เลย (configs แบบ file: ก็ยังเป็น bind mount) — $$ = $ ของ nginx
-  legacy_redirect:
+  # เขียนเนื้อหาไว้ตรงนี้ (Docker Desktop bind mount ไฟล์จากไดรฟ์ Z: ไม่ได้) — $$ = $ ของ Caddy
+  caddyfile:
     content: |
-      server {
-          listen 80;
-          server_tokens off;
-          location /tuh_chatbot_ai/admin { return 301 http://$$host:5174/; }
-          location / { return 301 http://$$host:5173/; }
+      {
+        # ใบรับรองจาก CA ภายในของ Caddy (local_certs) — เปลี่ยนเป็นใบของโรงพยาบาลได้ ดู docs/DOCKER.md
+        local_certs
+        skip_install_trust
+        # ปิด admin API ของ Caddy (เดิมฟังที่ localhost:2019 ใน container)
+        admin off
+      }
+
+      {$$TLS_HOSTS} {
+        encode gzip
+        handle /api/* {
+          # X-Forwarded-For ที่ client ส่งมาถูกแทนด้วย IP จริงเสมอ (Caddy ไม่เชื่อ header จาก client โดย default)
+          reverse_proxy backend:8000
+        }
+        redir /admin /admin/ 308
+        handle_path /admin/* {
+          reverse_proxy adminweb:80
+        }
+        handle {
+          reverse_proxy userweb:80
+        }
+        # HSTS: เปิดหลังทุกเครื่องเชื่อใบรับรองแล้วเท่านั้น — ถ้าเปิดตอนยังเป็น CA ภายใน ผู้ใช้จะกดข้ามคำเตือนไม่ได้
+        # header Strict-Transport-Security "max-age=31536000"
+      }
+
+      # port เดิม → HTTPS (bookmark/ลิงก์เดิมยังใช้ได้)
+      # เปิดด้วย IP → ส่งไปที่ชื่อหลักแทน: https://<IP> ใช้ไม่ได้ เพราะเบราว์เซอร์ไม่ส่งชื่อ (SNI) มากับ IP
+      # Caddy จึงเลือกใบรับรองไม่ได้ (และ IP เปลี่ยนได้ตาม DHCP)
+      (https_host) {
+        map {host} {https_host} {
+          ~^[0-9.]+$$ {$$TLS_PRIMARY_HOST}
+          default {host}
+        }
+      }
+      http://:5173 {
+        import https_host
+        redir https://{https_host}{uri} 308
+      }
+      http://:5174 {
+        import https_host
+        redir https://{https_host}/admin{uri} 308
+      }
+      http://:8080 {
+        import https_host
+        @admin path /tuh_chatbot_ai/admin*
+        redir @admin https://{https_host}/admin/ 308
+        redir https://{https_host}/ 308
       }
 
 volumes:
@@ -78,3 +143,5 @@ volumes:
   index_db:
   uploads:
   model_cache:
+  caddy_data:
+  caddy_config:

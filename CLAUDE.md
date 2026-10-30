@@ -9,8 +9,9 @@
 
 ## รันระบบ (production = Docker ตั้งแต่ 2026-10-29)
 ```bash
-docker compose up -d --build     # UserWeb :5173, AdminWeb :5174, Backend :8000 (+ redirect URL เดิม XAMPP :8080)
+docker compose up -d --build     # https://<host>/ (UserWeb), /admin/ (AdminWeb), /api/ (Backend) ผ่าน Caddy
 ```
+port 5173/5174/8080 บนเครื่องเป็นตัว redirect ไป HTTPS; backend เปิดเฉพาะ `127.0.0.1:8000` (รายละเอียด TLS/CA ใน docs/DOCKER.md)
 ข้อมูล (ChromaDB, bm25.pkl, uploads, โมเดล) อยู่ใน Docker volume `tuh-chatbot_*` ไม่ใช่โฟลเดอร์ `uploads/`/`index_db/` บนไดรฟ์ Z: — รายละเอียดใน [docs/DOCKER.md](docs/DOCKER.md)
 XAMPP (`deploy_xampp.py`) เลิกใช้แล้ว (Apache ต้องปิดไว้ เพราะ port 8080 เป็นของ redirect)
 

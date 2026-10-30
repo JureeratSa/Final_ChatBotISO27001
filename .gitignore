@@ -51,3 +51,10 @@ ENV/
 testchatbotSPO/*_cache.json
 testchatbotSPO/*.xlsx
 !testchatbotSPO/questions_dataset.xlsx
+
+# ผลลัพธ์จาก rebuild (ข้อความเต็มของทุกเอกสาร) — สร้างใหม่ทุกครั้ง ไม่เก็บใน git (repo เป็น public)
+sample_chunks.json
+
+# ใบ CA / ใบรับรองที่ export จาก reverse proxy
+*.crt
+*.key

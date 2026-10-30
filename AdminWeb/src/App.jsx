@@ -36,7 +36,10 @@ import { useDeleteConfirmation } from './hooks/useDeleteConfirmation';
 import { useDepartments } from './hooks/useDepartments';
 
 // กำหนด URL ของ Backend API (อ่านจาก .env หรือ fallback เป็น host ปัจจุบันที่พอร์ต 8000)
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+// "same-origin" = อยู่หลัง reverse proxy (HTTPS) เรียก /api ผ่าน origin เดียวกับหน้าเว็บ (build ใน Docker)
+const API_URL = import.meta.env.VITE_API_URL === 'same-origin'
+  ? window.location.origin
+  : (import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`);
 
 function App() {
   // จัดการ State การสลับแท็บเมนูหลัก (เก็บลง localStorage เพื่อคงหน้าเดิมเมื่อรีเฟรช)
