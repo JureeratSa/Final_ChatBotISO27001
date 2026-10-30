@@ -1,0 +1,4 @@
+# เพิ่มเติมเมื่อใช้ Microsoft SQL Server (DB_ENGINE=mssql) — ดู docs/SQLSERVER_MIGRATION.md
+# ต้องมี "Microsoft ODBC Driver 18 for SQL Server" ในเครื่อง/อิมเมจด้วย (Docker: build ด้วย --build-arg WITH_MSSQL=true)
+pyodbc>=5.1
+aioodbc>=0.5

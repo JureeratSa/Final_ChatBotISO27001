@@ -1,53 +1,33 @@
-# Dependency directories
+# Dependencies / build output
 node_modules/
-node-v20.12.2-win-x64/
-
-# Build outputs
 dist/
 build/
 
-# Local databases and runtime data
-user/backend/db/*.json
-!user/backend/db/db_settings.json  # Keep default setting schema but ignore active runtime data changes
-
-# Uploaded documents
+# ข้อมูล runtime (repo เป็น public — ห้ามมีเนื้อหาเอกสารหรือดัชนีใน git)
 uploads/
-*.pdf
-
-# Vector database index files (ChromaDB/BM25 output)
 index_db/
 index_db_backup/
-
-# Local SQLite files (เช่น sqlite ที่สร้างเองตอนทดสอบ Alembic migration ด้วยมือ)
+*.pdf
 *.db
 *.db-journal
 
-# Environments and credentials
+# Secret
 .env
 .env.local
 .env.*.local
+*.crt
+*.key
+# รหัสแอดมินแรกที่ระบบสุ่มให้ (services/api/app/main.py)
+initial_admin_password.txt
 
-# Python caches
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
 .venv/
 venv/
-ENV/
 
-# Log files
+# Logs / editor
 *.log
-
-# Editor configurations
 .vscode/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.swp
-
-# testchatbotSPO: เก็บสคริปต์วัดผล + ชุดคำถาม แต่ไม่เก็บ cache ของ LLM judge และไฟล์ผลลัพธ์ที่สร้างใหม่ทุกครั้งที่รัน
-testchatbotSPO/*_cache.json
-testchatbotSPO/*.xlsx
-!testchatbotSPO/questions_dataset.xlsx
