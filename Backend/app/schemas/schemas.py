@@ -2,7 +2,7 @@
 TUH Chatbot AI — Pydantic Schemas
 Request/Response models สำหรับ API endpoints
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -83,6 +83,13 @@ class UserResponse(BaseModel):
     department: Optional[str] = None
     is_active: bool
     created_at: datetime
+
+    # ฐานข้อมูลคืนเวลา UTC แบบไม่มี timezone — ติด UTC ให้ก่อนส่ง เบราว์เซอร์จึงแปลงเป็นเวลาไทยถูก
+    # (เดิมส่ง "2026-10-29T06:15:18" ไม่มี timezone เบราว์เซอร์อ่านเป็นเวลาท้องถิ่น ช้าไป 7 ชั่วโมง)
+    @field_validator("created_at")
+    @classmethod
+    def _created_at_utc(cls, value: datetime) -> datetime:
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
     class Config:
         from_attributes = True
@@ -222,14 +229,16 @@ class ChatResponse(BaseModel):
 
 # ─── Feedback Schemas ──────────────────────────────────────────────────────────
 
+# endpoint ส่ง feedback / คำถามที่ตอบไม่ได้ เปิดให้คนทั่วไป — จำกัดชนิดและความยาวทุกช่อง (security audit M5)
+# เดิมรับข้อความยาวเท่าไหร่ก็ได้ ยิงขยะเข้าตารางและหน้า dashboard ของแอดมินได้ไม่จำกัด
 class FeedbackSubmit(BaseModel):
-    msgId: str
-    rating: str  # like | dislike
-    stars: Optional[int] = None  # 1-5 จากแบบสอบถามความพึงพอใจภาพรวม
-    comment: Optional[str] = None
-    query: Optional[str] = None
-    answer: Optional[str] = None
-    history_id: Optional[str] = None
+    msgId: str = Field(..., min_length=1, max_length=255)
+    rating: Literal["like", "dislike", ""]  # "" = กดยกเลิกถูกใจ/ไม่ถูกใจ
+    stars: Optional[int] = Field(None, ge=1, le=5)  # 1-5 จากแบบสอบถามความพึงพอใจภาพรวม
+    comment: Optional[str] = Field(None, max_length=2000)
+    query: Optional[str] = Field(None, max_length=4000)
+    answer: Optional[str] = Field(None, max_length=20000)
+    history_id: Optional[str] = Field(None, max_length=255)
 
 
 class FeedbackResponse(BaseModel):
@@ -249,7 +258,7 @@ class FeedbackResponse(BaseModel):
 # ─── Unanswered Schemas ────────────────────────────────────────────────────────
 
 class UnansweredSubmit(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=2000)
 
 
 class UnansweredResponse(BaseModel):

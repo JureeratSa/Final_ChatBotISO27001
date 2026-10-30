@@ -78,6 +78,37 @@ def _delete_from_search_index(filename: str):
         logger.info("[Delete Index] ลบ %s chunk ของ '%s' ออกจากดัชนีค้นหาแล้ว", removed, filename)
     except Exception as e:
         logger.error("[Delete Index Error] ลบ '%s' ออกจากดัชนีค้นหาไม่สำเร็จ: %s", filename, e)
+    delete_document_leftovers(filename)
+
+
+def cache_file_prefix(filename: str) -> str:
+    """ชื่อไฟล์ cache ของ rebuild ใน uploads/cache — ต้องตรงกับ Admin/rebuild_db.py (safe_name + "_<tech>.json")"""
+    import re
+    return re.sub(r'[^\w฀-๿\.\-]', '_', filename) + "_"
+
+
+def delete_document_leftovers(filename: str) -> None:
+    """ลบข้อมูลที่ค้างหลังลบเอกสาร (security audit M7): cache chunk+embedding ใน uploads/cache และ
+    chunk ของไฟล์นี้ใน sample_chunks.json — เดิมเนื้อหาเอกสารที่ลบแล้วยังอยู่ในสองที่นี้จน rebuild ครั้งหน้า"""
+    import json
+    cache_dir = Path(settings.UPLOADS_DIR) / "cache"
+    prefix = cache_file_prefix(filename)
+    if cache_dir.is_dir():
+        for f in cache_dir.iterdir():
+            if f.name.startswith(prefix) and f.suffix == ".json":
+                try:
+                    f.unlink()
+                except OSError as e:
+                    logger.error("[Delete Leftovers] ลบ %s ไม่สำเร็จ: %s", f.name, e)
+    chunks_path = Path(settings.ADMIN_DIR).parent / "sample_chunks.json"
+    if chunks_path.exists():
+        try:
+            data = json.loads(chunks_path.read_text(encoding="utf-8"))
+            kept = [c for c in data if (c.get("metadata") or {}).get("source") != filename]
+            if len(kept) != len(data):
+                chunks_path.write_text(json.dumps(kept, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.error("[Delete Leftovers] แก้ sample_chunks.json ไม่สำเร็จ: %s", e)
 
 
 def _sync_load_documents() -> list:

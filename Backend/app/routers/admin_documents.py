@@ -23,6 +23,7 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import safe_filename, safe_path
+from app.core.uploads import read_request_body, read_upload_file, require_pdf
 from app.routers.auth import get_current_user
 from app.models.models import User, Document
 from app.schemas.schemas import DocumentResponse, DocumentUpdate
@@ -100,6 +101,7 @@ async def upload_document(
 ):
     from urllib.parse import unquote
     content_type = request.headers.get("content-type", "")
+    max_bytes = settings.MAX_DOCUMENT_UPLOAD_MB * 1024 * 1024
 
     if "application/pdf" in content_type:
         # Legacy adminSPO upload (raw binary PDF in request body)
@@ -112,7 +114,7 @@ async def upload_document(
         else:
             display_name = filename.replace(".pdf", "").replace("_", " ")
 
-        file_content = await request.body()
+        file_content = await read_request_body(request, max_bytes)
         file_size = len(file_content)
     else:
         # Standard multipart upload (new v2 frontend)
@@ -121,7 +123,7 @@ async def upload_document(
         filename = file.filename
         exclude_pages = ""  # multipart doesn't send page exclusions during file upload
         display_name = filename.replace(".pdf", "").replace("_", " ")
-        file_content = await file.read()
+        file_content = await read_upload_file(file, max_bytes)
         file_size = len(file_content)
 
     # ตัด path component ทิ้งก่อนเช็คนามสกุล/ต่อ path ป้องกัน Path Traversal (CWE-22)
@@ -130,8 +132,7 @@ async def upload_document(
     filename = safe_filename(filename)
     add_audit_detail(document=filename, document_name=display_name, size_bytes=file_size,
                      exclude_pages=exclude_pages or None)
-    if not filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ PDF เท่านั้น")
+    require_pdf(file_content, filename)
 
     # ชื่อไฟล์ไม่ซ้ำกันทั้งระบบ — อัปโหลดทับไฟล์ของแผนกอื่นไม่ได้ (ต้องเช็คก่อนเขียนไฟล์ลงดิสก์)
     existing_result = await db.execute(select(Document).where(Document.filename == filename))

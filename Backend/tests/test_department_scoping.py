@@ -259,11 +259,15 @@ async def test_department_admin_cannot_manage_central_features(client, staff_use
     assert (await client.post("/api/admin/settings", json={"top_k": 3}, headers=h)).status_code == 403
 
 
-async def test_department_admin_can_still_add_custom_faq(client, staff_user):
+async def test_department_admin_can_still_add_custom_faq(client, staff_user, db_session):
+    # สอน FAQ ให้คำถามที่ตอบไม่ได้ของแผนกตัวเอง (ทางเดียวที่ AdminWeb ใช้ — security audit M6)
+    from app.models.models import UnansweredQuery
+    db_session.add(UnansweredQuery(id="u-wifi", query="ลืมรหัส wifi", department=staff_user.department))
+    await db_session.commit()
     resp = await client.post("/api/admin/custom_faqs", json={"question": "ลืมรหัส wifi", "answer": "โทร 8470"},
                              headers=auth_header(staff_user.username))
     assert resp.status_code == 200
-    settings_resp = await client.get("/api/admin/settings")
+    settings_resp = await client.get("/api/admin/settings", headers=auth_header(staff_user.username))
     assert [f["question"] for f in settings_resp.json()["custom_faqs"]] == ["ลืมรหัส wifi"]
 
 

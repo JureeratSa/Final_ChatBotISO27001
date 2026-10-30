@@ -43,6 +43,9 @@ async def test_login_success_and_failure_are_logged_without_password(client, sta
 
 
 async def test_admin_changes_are_logged_with_actor(client, staff_user, db_session):
+    from app.models.models import UnansweredQuery
+    db_session.add(UnansweredQuery(id="u-q", query="q", department=staff_user.department))
+    await db_session.commit()
     await client.post("/api/admin/custom_faqs", json={"question": "q", "answer": "a"},
                       headers={**auth_header(staff_user.username), **UA})
     log = (await _logs(db_session))[-1]

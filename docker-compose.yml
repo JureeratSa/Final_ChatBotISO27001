@@ -10,6 +10,13 @@
 # ฐานข้อมูลหลักยังเป็น TiDB Cloud ตามเดิม ไม่มี container ฐานข้อมูล
 name: tuh-chatbot
 
+# log ของทุก service หมุนเวียน — เดิมไม่จำกัดขนาด log เต็มดิสก์ได้ (security audit M11)
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   backend:
     build:
@@ -32,6 +39,16 @@ services:
       - uploads:/app/uploads
       # โมเดล bge-m3 (~2 GB) + ข้อมูลตัดคำ PyThaiNLP — ไม่ต้องดาวน์โหลดใหม่ทุกครั้งที่สร้าง container
       - model_cache:/cache
+    networks: [api]
+    # ใช้งานปกติ ~1 GB — เผื่อตอนทำ embedding / OCR เอกสารใหญ่ (ปรับได้ตาม RAM ของ VM)
+    deploy:
+      resources:
+        limits:
+          memory: 5g
+    # รันเป็น user ธรรมดา (uid 1000 ใน image) ไม่ต้องใช้ capability ใดของ Linux
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: *logging
     restart: unless-stopped
 
   userweb:
@@ -43,7 +60,23 @@ services:
         VITE_API_URL: same-origin
     depends_on:
       - backend
-    restart: unless-stopped
+    networks: [web]
+    <<: &static-site
+      deploy:
+        resources:
+          limits:
+            memory: 128m
+      security_opt: ["no-new-privileges:true"]
+      # nginx: master รันเป็น root เพื่อ bind port 80 แล้วสลับไป user nginx — ต้องการแค่ capability ชุดนี้
+      cap_drop: [ALL]
+      cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE, DAC_OVERRIDE]
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+        interval: 30s
+        timeout: 5s
+        retries: 3
+      logging: *logging
+      restart: unless-stopped
 
   adminweb:
     build:
@@ -55,7 +88,8 @@ services:
         BASE: /admin/
     depends_on:
       - backend
-    restart: unless-stopped
+    networks: [web]
+    <<: *static-site
 
   # Reverse proxy + TLS — ทุกคำขอจากเครื่องอื่นเข้าทางนี้ทางเดียว (แทน legacy-redirect เดิม)
   proxy:
@@ -83,7 +117,26 @@ services:
       - backend
       - userweb
       - adminweb
+    # proxy อยู่ทั้งสองวง — userweb/adminweb (วง web) ต่อ backend (วง api) ตรงๆ ไม่ได้
+    networks: [web, api]
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--no-check-certificate", "https://localhost/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging
     restart: unless-stopped
+
+networks:
+  web:
+  api:
 
 configs:
   # เขียนเนื้อหาไว้ตรงนี้ (Docker Desktop bind mount ไฟล์จากไดรฟ์ Z: ไม่ได้) — $$ = $ ของ Caddy
@@ -97,17 +150,39 @@ configs:
         admin off
       }
 
+      # security headers ทุก response (security audit M8)
+      (security_headers) {
+        header {
+          X-Content-Type-Options "nosniff"
+          X-Frame-Options "SAMEORIGIN"
+          Referrer-Policy "strict-origin-when-cross-origin"
+          Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+          -Server
+        }
+      }
+
       {$$TLS_HOSTS} {
         encode gzip
+        import security_headers
         handle /api/* {
+          # เพดานขนาด request (เอกสารอัปโหลดสูงสุด 50 MB ตั้งใน backend) — กันไฟล์ใหญ่ผิดปกติตั้งแต่หน้าประตู
+          request_body {
+            max_size 60MB
+          }
           # X-Forwarded-For ที่ client ส่งมาถูกแทนด้วย IP จริงเสมอ (Caddy ไม่เชื่อ header จาก client โดย default)
           reverse_proxy backend:8000
         }
         redir /admin /admin/ 308
         handle_path /admin/* {
+          # CKEditor 4 โหลดจาก cdn.ckeditor.com (สคริปต์ สไตล์ ไอคอน) — React ใช้ style inline จึงต้อง 'unsafe-inline' ที่ style
+          # script ต้อง 'unsafe-inline' ด้วย: ปุ่มบน toolbar ของ CKEditor 4 เป็น onclick="..." ทั้งหมด (ทดสอบแล้ว ไม่ใส่ = พิมพ์ไม่ได้)
+          # — ข้อจำกัดของ CKEditor 4 ที่หมดระยะ support แล้ว เปลี่ยนตัวแก้ไขเมื่อไหร่ให้เอาออก (แชทบอทไม่มีข้อยกเว้นนี้)
+          # PDF ที่แอดมินเปิดเป็น blob: ใช้ตัวแสดง PDF ของเบราว์เซอร์ จึงต้องอนุญาต object/frame จาก blob:
+          header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.ckeditor.com;style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.ckeditor.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.ckeditor.com; connect-src 'self' https://cdn.ckeditor.com; frame-src 'self' blob:; object-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
           reverse_proxy adminweb:80
         }
         handle {
+          header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
           reverse_proxy userweb:80
         }
         # HSTS: เปิดหลังทุกเครื่องเชื่อใบรับรองแล้วเท่านั้น — ถ้าเปิดตอนยังเป็น CA ภายใน ผู้ใช้จะกดข้ามคำเตือนไม่ได้

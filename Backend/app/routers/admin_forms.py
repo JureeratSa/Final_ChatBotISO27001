@@ -15,6 +15,7 @@ from sqlalchemy import select, func
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import safe_path, safe_filename
+from app.core.uploads import read_request_body, require_pdf
 from app.routers.auth import get_current_user
 from app.models.models import User, Form as FormModel
 from app.schemas.schemas import FormResponse, FormCreate
@@ -134,6 +135,9 @@ async def upload_form_compatibility(
     if not form_name or not filename:
         raise HTTPException(status_code=400, detail="กรุณากรอกชื่อและเลือกไฟล์แบบฟอร์มให้ครบถ้วน")
     filename = safe_filename(filename)  # ป้องกัน Path Traversal จาก x-file-name header
+    if not filename.lower().endswith(".pdf"):
+        # เดิมรับทุกนามสกุล — .html/.svg ถูกเก็บแล้วเปิดเป็นหน้าเว็บได้ (security audit M2)
+        raise HTTPException(status_code=400, detail="แบบฟอร์มรองรับเฉพาะไฟล์ PDF เท่านั้น")
 
     # ชื่อแบบฟอร์มซ้ำกัน = อัปเดตแบบฟอร์มเดิม — อัปเดตทับของแผนกอื่นไม่ได้ (เช็คก่อนเขียนไฟล์)
     result = await db.execute(select(FormModel).where(func.lower(FormModel.name) == func.lower(form_name)))
@@ -141,7 +145,8 @@ async def upload_form_compatibility(
     if existing_form:
         _check_form_access(existing_form, current_user)
 
-    post_data = await request.body()
+    post_data = await read_request_body(request, settings.MAX_FORM_UPLOAD_MB * 1024 * 1024)
+    require_pdf(post_data)
 
     forms_dir = Path(settings.UPLOADS_DIR) / "forms"
     forms_dir.mkdir(parents=True, exist_ok=True)
@@ -190,9 +195,9 @@ async def upload_form_compatibility(
         if temp_filepath.exists():
             temp_filepath.rename(final_filepath)
 
-    # Save/Update in DB
-    host_header = request.headers.get("host", "localhost:8000")
-    download_link = f"http://{host_header}/api/forms/download/{quote(final_filename)}"
+    # Save/Update in DB — เก็บเป็น path ไม่ผูกกับ host (เดิมสร้างจาก Host header ที่ผู้เรียกกำหนดเองได้
+    # ลิงก์ที่เก็บลง DB จึงชี้ไปโดเมนอื่นได้ — security audit M2) UserWeb ต่อ path นี้กับ origin ของ API เอง
+    download_link = f"/api/forms/download/{quote(final_filename)}"
 
     if existing_form:
         # Delete old file

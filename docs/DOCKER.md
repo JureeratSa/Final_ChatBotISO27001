@@ -84,6 +84,17 @@
 - port 80 ไม่ได้เปิด เพราะ Windows ใช้อยู่ (http.sys) — บน VM Linux เพิ่ม `"80:80"` ที่ service `proxy` แล้ว Caddy จะ redirect http → https ให้เอง
 - backend เชื่อ `X-Forwarded-For` จาก proxy (`TRUST_PROXY_HEADERS=true`) — บน Docker Desktop ทุกเครื่องยังเห็นเป็น IP เดียวกัน (ข้อจำกัดของ Docker Desktop) บน VM Linux จะเห็น IP จริง
 
+## Hardening (security audit 2026-10-30)
+
+- security headers ใส่ที่ proxy ทุก response: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, ซ่อน `Server`
+- CSP แยกตามเว็บ: แชทบอทอนุญาตเฉพาะตัวเอง + Google Fonts; แอดมินเพิ่ม `cdn.ckeditor.com` (ตัวแก้ไขประกาศ) และ `blob:` (เปิด PDF)
+  — เพิ่ม script/ฟอนต์/รูปจากโดเมนใหม่ ต้องแก้ CSP ใน Caddyfile (docker-compose.yml) ด้วย ไม่งั้นเบราว์เซอร์บล็อก
+- proxy จำกัด request ไป `/api` ไม่เกิน 60 MB (backend: เอกสาร 50 MB, แบบฟอร์ม 20 MB — `MAX_DOCUMENT_UPLOAD_MB`, `MAX_FORM_UPLOAD_MB`)
+- ทุก container: `no-new-privileges`, ตัด Linux capability ที่ไม่ใช้, จำกัด memory (backend 5 GB), log หมุนเวียน 10 MB × 5
+- network แยก: `web` (proxy, userweb, adminweb) / `api` (proxy, backend) — หน้าเว็บต่อ backend ตรงไม่ได้
+- ลบไฟล์ค้างของเอกสารที่ลบไปแล้วใน volume uploads: `docker compose exec backend python -m scripts.purge_orphan_upload_files [--execute]`
+- ⚠️ CKEditor 4.22.1 (AdminWeb) หมดระยะ support แบบฟรีแล้ว — เนื้อหาประกาศยังผ่าน sanitize ฝั่ง backend (nh3) แต่ควรวางแผนเปลี่ยนตัวแก้ไข
+
 ## เข้าจากเครื่องอื่นใน LAN
 
 firewall ของเครื่องต้องเปิด port 443 (และ 5173/5174/8080 ถ้าอยากให้ลิงก์เดิม redirect ได้) — port 8000 ไม่ต้องเปิดแล้ว

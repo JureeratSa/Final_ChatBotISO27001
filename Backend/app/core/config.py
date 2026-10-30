@@ -154,6 +154,9 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 30
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+    # เพดานขนาดไฟล์อัปโหลด (MB) — เอกสารใหญ่สุดในระบบตอนตั้งค่า (2026-10-30) ประมาณ 14 MB
+    MAX_DOCUMENT_UPLOAD_MB: int = 50
+    MAX_FORM_UPLOAD_MB: int = 20
     # เชื่อ X-Forwarded-For เฉพาะเมื่อมี reverse proxy ของเราอยู่หน้า backend — ไม่งั้น client ปลอม IP ได้
     TRUST_PROXY_HEADERS: bool = False
     # กันเดารหัสผ่าน (ดู app/core/rate_limit.py LoginThrottle)

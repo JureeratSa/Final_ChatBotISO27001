@@ -52,7 +52,8 @@ async def rate_limit_dependency(request: Request):
 
     if len(_hits) > _MAX_TRACKED_IPS:
         _drop_stale_ips(now, window)
-    hits = _hits[ip]
+    # นับแยกต่อ endpoint — กดถูกใจ/ส่ง feedback ไม่กินโควตาถามแชทของ IP เดียวกัน
+    hits = _hits[f"{ip} {request.url.path}"]
 
     # 1. ลบ Timestamp เก่าที่อยู่นอกหน้าต่างเวลาทิ้ง
     while hits and now - hits[0] > window:

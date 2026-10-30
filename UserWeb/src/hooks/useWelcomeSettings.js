@@ -1,6 +1,7 @@
 /**
  * TUH Chatbot AI — useWelcomeSettings Custom Hook
- * โหลดการตั้งค่าระบบจาก Backend ('/api/admin/settings'):
+ * โหลดการตั้งค่าระบบจาก Backend ('/api/chat/settings' — endpoint สาธารณะที่คืนเฉพาะ 3 ค่าที่หน้าแชทใช้
+ * เดิมเรียก /api/admin/settings ซึ่งส่ง system prompt / FAQ ภายใน / ชื่อโมเดลมาด้วย — security audit M1):
  * 1. ข้อความต้อนรับหน้าหลัก (welcome_message)
  * 2. ข้อความทักทายเมื่อเปิดห้องแชทใหม่ (chat_greeting)
  * 3. รายการคำถามที่พบบ่อย (predefined_faqs)
@@ -25,7 +26,7 @@ export function useWelcomeSettings({ setSessions }) {
 
   // ดึงข้อมูลการตั้งค่าจาก API ตอนเริ่มต้นระบบ
   useEffect(() => {
-    fetch(API_URL + '/api/admin/settings')
+    fetch(API_URL + '/api/chat/settings')
       .then(r => r.json())
       .then(data => {
         if (data) {

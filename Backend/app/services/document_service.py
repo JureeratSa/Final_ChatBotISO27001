@@ -17,6 +17,7 @@ from app.models.models import Document, User
 from app.schemas.schemas import DocumentResponse
 from app.services.department_scope import check_department
 from app.services.audit_service import add_audit_detail
+from app.utils.timeutil import thai_str  # เวลาในฐานข้อมูลเป็น UTC — แสดงเป็นเวลาไทย
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -43,7 +44,7 @@ def _doc_to_response(doc: Document) -> DocumentResponse:
         exclude_pages=_parse_exclude_pages(doc.exclude_pages),
         chunking_duration=doc.chunking_duration,
         embedding_duration=doc.embedding_duration,
-        upload_date=doc.upload_date.strftime("%Y-%m-%d %H:%M:%S") if doc.upload_date else "",
+        upload_date=thai_str(doc.upload_date) or "",
         uploaded_by=doc.uploaded_by,
         department=doc.department
     )

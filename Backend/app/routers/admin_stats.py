@@ -4,18 +4,18 @@ TUH Chatbot AI — Admin Router: Stats
 เป็น read-only aggregation ข้าม 4 model (ChatHistory, Feedback, UnansweredQuery, Document)
 ไม่แยก service layer เพราะไม่มี business rule ที่ซับซ้อนพอจะซ่อน แค่ query นับจำนวนตรงๆ
 """
-from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, cast, Date
+from sqlalchemy import select, func
 
 from app.core.database import get_db
 from app.routers.auth import get_current_user
 from app.models.models import User, ChatHistory, Feedback, UnansweredQuery, Document
 from app.schemas.schemas import StatsResponse
 from app.services.department_scope import department_column_filter, history_scope_filter, scope_department
+from app.utils.timeutil import thai_day_range_utc
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -52,10 +52,11 @@ async def get_stats(
         _where(select(func.count(Document.id)).where(Document.status == "Active"), doc_scope)
     )).scalar() or 0
 
-    today = date.today()
+    # "วันนี้" ตามเวลาไทย — timestamp ในฐานข้อมูลเป็น UTC เดิมนับตามวันของ UTC ช่วงตี 0–7 ของไทยจึงนับผิดวัน
+    day_start, day_end = thai_day_range_utc()
     queries_today = (await db.execute(_history(
         select(func.count(ChatHistory.id)).where(
-            cast(ChatHistory.timestamp, Date) == today
+            ChatHistory.timestamp >= day_start, ChatHistory.timestamp < day_end
         )
     ))).scalar() or 0
 

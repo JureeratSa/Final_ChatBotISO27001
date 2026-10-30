@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit_dependency
 from app.routers.auth import get_current_user
 from app.models.models import User, Feedback, ChatHistory
 from app.schemas.schemas import FeedbackResponse, FeedbackSubmit
 from app.services.feedback_service import upsert_feedback
 from app.services.department_scope import history_scope_filter
 from app.services.audit_service import add_audit_detail
+from app.utils.timeutil import thai_str  # เวลาในฐานข้อมูลเป็น UTC — แสดงเป็นเวลาไทย
 
 
 async def _scoped_feedback_query(db: AsyncSession, user: User, department: Optional[str] = None):
@@ -42,12 +44,13 @@ async def get_feedback(
     items = result.scalars().all()
     return [FeedbackResponse(
         id=f.id, rating=f.rating, stars=f.stars, comment=f.comment, query=f.query, answer=f.answer,
-        timestamp=f.timestamp.strftime("%Y-%m-%d %H:%M:%S") if f.timestamp else "",
+        timestamp=thai_str(f.timestamp) or "",
         history_id=f.history_id
     ) for f in items]
 
 
-@router.post("/feedback/submit", status_code=status.HTTP_201_CREATED)
+@router.post("/feedback/submit", status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(rate_limit_dependency)])
 async def submit_feedback(body: FeedbackSubmit, db: AsyncSession = Depends(get_db)):
     """User submits feedback (ไม่ต้องการ auth)"""
     await upsert_feedback(db, body)

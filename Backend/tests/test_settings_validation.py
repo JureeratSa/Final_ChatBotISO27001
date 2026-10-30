@@ -89,8 +89,9 @@ async def test_get_settings_never_returns_real_api_key(client, admin_user, monke
     from app.core.config import settings
     monkeypatch.setattr(settings, "LITELLM_API_KEY", "secret-key")
 
-    for headers in ({}, auth_header(admin_user.username)):
-        resp = await client.get("/api/admin/settings", headers=headers)
-        assert resp.status_code == 200
-        assert resp.json()["gemini_api_key"] == "***masked***"
-        assert "secret-key" not in resp.text
+    # ไม่ล็อกอินเรียกไม่ได้แล้ว (security audit M1) — ล็อกอินแล้วก็ยังได้แค่ค่าที่ซ่อนไว้
+    assert (await client.get("/api/admin/settings")).status_code in (401, 403)
+    resp = await client.get("/api/admin/settings", headers=auth_header(admin_user.username))
+    assert resp.status_code == 200
+    assert resp.json()["gemini_api_key"] == "***masked***"
+    assert "secret-key" not in resp.text

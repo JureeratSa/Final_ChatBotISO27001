@@ -13,7 +13,9 @@ import hmac
 import secrets
 import base64
 
-from jose import JWTError, jwt
+# PyJWT แทน python-jose ที่ไม่มีผู้ดูแลแล้วและมีช่องโหว่ที่ไม่มีเวอร์ชันแก้ (security audit M9)
+import jwt
+from jwt import PyJWTError as JWTError
 import bcrypt
 from app.core.config import settings
 

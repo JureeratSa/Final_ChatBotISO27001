@@ -11,7 +11,7 @@ cryptography>=42.0.0
 alembic>=1.13.0
 
 # Security
-python-jose[cryptography]>=3.3.0
+PyJWT>=2.10  # แทน python-jose (ไม่มีผู้ดูแลแล้ว มี CVE ไม่มีเวอร์ชันแก้)
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.9
 nh3>=0.2.18  # HTML sanitizer กัน Stored XSS จากเนื้อหา CKEditor (ประกาศ)
@@ -33,5 +33,5 @@ openpyxl>=3.1  # นำเข้าบัญชีแอดมินจาก Ex
 
 # OCR หน้าสแกน: ตำแหน่งคำจาก Tesseract + จับคู่บรรทัดกับ chunk (Admin/pdf_ocr.py)
 pytesseract>=0.3.10
-pillow>=10.0
+pillow>=13.0  # 12.x มีช่องโหว่หลายรายการ (pip-audit 2026-10-30)
 rapidfuzz>=3.6

@@ -24,6 +24,7 @@ from app.models.models import User, AdminAuditLog
 from app.services.audit_service import set_audit
 from app.services.department_scope import require_super_admin
 from app.services.password_policy import password_problems, password_status
+from app.utils.timeutil import thai_str  # เวลาในฐานข้อมูลเป็น UTC — แสดงเป็นเวลาไทย
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -133,7 +134,7 @@ async def list_audit_logs(
     rows = (await db.execute(query.limit(max(1, min(limit, 10000))))).scalars().all()
     return [{
         "id": r.id,
-        "timestamp": r.timestamp.strftime("%Y-%m-%d %H:%M:%S") if r.timestamp else "",
+        "timestamp": thai_str(r.timestamp) or "",
         "username": r.username,
         "department": r.department,
         "action": r.action,

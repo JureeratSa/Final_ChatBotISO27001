@@ -13,17 +13,22 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
 from app.routers.auth import get_current_user
-from app.models.models import User, SystemSettings
+from app.models.models import User, SystemSettings, UnansweredQuery
 from app.schemas.schemas import SettingsResponse, SettingsUpdate, CustomFaqCreate
 from app.services.audit_service import add_audit_detail
+from app.services.department_scope import department_column_filter, is_super_admin, scope_department
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.get("/settings", response_model=SettingsResponse)
-async def get_settings(db: AsyncSession = Depends(get_db)):
+async def get_settings(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     # API key ไม่ถูกส่งออกจาก API เลย (แม้เป็น System Administrator) — ค่าจริงอยู่ใน .env เท่านั้น
-    # endpoint นี้ต้องรองรับผู้เรียกแบบไม่ login ด้วย จึงไม่บังคับ get_current_user
+    # ต้องล็อกอิน — เดิมเปิดให้คนทั่วไปเห็น system prompt / FAQ ภายใน / ชื่อโมเดล (security audit M1)
+    # หน้าแชทของผู้ใช้ใช้ /api/chat/settings ที่คืนเฉพาะข้อความต้อนรับ คำทักทาย และปุ่มคำถามด่วน
     gemini_key = "***masked***" if settings.LLM_API_KEY else ""
 
     result = await db.execute(select(SystemSettings).where(SystemSettings.id == "config"))
@@ -118,6 +123,22 @@ async def update_settings(
     )
 
 
+async def _require_faq_permission(db: AsyncSession, user: User, question: str) -> None:
+    """FAQ ตอบแทนบอทให้ผู้ใช้ทุกคน (เช็คก่อนค้นเอกสาร) — แอดมินแผนกเพิ่มได้เฉพาะ "สอนคำตอบ" ให้คำถามที่ตอบไม่ได้
+    ของแผนกตัวเอง (ทางเดียวที่ AdminWeb ใช้) เดิมเพิ่มคำถามอะไรก็ได้ ตั้งคำตอบทับเรื่องของแผนกอื่นได้ (security audit M6)"""
+    if is_super_admin(user):
+        return
+    wanted = question.strip().lower()
+    rows = await db.execute(select(UnansweredQuery.query).where(
+        department_column_filter(UnansweredQuery.department, scope_department(user))
+    ))
+    if not any((q or "").strip().lower() == wanted for q in rows.scalars().all()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="แอดมินแผนกเพิ่ม FAQ ได้เฉพาะคำถามที่ตอบไม่ได้ของแผนกตัวเอง — FAQ อื่นให้ SuperAdmin เพิ่ม"
+        )
+
+
 @router.post("/custom_faqs")
 async def add_custom_faq(
     body: CustomFaqCreate,
@@ -131,6 +152,7 @@ async def add_custom_faq(
     if not cfg:
         cfg = SystemSettings(id="config")
         db.add(cfg)
+    await _require_faq_permission(db, current_user, body.question)
     faqs = json.loads(cfg.custom_faqs or "[]")
     new_faq = {
         "id": f"faq-{int(time.time() * 1000)}",

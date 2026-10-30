@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit_dependency
 from app.routers.auth import get_current_user
 from app.models.models import User, UnansweredQuery
 from app.schemas.schemas import UnansweredResponse, UnansweredUpdate, UnansweredSubmit
@@ -22,6 +23,7 @@ from app.services.audit_service import add_audit_detail
 from app.services.department_scope import (
     check_department, department_column_filter, require_super_admin, scope_department
 )
+from app.utils.timeutil import thai_str  # เวลาในฐานข้อมูลเป็น UTC — แสดงเป็นเวลาไทย
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -31,7 +33,7 @@ class AnalyzeQueryRequest(BaseModel):
 
 
 def _fmt(dt):
-    return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else None
+    return thai_str(dt)
 
 
 def _to_response(u: UnansweredQuery) -> UnansweredResponse:
@@ -72,7 +74,8 @@ async def get_unanswered(
     return [_to_response(u) for u in result.scalars().all()]
 
 
-@router.post("/unanswered/submit", status_code=status.HTTP_201_CREATED)
+@router.post("/unanswered/submit", status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(rate_limit_dependency)])
 async def submit_unanswered(body: UnansweredSubmit, db: AsyncSession = Depends(get_db)):
     """User-facing endpoint: บันทึกคำถามที่ระบบตอบไม่ได้"""
     await record_unanswered_query(db, body)
