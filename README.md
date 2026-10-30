@@ -1,215 +1,116 @@
-# TUH Chatbot AI
+# TUH Chatbot AI ("ขาหมู")
 
-## การเริ่มต้นระบบใหม่ (Modern Reorganized Architecture)
+แชทบอทตอบคำถามบุคลากรจากเอกสารนโยบาย/ระเบียบ/ประกาศของโรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ (งานสารสนเทศ)
+บอทค้นเอกสารที่เกี่ยวข้องก่อน แล้วให้ LLM ตอบจากเนื้อหานั้น พร้อมแนบลิงก์ PDF ที่ใช้ตอบ (RAG)
 
-### Stack
-- **Backend**: FastAPI + TiDB Cloud (MySQL) + SQLAlchemy (async) + JWT Auth
-- **Frontend (User/Admin)**: React + Vite + TailwindCSS
-- **CI/CD**: GitHub Actions
+| ส่วน | โฟลเดอร์ | เทคโนโลยี |
+|---|---|---|
+| เว็บแชทบอท (บุคลากรใช้) | `apps/chat-web` | React + Vite + Tailwind |
+| เว็บแอดมิน (จัดการเอกสาร/ดูสถิติ) | `apps/admin-web` | React + Vite + Tailwind |
+| Backend API + ระบบค้นหา (RAG) | `services/api` | FastAPI, SQLAlchemy (async), ChromaDB, BM25 |
+| ฐานข้อมูล | TiDB Cloud (MySQL) | — |
 
----
-
-## วิธีรันด้วย Scripts (แนะนำ)
-
-รันคำสั่งต่อไปนี้ที่ root directory เพื่อเริ่มใช้งานเซิร์ฟเวอร์แบบ Local Development:
-
-- **Backend**: `python run_backend.py`
-- **Chatbot Frontend (User)**: `python run_user_web.py`
-- **Admin Frontend**: `python run_admin_web.py`
-
-**URLs:**
-- Chatbot Frontend (User): [http://localhost:5173](http://localhost:5173)
-- Admin Frontend: [http://localhost:5174](http://localhost:5174)
-- Backend API: [http://localhost:8000](http://localhost:8000)
-
----
-
-## วิธีรันแบบ Development (รันตรงด้วย CLI)
-
-### Backend
-```bash
-cd Backend
-pip install -r requirements.txt
-
-# 1. คัดลอก .env.example เป็น .env แล้วใส่ค่าจริง (DB_*, JWT_SECRET_KEY เป็นต้น)
-#    ไม่มีค่า default ในโค้ดแล้ว — app จะ start ไม่ขึ้นถ้าไม่ตั้งค่าพวกนี้ (ดู core/config.py)
-cp .env.example .env
-
-# 2. เตรียม schema ของ DB ก่อนรันครั้งแรก (ดูรายละเอียดใน "Database Migrations" ด้านล่าง)
-alembic upgrade head
-
-# uvicorn app.main:app --reload --port 8000
-```
-
-### User Web
-```bash
-cd UserWeb
-npm install
-npm run dev -- --port 5173
-```
-
-### Admin Web
-```bash
-cd AdminWeb
-npm install
-npm run dev -- --port 5174
-```
-
-Local dev ไม่ต้องตั้งค่าอะไรเพิ่ม (frontend หา backend จาก hostname ปัจจุบันอัตโนมัติ) —
-ตอน deploy จริงหลัง HTTPS/reverse proxy หรือ backend คนละโดเมน ให้คัดลอก `.env.example`
-เป็น `.env.local` ในแต่ละโฟลเดอร์แล้วตั้งค่า `VITE_API_URL` (ดูรายละเอียดในไฟล์นั้น)
-
----
-
-## วิธี Deploy ผ่าน XAMPP (production-like บนเครื่อง Windows)
-
-ใช้เมื่อไม่อยากรัน `npm run dev` ค้างไว้ตลอด (ไม่มี hot reload, ต้อง build ใหม่ทุกครั้งที่แก้โค้ด)
-เหมาะกับการจำลองสภาพแวดล้อมที่ใกล้ production มากกว่า dev server — **XAMPP ทำหน้าที่แค่เสิร์ฟไฟล์
-static ของ React ที่ build เสร็จแล้วเท่านั้น ไม่ได้รัน Backend (Python) ให้** ต้องรัน Backend แยก
-ด้วย `python run_backend.py` เหมือนเดิมเสมอ ไม่ว่าจะใช้วิธี dev server หรือ XAMPP ก็ตาม
-
-### ทางลัด: แก้ด้วย dev server แล้วขึ้น XAMPP ด้วยคำสั่งเดียว
-
-1. ระหว่างแก้โค้ด รัน `python run_admin_web.py` (หรือ `run_user_web.py`) แล้วเปิด http://localhost:5174
-   (หรือ 5173) — แก้ไฟล์ใน Z: แล้วเห็นผลทันที (สคริปต์ sync โค้ดไปรัน dev บนไดรฟ์ C: ให้เอง)
-2. แก้เสร็จแล้ว รัน `python deploy_xampp.py admin` (หรือ `user` / `all`) — สคริปต์จะ build บนไดรฟ์ C:
-   สำรองเวอร์ชันเดิมไว้ที่ `C:\xampp\tuh_backups\` แล้ววางไฟล์ใหม่ลง htdocs ให้ (ทำขั้นที่ 2–3 ด้านล่างแทน)
-
-แก้โค้ดแล้ว XAMPP จะ**ไม่เปลี่ยนเอง** จนกว่าจะรันขั้นที่ 2
-
-### 1. เปิด Apache ของ XAMPP
-
-Apache ของ XAMPP บนเครื่องนี้ตั้งค่าให้ฟัง **port 8080** (ไม่ใช่ 80 ค่า default — ดู
-`C:\xampp\apache\conf\httpd.conf` บรรทัด `Listen 8080`) เปิดได้ด้วย:
-
-```bash
-C:\xampp\apache_start.bat
-```
-
-หรือเปิดผ่าน XAMPP Control Panel ตามปกติก็ได้ — **Apache ไม่ได้ตั้งเป็น Windows Service ที่ auto-start
-ตอนเปิดเครื่อง** ต้องเปิดเองทุกครั้งที่รีสตาร์ทเครื่อง (เช็คว่ารันอยู่จริงด้วย `tasklist | findstr httpd`
-เพราะเครื่องนี้มี `httpd.exe` อีกตัวจากโปรแกรมอื่นที่ไม่ใช่ XAMPP วิ่งอยู่คนละ process/port ด้วย)
-
-### 2. Build UserWeb + AdminWeb ด้วย `--base` flag
-
-`vite.config.js` ของทั้งสองฝั่ง**ไม่ได้ hardcode `base` ไว้** เพราะ dev server ต้องใช้ `/` เป็น base
-ปกติ — ตอน build สำหรับ XAMPP ต้องส่ง `--base` เข้าไปเองทุกครั้งให้ตรงกับ subpath ที่จะวางไฟล์:
-
-```bash
-cd UserWeb
-npm run build -- --base=/tuh_chatbot_ai/
-
-cd ../AdminWeb
-npm run build -- --base=/tuh_chatbot_ai/admin/
-```
-
-ผลลัพธ์จะได้ในโฟลเดอร์ `dist/` ของแต่ละโปรเจกต์
-
-### 3. คัดลอกไฟล์ที่ build แล้วเข้า htdocs
-
-```
-C:\xampp\htdocs\tuh_chatbot_ai\           ← เนื้อหาจาก UserWeb/dist/
-C:\xampp\htdocs\tuh_chatbot_ai\admin\     ← เนื้อหาจาก AdminWeb/dist/
-```
-
-**URLs หลัง deploy:**
-- Chatbot (User): [http://localhost:8080/tuh_chatbot_ai/](http://localhost:8080/tuh_chatbot_ai/)
-- Admin Panel: [http://localhost:8080/tuh_chatbot_ai/admin/](http://localhost:8080/tuh_chatbot_ai/admin/)
-- Backend API: [http://localhost:8000](http://localhost:8000) (รันแยกด้วย `python run_backend.py` เหมือนเดิม)
-
-### 4. CORS ต้องอนุญาต origin ของ Apache ด้วย
-
-`Backend/app/main.py` เปิด origin `http://localhost:8080` / `http://127.0.0.1:8080` ไว้ให้แล้ว
-(รวมถึง IP วง LAN 172.30.x.x พอร์ต 8080 ผ่าน regex) ถ้าย้าย Apache ไปฟังพอร์ตอื่นในอนาคต ต้องไปแก้
-`allowed_origins`/`allowed_origin_regex` ใน `main.py` ให้ตรงกันด้วย ไม่งั้น login/เรียก API จากหน้าเว็บ
-บน XAMPP จะโดน CORS บล็อกทันที
-
-**หมายเหตุ**: ถ้าอยู่บน network drive ที่ path มีช่องว่าง (เช่น mapped drive ที่ UNC path มีช่องว่างใน
-ชื่อ share) `npm run build` อาจ error เพราะบั๊กของ Node ESM loader กับ path แบบนั้น — ถ้าเจอปัญหานี้
-ให้ copy โปรเจกต์ไปไว้ที่ local disk (เช่น `C:\`) ก่อน build แล้วค่อยคัดลอกผลลัพธ์กลับมา
-
----
-
-## Database Migrations (Alembic)
-
-Schema ของ DB จัดการผ่าน Alembic แล้ว (ก่อนหน้านี้ startup โค้ดใน `core/database.py` ต่อท้ายด้วย
-`ALTER TABLE ... try/except: pass` ทีละคอลัมน์ ซึ่งกลืน error จริงทิ้งและไม่มี history ให้ตรวจสอบ)
-
-**DB ใหม่ที่ยังไม่มีตารางเลย** (เช่น TestPFM cluster ใหม่, เครื่อง dev เครื่องใหม่):
-```bash
-cd Backend
-alembic upgrade head
-```
-
-**DB ที่มีตารางอยู่แล้วจากก่อนเปลี่ยนมาใช้ Alembic** (เช่น production/test cluster ปัจจุบัน) —
-ห้ามรัน `upgrade head` ตรงๆ เพราะ migration แรกจะพยายาม `CREATE TABLE` ที่มีอยู่แล้วแล้ว fail
-ให้ "แปะ" ว่า DB อยู่ที่ revision ล่าสุดแล้วโดยไม่รัน SQL จริงแทน (ทำครั้งเดียวตอน migrate มาใช้ Alembic):
-```bash
-cd Backend
-alembic stamp head
-```
-
-**เพิ่ม/แก้ไข column ใหม่ในอนาคต** — แก้ `app/models/models.py` แล้วสร้าง migration:
-```bash
-alembic revision --autogenerate -m "อธิบายสั้นๆ ว่าเปลี่ยนอะไร"
-# ตรวจไฟล์ที่ได้ใน alembic/versions/ ก่อนเสมอ (autogenerate เดาไม่ได้ทุกกรณี)
-alembic upgrade head
-```
-
-ตรวจสอบ revision ปัจจุบันของ DB ที่ต่ออยู่: `alembic current` — ดู history ทั้งหมด: `alembic history`
-
----
-
-## โครงสร้างโปรเจค
+## โครงสร้างโปรเจกต์
 
 ```
 PJChatbot/
-├── Backend/                    # FastAPI Backend
-│   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── core/
-│   │   │   ├── config.py        # Settings (pydantic-settings)
-│   │   │   ├── database.py      # Async SQLAlchemy + TiDB Cloud
-│   │   │   └── rate_limit.py    # Rate limiting (best-effort, in-memory)
-│   │   ├── utils/
-│   │   │   └── sanitize.py      # HTML sanitizer (nh3) กัน Stored XSS
-│   │   └── routers/
-│   │       ├── auth.py          # /api/auth/*
-│   │       ├── chat.py          # /api/chat
-│   │       └── admin.py         # /api/admin/*
-│   ├── alembic/                  # DB schema migrations (ดู "Database Migrations" ด้านบน)
-│   ├── alembic.ini
-│   └── requirements.txt
-├── UserWeb/                    # React User Chatbot Frontend
-│   ├── src/
-│   │   ├── App.jsx
-│   │   └── components/
-│   └── package.json
-├── AdminWeb/                   # React Admin Portal Frontend
-│   ├── src/
-│   │   └── App.jsx
-│   └── package.json
-├── Admin/                      # Legacy Python RAG Toolset
-│   ├── cleanData.py
-│   ├── emb.py
-│   └── rebuild_db.py
-├── run_backend.py              # Backend Runner
-├── run_user_web.py             # User Chatbot Frontend Runner
-└── run_admin_web.py            # Admin Frontend Runner
+├── apps/
+│   ├── chat-web/                 # เว็บแชทบอท
+│   │   └── src/  components/ hooks/ utils/ App.jsx
+│   └── admin-web/                # เว็บแอดมิน
+│       └── src/  pages/ components/ hooks/ context/ layouts/ utils/ App.jsx
+├── services/
+│   └── api/                      # Backend
+│       ├── app/
+│       │   ├── main.py           # จุดเริ่มต้น: สร้าง FastAPI app, ใส่ middleware, รวม router
+│       │   ├── api/              # endpoint (1 ไฟล์ต่อ 1 หน้าที่) — รับ request แล้วเรียก services/
+│       │   │   └── deps.py       # get_current_user: ตรวจ token ของแอดมิน
+│       │   ├── services/         # logic ของระบบ (ตอบคำถาม, rebuild, แผนก, audit log, ...)
+│       │   ├── rag/              # ระบบค้นหาเอกสาร (ดูหัวข้อ "RAG ทำงานอย่างไร")
+│       │   ├── core/             # config, ฐานข้อมูล, ความปลอดภัย, rate limit
+│       │   ├── models/models.py  # ตารางในฐานข้อมูล
+│       │   ├── schemas/          # รูปแบบข้อมูลเข้า/ออกของ API (Pydantic)
+│       │   └── utils/            # เวลาไทย, sanitize HTML
+│       ├── alembic/              # migration ของฐานข้อมูล
+│       ├── scripts/              # สคริปต์ดูแลระบบ (SQL Server, ลบไฟล์ค้าง)
+│       ├── sql/                  # SQL สร้างตารางบน SQL Server (สร้างอัตโนมัติ)
+│       └── Dockerfile
+├── infra/
+│   ├── docker/                   # Dockerfile + nginx ของเว็บ
+│   └── scripts/
+│       ├── dev.py                # รันแบบ dev
+│       └── seed_volumes.py       # คัดลอกข้อมูลเดิมเข้า Docker volume (ครั้งเดียว)
+├── docs/                         # คู่มือ, รายงาน, SDD, เอกสาร RAG
+├── docker-compose.yml            # รันทั้งระบบ (production)
+└── .github/workflows/ci.yml      # ตรวจว่าทุกส่วน build ได้
 ```
 
----
+## RAG ทำงานอย่างไร
 
-## Default Credentials
-- ตั้งค่า `INITIAL_ADMIN_USERNAME` / `INITIAL_ADMIN_PASSWORD` ใน `.env` ก่อน start ครั้งแรก
-- ถ้าไม่ตั้ง `INITIAL_ADMIN_PASSWORD` ระบบจะสุ่มรหัสผ่านให้และ print ออก console ตอน startup
-  ครั้งเดียวเท่านั้น (ไม่มี default แบบรู้ล่วงหน้าได้เช่น `admin1234` อีกต่อไป)
-- เปลี่ยนรหัสผ่านใน Admin Panel ทันทีหลัง login (ขั้นต่ำ 8 ตัวอักษร)
+ทุกอย่างอยู่ใน `services/api/app/rag/` และ `services/api/app/services/chat_service.py`
 
----
+**ตอนแอดมินอัปโหลดเอกสาร** (หน้า "จัดการเอกสาร")
+1. `rag/ocr.py` ดึงข้อความทุกหน้า — หน้าที่เป็นภาพสแกนจะ OCR ด้วย Typhoon
+2. แอดมินกดอนุมัติทีละขั้น: ข้อความดิบ → ข้อความที่คลีนแล้ว → ตัวอย่าง chunk → ใช้งาน (`services/document_service.py`)
+3. `rag/indexer.py` แบ่งทุกเอกสารเป็น chunk แล้วสร้างดัชนี 2 แบบ:
+   ChromaDB (เวกเตอร์ความหมายจาก `BAAI/bge-m3`) และ BM25 (คำตรงตัว ตัดคำไทยด้วย PyThaiNLP)
 
-## Security Notes
-- JWT Access Token: อายุ 15 นาที
-- JWT Refresh Token: อายุ 7 วัน  
-- Passwords: hashed ด้วย bcrypt (cost factor 12)
-- CORS: จำกัดเฉพาะ frontend URL
+**ตอนผู้ใช้ถาม** (`POST /api/search`)
+1. ตรงกับ FAQ ที่แอดมินตั้งคำตอบไว้ → ตอบเลย
+2. `rag/retriever.py` ค้นทั้ง 2 ดัชนี แล้วรวมอันดับด้วย Weighted RRF (BM25 0.6 / Dense 0.4)
+3. `rag/answer.py` ส่ง chunk ที่ได้ + ประวัติแชทให้ LLM ตอบ แล้วเลือกเฉพาะเอกสารที่ LLM บอกว่าใช้จริงมาแนบ
+4. ตอบไม่ได้ → บันทึกให้แอดมินแก้ (สอนคำค้น / สอนคำตอบ) ในหน้า "คำถามที่บอทตอบไม่ได้"
+
+## รันระบบ
+
+### Production (Docker)
+
+```bash
+docker compose up -d --build
+```
+เปิดใช้งานที่ `https://<ชื่อเครื่อง>/` (แชทบอท) และ `https://<ชื่อเครื่อง>/admin/` (แอดมิน)
+รายละเอียด (HTTPS, ใบรับรอง, volume, สำรองข้อมูล) อยู่ใน [docs/DOCKER.md](docs/DOCKER.md)
+
+### Dev (ปิด Docker ก่อน เพราะใช้ port เดียวกัน)
+
+ครั้งแรก:
+```bash
+cd services/api
+pip install -r requirements.txt
+cp .env.example .env          # ใส่ค่าจริง (DB_*, JWT_SECRET_KEY, LITELLM_*) — ไม่มีค่า default ของ secret ในโค้ด
+alembic upgrade head          # ฐานข้อมูลใหม่ที่ยังไม่มีตาราง
+```
+
+รัน (3 terminal):
+```bash
+python infra/scripts/dev.py api      # Backend API  → http://localhost:8000
+python infra/scripts/dev.py chat     # แชทบอท       → http://localhost:5173
+python infra/scripts/dev.py admin    # แอดมิน       → http://localhost:5174
+```
+Vite รันจากไดรฟ์ Z: ไม่ได้ สคริปต์จึงคัดลอกเว็บไปรันที่ `C:\Users\<user>\tuh-*` และคอยคัดลอกไฟล์ที่แก้ให้อัตโนมัติ
+
+ตอน dev ข้อมูล (`uploads/`, `index_db/`) อยู่ที่รากของโปรเจกต์ — ไม่ใช่ชุดเดียวกับใน Docker volume
+
+### บัญชีแอดมินแรก
+
+ถ้ายังไม่มีผู้ใช้ในฐานข้อมูลเลย ระบบจะสร้างบัญชีจาก `INITIAL_ADMIN_USERNAME` / `INITIAL_ADMIN_PASSWORD` ใน `.env`
+ไม่ตั้งรหัสไว้ → สุ่มรหัสให้ในไฟล์ `initial_admin_password.txt` (อ่านแล้วลบทิ้ง) และบังคับเปลี่ยนตอนล็อกอินครั้งแรก
+
+## ฐานข้อมูล (Alembic)
+
+แก้ตารางใน `services/api/app/models/models.py` แล้วสร้าง migration ทุกครั้ง (ห้ามแก้ schema ตรงๆ):
+```bash
+cd services/api
+alembic revision --autogenerate -m "อธิบายสั้นๆ ว่าเปลี่ยนอะไร"
+# ตรวจไฟล์ที่ได้ใน alembic/versions/ ก่อนเสมอ
+alembic upgrade head
+```
+ดู revision ปัจจุบัน: `alembic current` — เตรียมย้ายไป SQL Server: [docs/SQLSERVER_MIGRATION.md](docs/SQLSERVER_MIGRATION.md)
+
+## ความปลอดภัย (สรุป)
+
+- แอดมินล็อกอินได้ JWT access token อายุ 15 นาที — logout แล้ว token ใบนั้นใช้ต่อไม่ได้, เปลี่ยนรหัสผ่านแล้ว token เก่าทุกใบใช้ไม่ได้
+- รหัสผ่าน: bcrypt, ต้องผ่านเกณฑ์ความซับซ้อน, หมดอายุทุก 90 วัน, ล็อกชั่วคราวเมื่อเดาผิดหลายครั้ง
+- แอดมินแผนกเห็น/แก้ได้เฉพาะข้อมูลของแผนกตัวเอง (`services/department_scope.py`) — ทุกการแก้ไขบันทึกใน audit log
+- secret ทั้งหมดอยู่ใน `services/api/.env` เท่านั้น (repo นี้เป็น public)
+- PDF ฉบับร่างเปิดได้เฉพาะแอดมิน — คนทั่วไปเปิดได้เฉพาะเอกสารที่ใช้งานอยู่

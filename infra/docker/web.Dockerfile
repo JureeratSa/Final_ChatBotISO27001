@@ -1,0 +1,20 @@
+# เว็บแชทบอท / เว็บแอดมิน — build เป็นไฟล์ static แล้วเสิร์ฟด้วย nginx
+# ใช้ไฟล์เดียวกันทั้งสองเว็บ: --build-arg APP=apps/chat-web หรือ APP=apps/admin-web (ดู docker-compose.yml)
+# node ใช้แค่ตอน build ไม่อยู่ใน image สุดท้าย
+FROM node:22-alpine AS build
+ARG APP
+# same-origin = เรียก API ผ่าน origin เดียวกับหน้าเว็บ (https://<host>/api ผ่าน reverse proxy — ดู docker-compose.yml)
+# เว้นว่าง = เรียก http://<host ที่เปิดเว็บ>:8000 ตรงๆ (dev server)
+ARG VITE_API_URL=
+# path ที่เว็บนี้อยู่หลัง proxy — AdminWeb อยู่ที่ /admin/
+ARG BASE=/
+WORKDIR /src
+COPY ${APP}/package.json ${APP}/package-lock.json ./
+RUN npm ci
+COPY ${APP}/ ./
+RUN VITE_API_URL=${VITE_API_URL} npm run build -- --base=${BASE}
+
+FROM nginx:1.29-alpine
+COPY infra/docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /src/dist /usr/share/nginx/html
+EXPOSE 80

@@ -6,13 +6,13 @@
 
 | ไฟล์ | หน้าที่ |
 |---|---|
-| [Backend/app/core/config.py](../Backend/app/core/config.py) | `DB_ENGINE=mssql` → ใช้ `mssql+aioodbc` (แอป) / `mssql+pyodbc` (Alembic, สคริปต์) พร้อม `DB_ODBC_DRIVER`, `DB_ENCRYPT`, `DB_TRUST_SERVER_CERTIFICATE` |
-| [Backend/app/core/mssql_types.py](../Backend/app/core/mssql_types.py) | ข้อความทุกคอลัมน์เป็น `NVARCHAR` บน SQL Server (ไม่งั้นภาษาไทยกลายเป็น `????`) |
-| [Backend/sql/sqlserver/001_create_tables.sql](../Backend/sql/sqlserver/001_create_tables.sql) | สร้างตารางครบ 9 ตาราง + index + foreign key + `alembic_version` — คอลัมน์/ความยาวตรงกับ TiDB (ตรวจเทียบกับ TiDB จริงแล้ว 2026-10-30) |
-| [Backend/scripts/generate_sqlserver_schema.py](../Backend/scripts/generate_sqlserver_schema.py) | สร้างไฟล์ SQL ข้างบนใหม่จาก models (แก้ models แล้วต้องรันใหม่ — มี test เตือน) |
-| [Backend/scripts/migrate_tidb_to_sqlserver.py](../Backend/scripts/migrate_tidb_to_sqlserver.py) | คัดลอกข้อมูลทุกตารางจาก TiDB → SQL Server คง id เดิม และเทียบจำนวนแถว |
-| [Backend/requirements-mssql.txt](../Backend/requirements-mssql.txt) | `pyodbc`, `aioodbc` |
-| [docker/backend.Dockerfile](../docker/backend.Dockerfile) | `--build-arg WITH_MSSQL=true` ติดตั้ง Microsoft ODBC Driver 18 (ทดสอบ build แล้ว driver โหลดได้) |
+| [services/api/app/core/config.py](../services/api/app/core/config.py) | `DB_ENGINE=mssql` → ใช้ `mssql+aioodbc` (แอป) / `mssql+pyodbc` (Alembic, สคริปต์) พร้อม `DB_ODBC_DRIVER`, `DB_ENCRYPT`, `DB_TRUST_SERVER_CERTIFICATE` |
+| [services/api/app/core/mssql_types.py](../services/api/app/core/mssql_types.py) | ข้อความทุกคอลัมน์เป็น `NVARCHAR` บน SQL Server (ไม่งั้นภาษาไทยกลายเป็น `????`) |
+| [services/api/sql/sqlserver/001_create_tables.sql](../services/api/sql/sqlserver/001_create_tables.sql) | สร้างตารางครบ 9 ตาราง + index + foreign key + `alembic_version` — คอลัมน์/ความยาวตรงกับ TiDB (ตรวจเทียบกับ TiDB จริงแล้ว 2026-10-30) |
+| [services/api/scripts/generate_sqlserver_schema.py](../services/api/scripts/generate_sqlserver_schema.py) | สร้างไฟล์ SQL ข้างบนใหม่จาก models (แก้ models แล้วต้องรันใหม่ทุกครั้ง) |
+| [services/api/scripts/migrate_tidb_to_sqlserver.py](../services/api/scripts/migrate_tidb_to_sqlserver.py) | คัดลอกข้อมูลทุกตารางจาก TiDB → SQL Server คง id เดิม และเทียบจำนวนแถว |
+| [services/api/requirements-mssql.txt](../services/api/requirements-mssql.txt) | `pyodbc`, `aioodbc` |
+| [services/api/Dockerfile](../services/api/Dockerfile) | `--build-arg WITH_MSSQL=true` ติดตั้ง Microsoft ODBC Driver 18 (ทดสอบ build แล้ว driver โหลดได้) |
 
 ไม่ต้องเขียน query ใหม่ — โค้ดใช้ SQLAlchemy ORM ทั้งหมด (ไม่มี raw SQL / ฟังก์ชันเฉพาะ MySQL)
 แก้เพิ่มแค่ LIKE ของการกรองประวัติตามแผนกให้ escape `[` (SQL Server ถือเป็นชุดตัวอักษร)
@@ -27,17 +27,17 @@
 
 1. **สร้างตาราง** บนฐานข้อมูลว่าง:
    ```bash
-   sqlcmd -S <host>,1433 -d <db> -U <user> -i Backend/sql/sqlserver/001_create_tables.sql
+   sqlcmd -S <host>,1433 -d <db> -U <user> -i services/api/sql/sqlserver/001_create_tables.sql
    ```
 2. **build backend ที่มี ODBC driver** — ตั้ง `WITH_MSSQL: "true"` ใต้ `build.args` ของ service `backend` ใน docker-compose.yml แล้ว `docker compose build backend`
-3. **ย้ายข้อมูล** (ระหว่างนี้ `Backend/.env` ยังชี้ TiDB) — หยุดใช้งานระบบชั่วคราวกันข้อมูลใหม่หาย:
+3. **ย้ายข้อมูล** (ระหว่างนี้ `services/api/.env` ยังชี้ TiDB) — หยุดใช้งานระบบชั่วคราวกันข้อมูลใหม่หาย:
    ```bash
    docker compose stop proxy
    docker compose run --rm -e MSSQL_TARGET_URL="mssql+pyodbc://<user>:<pass>@<host>:1433/<db>?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes" \
        backend python -m scripts.migrate_tidb_to_sqlserver            # ดูจำนวนแถว
    docker compose run --rm -e MSSQL_TARGET_URL="..." backend python -m scripts.migrate_tidb_to_sqlserver --execute
    ```
-4. **สลับไป SQL Server** ใน `Backend/.env`:
+4. **สลับไป SQL Server** ใน `services/api/.env`:
    ```
    DB_ENGINE=mssql
    DB_HOST=<host>
@@ -51,9 +51,8 @@
 5. **ตรวจ Alembic**: `docker compose run --rm backend alembic current` ต้องได้ revision เดียวกับในไฟล์ SQL
 6. **ปิด TiDB**: เมื่อใช้ SQL Server ได้แน่นอนแล้ว ลบข้อมูล/cluster บน TiDB Cloud (รหัสผ่าน TiDB เคยหลุดใน git — ดู security audit)
 
-ย้อนกลับ: ตั้ง `DB_ENGINE=mysql` + ค่า TiDB เดิมใน `Backend/.env` แล้ว `docker compose up -d backend` (ข้อมูลที่เกิดบน SQL Server หลังสลับจะไม่ย้อนกลับไป TiDB)
+ย้อนกลับ: ตั้ง `DB_ENGINE=mysql` + ค่า TiDB เดิมใน `services/api/.env` แล้ว `docker compose up -d backend` (ข้อมูลที่เกิดบน SQL Server หลังสลับจะไม่ย้อนกลับไป TiDB)
 
 ## หลังย้ายแล้ว
 - migration ใหม่ (`alembic revision --autogenerate`) สร้างจาก SQL Server ได้ตามปกติ — ตรวจไฟล์ก่อน upgrade ทุกครั้ง
 - migration เดิมในโฟลเดอร์ `alembic/versions` เขียนสำหรับ MySQL ไม่ต้องรันบน SQL Server (ไฟล์ SQL ตั้ง revision ล่าสุดให้แล้ว)
-- pytest ยังใช้ SQLite เหมือนเดิม

@@ -1,68 +1,41 @@
-name: TUH Chatbot AI v2 — CI/CD
+name: CI
 
+# ตรวจว่าทุกส่วน build ได้ — ไม่มี test อัตโนมัติ (ทดสอบด้วยการใช้งานจริงหลัง deploy)
 on:
   push:
-    branches: [main, new]
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  # ─── Backend Tests ─────────────────────────────────────────────────────────
-  backend-test:
-    name: 🐍 Backend Tests (FastAPI)
+  api:
+    name: Backend (services/api)
     runs-on: ubuntu-latest
-
-    # หมายเหตุ: ไม่มี service DB จริง (ไม่ใช่ postgres ไม่ใช่ TiDB) เพราะเทสทั้งหมดใช้
-    # SQLite in-memory ผ่าน Backend/tests/conftest.py (ตามกฎข้อ 1 — SQLite ใช้ได้เฉพาะ pytest)
-    # ตัวแปร DB_HOST/DB_USER/DB_PASSWORD/JWT_SECRET_KEY ด้านล่างเป็นแค่ค่า placeholder
-    # เพื่อให้ Settings() (pydantic) ผ่าน validation เท่านั้น ไม่มีการเชื่อมต่อ DB จริงตามค่านี้
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: pip
+          python-version: "3.12"
+      - name: Syntax check
+        run: python -m compileall -q services/api/app services/api/alembic services/api/scripts
+      - name: Build Docker image
+        run: docker build -t tuh-chatbot-api services/api
 
-      - name: Install dependencies
-        run: |
-          cd Backend
-          pip install -r requirements-dev.txt
-
-      - name: Run tests
-        env:
-          DB_HOST: ci-placeholder-not-used
-          DB_USER: ci-placeholder-not-used
-          DB_PASSWORD: ci-placeholder-not-used
-          JWT_SECRET_KEY: ci-placeholder-secret-not-for-production-use
-        run: |
-          cd Backend
-          pytest tests/ -v --tb=short
-
-  # ─── Frontend Build ─────────────────────────────────────────────────────────
-  frontend-build:
-    name: ⚛️ Frontend Build (React + Vite)
+  web:
+    name: Web (${{ matrix.app }})
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        app: [chat-web, admin-web]
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "22"
           cache: npm
-          cache-dependency-path: UserWeb/package-lock.json
-
-      - name: Install & Build
+          cache-dependency-path: apps/${{ matrix.app }}/package-lock.json
+      - name: Install & build
+        working-directory: apps/${{ matrix.app }}
         run: |
-          cd UserWeb
           npm ci
           npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: UserWeb/dist/

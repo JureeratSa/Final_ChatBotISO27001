@@ -1,0 +1,10 @@
+# ห้ามมี secret ในอิมเมจ — backend รับค่าผ่าน env_file ใน docker-compose.yml
+.env
+.env.*
+!.env.example
+initial_admin_password.txt
+
+__pycache__/
+**/__pycache__/
+**/*.py[cod]
+**/*.log

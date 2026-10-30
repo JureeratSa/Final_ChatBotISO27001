@@ -1,38 +1,22 @@
-# ห้ามมี secret ในอิมเมจ — backend รับค่าผ่าน env_file ใน docker-compose.yml
+# build context ที่ root ใช้กับเว็บ (infra/docker/web.Dockerfile) เท่านั้น — backend ใช้ services/api/.dockerignore
+# ห้ามมี secret ในอิมเมจ
 **/.env
 **/.env.*
 !**/.env.example
+*.crt
+*.key
+*.bundle
 
-# ข้อมูล runtime อยู่ใน volume ไม่ใส่ในอิมเมจ (ดู docs/DOCKER.md การย้ายข้อมูลเดิม)
+# เว็บใช้แค่ apps/<ชื่อเว็บ> กับ infra/docker/nginx.conf
+services/
 uploads/
 index_db/
-index_db_backup/
-
-**/node_modules/
-**/dist/
-**/__pycache__/
-**/*.py[cod]
-**/.pytest_cache/
-**/*.log
+docs/
 .git/
 .claude/
 .agents/
 .github/
-node-v20.12.2-win-x64/
-docs/
-testchatbotSPO/
-TestPFM/
-web_testing/
-user/
-logs/
-*.pdf
-*.xlsx
-sample_chunks.json
-Hybrid_Search_Presentation.*
-
-# test ไม่ต้องอยู่ใน image ที่ใช้งานจริง (security audit L10) และกันไฟล์ลับหลุดเข้า layer
-Backend/tests/
-*.crt
-*.key
-*.bundle
-initial_admin_password.txt
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/*.log
