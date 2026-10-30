@@ -1,6 +1,6 @@
 -- TUH Chatbot AI — ตารางบน Microsoft SQL Server
 -- สร้างอัตโนมัติจาก Backend/app/models/models.py ด้วย scripts/generate_sqlserver_schema.py — อย่าแก้มือ
--- ตรงกับ Alembic revision c9e5a7b1d3f4 (schema เดียวกับ TiDB)
+-- ตรงกับ Alembic revision d1f3a5c7e9b2 (schema เดียวกับ TiDB)
 -- รันบนฐานข้อมูลว่าง: sqlcmd -S <host> -d <db> -U <user> -i 001_create_tables.sql
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
@@ -58,6 +58,7 @@ CREATE TABLE users (
 	department NVARCHAR(100) NULL, 
 	is_active BIT NOT NULL, 
 	password_changed_at DATETIMEOFFSET NULL DEFAULT CURRENT_TIMESTAMP, 
+	token_version INTEGER NOT NULL DEFAULT '0', 
 	created_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	updated_at DATETIMEOFFSET NOT NULL DEFAULT CURRENT_TIMESTAMP, 
 	PRIMARY KEY (id)
@@ -155,6 +156,6 @@ CREATE TABLE alembic_version (
 	version_num VARCHAR(32) NOT NULL,
 	CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
 );
-INSERT INTO alembic_version (version_num) VALUES ('c9e5a7b1d3f4');
+INSERT INTO alembic_version (version_num) VALUES ('d1f3a5c7e9b2');
 
 COMMIT;

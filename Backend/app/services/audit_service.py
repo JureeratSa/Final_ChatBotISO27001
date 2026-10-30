@@ -58,9 +58,11 @@ def add_audit_detail(**detail: Any) -> None:
 
 
 def _client_ip(request: Request) -> Optional[str]:
-    # ใช้ IP ของการเชื่อมต่อจริง — X-Forwarded-For ปลอมได้เมื่อไม่มี reverse proxy อยู่หน้า backend
-    # (ระบบนี้ให้เบราว์เซอร์เรียก :8000 ตรง) จึงเก็บแยกไว้ใน detail แทน
-    return request.client.host if request.client else None
+    # กติกาเดียวกับ rate limit: เชื่อ X-Forwarded-For เฉพาะเมื่ออยู่หลัง reverse proxy ของเรา (TRUST_PROXY_HEADERS)
+    # ไม่งั้นใช้ IP ของการเชื่อมต่อจริง — เดิมใช้แต่ IP การเชื่อมต่อ หลัง proxy จึงได้ IP ของ proxy ทุกแถว (security audit L13)
+    from app.core.rate_limit import _client_ip as request_client_ip
+    ip = request_client_ip(request)
+    return None if ip == "unknown" else ip
 
 
 def _token_username(request: Request) -> Optional[str]:

@@ -493,13 +493,11 @@ def rebuild(documents=None, progress=None):
         import numpy as np
         embeddings_np = np.array(all_embeddings_list, dtype=np.float32)
         
+        # ไม่ติดตั้ง package เองตอนรัน (เดิม pip install chromadb อัตโนมัติ — security audit L7)
         try:
             import chromadb
-        except ImportError:
-            print("กำลังติดตั้ง chromadb...")
-            import subprocess
-            subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
-            import chromadb
+        except ImportError as exc:
+            raise ImportError("ไม่พบไลบรารี chromadb — ติดตั้งด้วย pip install -r Backend/requirements.txt") from exc
 
         # path เดียวกับที่ retriever อ่าน (CHROMA_DB_DIR ใน Backend/.env) — ดู emb.resolve_chroma_dir
         try:

@@ -13,11 +13,12 @@ from sqlalchemy import null, select
 
 from app.core.database import get_db
 from app.core.security import (
-    verify_password, hash_password, generate_token_pair,
+    verify_password, verify_user_password, hash_password, generate_token_pair,
     verify_access_token, verify_refresh_token, create_access_token,
     verify_legacy_password
 )
 from app.core.rate_limit import check_login_allowed, login_throttle
+from app.core.token_revocation import is_revoked
 from app.models.models import User
 from app.schemas.schemas import (
     LoginRequest, TokenResponse, RefreshRequest, AccessTokenResponse,
@@ -56,6 +57,18 @@ security = HTTPBearer()
 
 # ─── Helper: Get current user from token ──────────────────────────────────────
 
+def _password_changed_since(payload: dict, user: User) -> bool:
+    """token ออกก่อนเปลี่ยนรหัสผ่านล่าสุด — เทียบ token_version (แม่นยำ) และ iat (กัน token รุ่นก่อนมี tv)
+    token ที่ไม่มี tv นับเป็นรุ่น 0 ตรงกับค่าเริ่มต้นของบัญชีที่ยังไม่เคยเปลี่ยนรหัสหลังเพิ่มคอลัมน์นี้"""
+    return (int(payload.get("tv") or 0) != (user.token_version or 0)
+            or token_issued_before_password_change(payload.get("iat"), user.password_changed_at))
+
+
+def bump_token_version(user: User) -> None:
+    """เรียกทุกครั้งที่เปลี่ยนรหัสผ่าน — token ทุกใบที่ออกก่อนหน้าใช้ไม่ได้ทันที (ทุกเครื่อง)"""
+    user.token_version = (user.token_version or 0) + 1
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -68,18 +81,21 @@ async def get_current_user(
         username: str = payload.get("sub")
         if not username:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-    except ValueError as e:
+    except ValueError:
+        # ไม่ส่งรายละเอียดจากไลบรารี JWT กลับไป (security audit L6)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
+            detail="token ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่",
             headers={"WWW-Authenticate": "Bearer"}
         )
+    if is_revoked(payload.get("jti")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="ออกจากระบบแล้ว กรุณาเข้าสู่ระบบใหม่")
 
     result = await db.execute(select(User).where(User.username == username, User.is_active == True))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
-    if token_issued_before_password_change(payload.get("iat"), user.password_changed_at):
+    if _password_changed_since(payload, user):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="รหัสผ่านถูกเปลี่ยนแล้ว กรุณาเข้าสู่ระบบใหม่")
     if (password_status(user.password_changed_at)["password_expired"]
@@ -104,7 +120,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     )
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(body.password, user.password_hash):
+    if not verify_user_password(body.password, user):
         login_throttle.record_failure(ip, body.username)
         set_audit(request, detail={"reason": "invalid_credentials"})
         raise HTTPException(
@@ -114,7 +130,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     login_throttle.reset(ip, body.username)
 
     set_audit(request, action="login_success")
-    tokens = generate_token_pair(user.username)
+    tokens = generate_token_pair(user.username, user.token_version or 0)
     return TokenResponse(
         **tokens,
         username=user.username,
@@ -133,8 +149,11 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
     try:
         payload = verify_refresh_token(body.refresh_token)
         username = payload.get("sub")
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="refresh token ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่")
+    if is_revoked(payload.get("jti")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="ออกจากระบบแล้ว กรุณาเข้าสู่ระบบใหม่")
 
     result = await db.execute(
         select(User).where(User.username == username, User.is_active == True)
@@ -142,11 +161,11 @@ async def refresh_token(body: RefreshRequest, db: AsyncSession = Depends(get_db)
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    if token_issued_before_password_change(payload.get("iat"), user.password_changed_at):
+    if _password_changed_since(payload, user):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="รหัสผ่านถูกเปลี่ยนแล้ว กรุณาเข้าสู่ระบบใหม่")
 
-    access_token = create_access_token({"sub": user.username})
+    access_token = create_access_token({"sub": user.username, "tv": user.token_version or 0})
     return AccessTokenResponse(access_token=access_token)
 
 
@@ -328,6 +347,7 @@ async def update_user(
         user.password_hash = hash_password(body.password)
         # SuperAdmin ตั้งรหัสให้ = รหัสใหม่ เริ่มนับอายุ 90 วันใหม่ (token เดิมของบัญชีนั้นใช้ไม่ได้อีก)
         user.password_changed_at = datetime.now(timezone.utc)
+        bump_token_version(user)
     if body.role is not None:
         user.role = body.role
     if body.department is not None:

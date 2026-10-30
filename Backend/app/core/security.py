@@ -50,6 +50,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
+# hash หลอกไว้ตรวจเทียบตอนไม่พบ username — ให้เวลาตอบเท่ากับกรณีพบ user แต่รหัสผิด
+# เดิมไม่พบ user แล้วตอบทันทีโดยไม่รัน bcrypt จึงวัดเวลาตอบแล้วรู้ได้ว่า username ไหนมีจริง (security audit L3)
+_DUMMY_PASSWORD_HASH = bcrypt.hashpw(secrets.token_bytes(16), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_user_password(plain_password: str, user) -> bool:
+    """ตรวจรหัสผ่านของ user ที่อาจเป็น None — ใช้เวลา bcrypt เท่ากันทั้งสองกรณี"""
+    if user is None:
+        verify_password(plain_password, _DUMMY_PASSWORD_HASH)
+        return False
+    return verify_password(plain_password, user.password_hash)
+
+
 def verify_legacy_password(plain_password: str, salt_hex: str, hash_hex: str) -> bool:
     """
     ตรวจสอบรหัสผ่านรูปแบบเก่า (PBKDF2-HMAC-SHA256)
@@ -84,7 +97,9 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     # iat ใช้ตัด token ที่ออกก่อนเปลี่ยนรหัสผ่าน (ดู password_policy.token_issued_before_password_change)
-    to_encode.update({"exp": expire, "type": "access", "iat": int(datetime.now(timezone.utc).timestamp())})
+    # jti = รหัสประจำ token ใช้ยกเลิกรายใบตอน logout (ดู core/token_revocation.py)
+    to_encode.update({"exp": expire, "type": "access", "iat": int(datetime.now(timezone.utc).timestamp()),
+                      "jti": secrets.token_urlsafe(16)})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -98,7 +113,8 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh", "iat": int(datetime.now(timezone.utc).timestamp())})
+    to_encode.update({"exp": expire, "type": "refresh", "iat": int(datetime.now(timezone.utc).timestamp()),
+                      "jti": secrets.token_urlsafe(16)})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -137,11 +153,12 @@ def verify_refresh_token(token: str) -> Dict[str, Any]:
     return payload
 
 
-def generate_token_pair(username: str) -> Dict[str, str]:
+def generate_token_pair(username: str, token_version: int = 0) -> Dict[str, str]:
     """
     สร้างคู่ Token (Access + Refresh Token) ส่งให้ Client ตอน Login สำเร็จ
+    tv = users.token_version ตอนออก token — เปลี่ยนรหัสผ่านแล้วค่านี้เพิ่ม token เก่าจึงใช้ไม่ได้
     """
-    data = {"sub": username}
+    data = {"sub": username, "tv": token_version}
     access_token = create_access_token(data)
     refresh_token = create_refresh_token(data)
     return {

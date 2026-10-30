@@ -117,7 +117,7 @@ async def test_chat_rag_path_returns_citations_and_form_links(client, db_session
     body = resp.json()
 
     assert body["used_rag"] is True
-    assert body["model"] == "mocked-llm"
+    assert body["model"] == "llm"   # ชื่อโมเดลจริงไม่ส่งให้ผู้ใช้ (security audit L1)
     assert len(body["citations"]) == 1
     assert body["citations"][0]["source"] == "welfare.pdf"
     assert body["citations"][0]["display_name"] == "คู่มือสวัสดิการ"

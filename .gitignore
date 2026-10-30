@@ -58,3 +58,6 @@ sample_chunks.json
 # ใบ CA / ใบรับรองที่ export จาก reverse proxy
 *.crt
 *.key
+
+# รหัสแอดมินเริ่มต้นที่ระบบสุ่มให้ตอนติดตั้งครั้งแรก (Backend/app/main.py)
+initial_admin_password.txt

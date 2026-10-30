@@ -9,7 +9,6 @@ import asyncio
 import datetime
 import json
 import logging
-import socket
 import time
 from pathlib import Path
 from typing import Optional
@@ -73,8 +72,8 @@ async def download_form_file(filename: str):
     try:
         forms_dir = UPLOADS_DIR / "forms"
         form_path = safe_path(forms_dir, filename)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="ชื่อไฟล์ไม่ถูกต้อง")
 
     if not form_path.exists():
         raise HTTPException(status_code=404, detail="ไม่พบไฟล์แบบฟอร์มนี้")
@@ -257,9 +256,9 @@ async def compatibility_search(
             for f in forms_list if f.name and f.download_link and f.name in answer
         ]
 
+        # ไม่ส่ง rag_results (chunk ดิบ + คะแนน + metadata ภายใน) กลับไป — UserWeb ใช้แค่คำตอบ/citation/แบบฟอร์ม
         return {
             "answer": answer,
-            "results": rag_results,
             "citations": citations,
             "form_links": form_links,
         }
@@ -292,22 +291,5 @@ async def compatibility_active_announcements():
         return active_list
 
 
-@router.get("/api/ip")
-async def compatibility_ip(request: Request):
-    client_ip = request.headers.get("x-forwarded-for")
-    if client_ip:
-        client_ip = client_ip.split(",")[0].strip()
-    else:
-        client_ip = request.headers.get("x-real-ip", request.client.host if request.client else "127.0.0.1")
-
-    if client_ip in ("127.0.0.1", "localhost", "::1"):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(("8.8.8.8", 1))
-            client_ip = s.getsockname()[0]
-        except Exception:
-            pass
-        finally:
-            s.close()
-
-    return {"ip": client_ip}
+# /api/ip ถูกลบแล้ว (security audit L2) — เชื่อ X-Forwarded-For ที่ปลอมได้ และเผย IP ภายในของเซิร์ฟเวอร์
+# (ต่อ 8.8.8.8 เพื่อหา IP ของเครื่อง) โดยไม่มี frontend ใดเรียกใช้แล้ว

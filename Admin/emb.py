@@ -91,13 +91,12 @@ def build_indices():
     texts = [chunk["content"] for chunk in chunks]
 
     # --- [ 1. สร้างดัชนีเวกเตอร์ด้วย ChromaDB ] ---
+    # ไม่ติดตั้ง package เองตอนรัน (เดิม pip install chromadb อัตโนมัติ — security audit L7)
+    # chromadb อยู่ใน Backend/requirements.txt แล้ว ถ้าไม่มีให้ล้มพร้อมข้อความชัดเจน
     try:
         import chromadb
-    except ImportError:
-        print("ไม่พบไลบรารี chromadb กำลังดำเนินการติดตั้งผ่าน pip...")
-        import subprocess
-        subprocess.run([sys.executable, "-m", "pip", "install", "chromadb"])
-        import chromadb
+    except ImportError as exc:
+        raise ImportError("ไม่พบไลบรารี chromadb — ติดตั้งด้วย pip install -r Backend/requirements.txt") from exc
 
     from sentence_transformers import SentenceTransformer
     dense_model = SentenceTransformer("BAAI/bge-m3")

@@ -24,8 +24,12 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.get("/announcements", response_model=list[AnnouncementResponse])
-async def get_announcements(db: AsyncSession = Depends(get_db)):
-    """Public endpoint — ดึงประกาศทั้งหมด"""
+async def get_announcements(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """ประกาศทั้งหมดสำหรับหน้าจัดการของแอดมิน (รวมที่หมดอายุ/ยังไม่ถึงวัน) — ต้องล็อกอิน
+    เดิมเปิดให้คนทั่วไปเรียกได้ (security audit L5) — ผู้ใช้แชทบอทใช้ /api/announcements/active ที่คืนเฉพาะที่กำลังประกาศ"""
     result = await db.execute(
         select(Announcement).order_by(Announcement.pinned.desc(), Announcement.created_at.desc())
     )

@@ -521,8 +521,9 @@ async def view_chunks_document(
     try:
         with open(str(filepath), "r", encoding="utf-8") as f:
             chunks = json.load(f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"ไม่สามารถโหลดไฟล์ Chunks ได้: {e}")
+    except Exception:
+        logger.exception("[View Chunks] อ่าน %s ไม่สำเร็จ", filepath)
+        raise HTTPException(status_code=500, detail="ไม่สามารถโหลดไฟล์ Chunks ได้")
     return {"filename": filename, "chunks": chunks}
 
 

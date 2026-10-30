@@ -159,7 +159,9 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentUpdate(BaseModel):
-    status: Optional[str] = None
+    # เปิด/ปิดใช้งานได้เท่านั้น — เดิมรับข้อความอะไรก็ได้ ตั้งเอกสารที่ยังไม่ผ่านขั้นตอนตรวจเป็น Active ตรงๆ ได้
+    # (security audit L9) ขั้นตอน Step_* เดินผ่าน POST /documents/approve อย่างเดียว
+    status: Optional[Literal["Active", "Inactive"]] = None
     exclude_pages: Optional[List[int]] = None
     display_name: Optional[str] = None
 

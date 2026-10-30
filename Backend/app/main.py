@@ -78,8 +78,9 @@ async def init_default_admin():
     """
     import secrets
     from app.core.database import AsyncSessionLocal
+    from pathlib import Path
     from app.models.models import User
-    from sqlalchemy import select
+    from sqlalchemy import null, select
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).limit(1))
@@ -97,13 +98,23 @@ async def init_default_admin():
                 role="System Administrator",
                 is_active=True
             )
+            if generated:
+                # รหัสที่สุ่มให้ บังคับเปลี่ยนตอนล็อกอินครั้งแรก (เหมือนบัญชีที่นำเข้าจาก Excel)
+                default_admin.password_changed_at = null()
             session.add(default_admin)
             await session.commit()
             if generated:
+                # ไม่พิมพ์รหัสลง log (docker logs เก็บไว้ถาวร — security audit L8) เขียนลงไฟล์ที่อ่านได้เฉพาะเจ้าของ
+                secret_file = Path(settings.UPLOADS_DIR).parent / "initial_admin_password.txt"
+                secret_file.write_text(
+                    f"username: {settings.INITIAL_ADMIN_USERNAME}\npassword: {password}\n"
+                    "ล็อกอินครั้งแรกแล้วระบบจะให้ตั้งรหัสใหม่ — จากนั้นลบไฟล์นี้ทิ้ง\n",
+                    encoding="utf-8",
+                )
+                secret_file.chmod(0o600)
                 logger.info("=" * 70)
                 logger.info("✅ สร้างบัญชีแอดมินเริ่มต้นแล้ว: %s", settings.INITIAL_ADMIN_USERNAME)
-                logger.info("🔑 รหัสผ่านที่สุ่มให้ (แสดงครั้งนี้ครั้งเดียว): %s", password)
-                logger.info("   กรุณาบันทึกรหัสนี้ไว้แล้วเปลี่ยนรหัสผ่านทันทีหลัง login")
+                logger.info("🔑 รหัสผ่านที่สุ่มให้อยู่ในไฟล์ %s (อ่านแล้วลบทิ้ง)", secret_file)
                 logger.info("=" * 70)
             else:
                 logger.info("✅ Default admin user created (%s)", settings.INITIAL_ADMIN_USERNAME)

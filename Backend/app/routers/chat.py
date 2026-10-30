@@ -185,9 +185,17 @@ async def chat(
         form_links=form_links_out,
         used_rag=used_rag,
         response_time=round(elapsed, 3),
-        model=model_used,
+        model=public_model_label(model_used),
         history_id=history_id
     )
+
+
+# ประเภทคำตอบที่บอกผู้ใช้ได้ — ชื่อโมเดล/ผู้ให้บริการจริงเก็บไว้แค่ในประวัติฝั่งแอดมิน (api_model)
+_PUBLIC_MODEL_LABELS = {"chit_chat", "profanity_filter", "custom_faq", "predefined_faq", "fallback"}
+
+
+def public_model_label(model_used: str) -> str:
+    return model_used if model_used in _PUBLIC_MODEL_LABELS else "llm"
 
 
 # ─── Serve PDF ────────────────────────────────────────────────────────────────

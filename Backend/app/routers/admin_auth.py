@@ -16,8 +16,10 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.rate_limit import check_login_allowed, login_throttle
-from app.core.security import verify_password, create_access_token
-from app.routers.auth import get_current_user
+from fastapi.security import HTTPAuthorizationCredentials
+from app.core.security import verify_password, verify_user_password, create_access_token, verify_access_token
+from app.core.token_revocation import revoke
+from app.routers.auth import bump_token_version, get_current_user, security as bearer_scheme
 from app.models.models import User, AdminAuditLog
 from app.services.audit_service import set_audit
 from app.services.department_scope import require_super_admin
@@ -47,7 +49,7 @@ async def legacy_admin_login(
     result = await db.execute(select(User).where(User.username == payload.username))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not verify_user_password(payload.password, user):
         login_throttle.record_failure(ip, payload.username)
         set_audit(request, detail={"reason": "invalid_credentials"})
         raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
@@ -58,8 +60,8 @@ async def legacy_admin_login(
         raise HTTPException(status_code=400, detail="บัญชีนี้ถูกระงับการใช้งาน")
     set_audit(request, action="login_success")
 
-    # Generate JWT token
-    token = create_access_token(data={"sub": user.username})
+    # Generate JWT token — tv = รุ่นของ token (เปลี่ยนรหัสผ่านแล้ว token รุ่นเก่าใช้ไม่ได้)
+    token = create_access_token(data={"sub": user.username, "tv": user.token_version or 0})
 
     return {
         "success": True,
@@ -94,14 +96,22 @@ async def update_password(
     from app.core.security import hash_password
     current_user.password_hash = hash_password(payload.new_password)
     current_user.password_changed_at = datetime.now(timezone.utc)
+    bump_token_version(current_user)
     await db.commit()
     return {"success": True, "detail": "เปลี่ยนรหัสผ่านสำเร็จแล้ว กรุณาเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่"}
 
 
 @router.post("/logout")
-async def admin_logout(request: Request, current_user: User = Depends(get_current_user)):
-    """บันทึกการออกจากระบบ (JWT เป็น stateless — token หมดอายุเองตามเวลา ฝั่ง AdminWeb ลบ token ทิ้ง)
+async def admin_logout(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+):
+    """บันทึกการออกจากระบบ + ยกเลิก token ใบที่ใช้ออก (ใช้ต่อไม่ได้แม้ยังไม่หมดอายุ — ดู core/token_revocation.py)
+    ยกเลิกเฉพาะใบนี้ เครื่องอื่นของแอดมินคนเดียวกันไม่ถูกเด้งออก
     เรียกทั้งตอนกดออกเองและตอนระบบออกให้อัตโนมัติเมื่อไม่มีการใช้งาน (?reason=idle)"""
+    token_payload = verify_access_token(credentials.credentials)  # ผ่าน get_current_user มาแล้ว = ถูกต้อง
+    revoke(token_payload.get("jti"), float(token_payload.get("exp", 0)))
     reason = request.query_params.get("reason")
     set_audit(request, action="logout", username=current_user.username,
               detail={"reason": reason[:50]} if reason else None)

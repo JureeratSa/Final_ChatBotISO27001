@@ -117,10 +117,9 @@ async def test_compatibility_search_no_citations_when_no_rag_results(client):
     assert resp.json()["citations"] == []
 
 
-async def test_compatibility_ip_returns_something(client):
-    resp = await client.get("/api/ip")
-    assert resp.status_code == 200
-    assert "ip" in resp.json()
+async def test_ip_endpoint_removed(client):
+    # security audit L2 — endpoint นี้เคยเผย IP ภายในของเซิร์ฟเวอร์
+    assert (await client.get("/api/ip")).status_code == 404
 
 
 async def test_compatibility_active_announcements_filters_by_date(client, db_session):

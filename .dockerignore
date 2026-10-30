@@ -29,3 +29,10 @@ logs/
 *.xlsx
 sample_chunks.json
 Hybrid_Search_Presentation.*
+
+# test ไม่ต้องอยู่ใน image ที่ใช้งานจริง (security audit L10) และกันไฟล์ลับหลุดเข้า layer
+Backend/tests/
+*.crt
+*.key
+*.bundle
+initial_admin_password.txt

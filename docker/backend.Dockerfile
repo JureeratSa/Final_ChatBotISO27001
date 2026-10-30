@@ -21,6 +21,9 @@ COPY Backend/requirements.txt docker/constraints.txt /tmp/
 # torch รุ่น CPU ก่อน (เครื่องนี้ไม่มี GPU) — ถ้าปล่อยให้ sentence-transformers ดึงเอง จะได้รุ่น CUDA ที่ใหญ่กว่าหลาย GB
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1" \
     && pip install -r /tmp/requirements.txt -c /tmp/constraints.txt
+# pip / setuptools ที่มากับ base image มีช่องโหว่ (pip-audit) — อัปเกรดเป็น layer แยก ไม่ทำให้ต้องติดตั้ง torch ใหม่
+# setuptools ต้อง < 82 ตามที่ torch 2.12 กำหนด (CVE ที่เหลือแก้ใน 83+ — setuptools ใช้ตอนติดตั้ง ไม่ได้ถูกเรียกตอนแอปรัน)
+RUN pip install --upgrade "pip>=26.2" "setuptools>=78.1.1,<82"
 
 # SQL Server (เตรียมไว้ — ยังใช้ TiDB): build ด้วย --build-arg WITH_MSSQL=true เพื่อติดตั้ง Microsoft ODBC Driver 18
 # + pyodbc/aioodbc แล้วตั้ง DB_ENGINE=mssql ใน Backend/.env (ดู docs/SQLSERVER_MIGRATION.md)
