@@ -35,6 +35,12 @@ db_url = os.environ.get("ALEMBIC_DATABASE_URL") or settings.DATABASE_URL_SYNC
 config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    """ฐานข้อมูล SQL Server ใช้ร่วมกับระบบอื่น — ตารางที่ไม่อยู่ใน models ไม่ใช่ของแชทบอท
+    ห้าม autogenerate เสนอ drop_table ตารางพวกนั้นเด็ดขาด"""
+    return not (type_ == "table" and reflected and compare_to is None)
+
+
 def run_migrations_offline() -> None:
     """Emit SQL แทนการต่อ DB จริง (ใช้ตอนต้องการดู SQL ก่อน apply เช่น `alembic upgrade head --sql`)"""
     context.configure(
@@ -43,6 +49,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -61,6 +68,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_object=include_object,
         )
         with context.begin_transaction():
             context.run_migrations()

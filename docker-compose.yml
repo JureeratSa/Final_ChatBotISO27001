@@ -7,7 +7,7 @@
 # port เดิม 5173 / 5174 / 8080 กลายเป็นตัว redirect ไป HTTPS (bookmark เดิมยังใช้ได้)
 # backend เปิดเฉพาะ 127.0.0.1:8000 ไว้ให้เครื่องเซิร์ฟเวอร์เองใช้ตรวจ/ดูแล — เครื่องอื่นต้องผ่าน HTTPS
 # (ชนกับ dev server — ปิด infra/scripts/dev.py ก่อน)
-# ฐานข้อมูลหลักยังเป็น TiDB Cloud ตามเดิม ไม่มี container ฐานข้อมูล
+# ฐานข้อมูลคือ Microsoft SQL Server ภายนอก (ตั้งค่าใน services/api/.env) ไม่มี container ฐานข้อมูล
 name: tuh-chatbot
 
 # log ของทุก service หมุนเวียน ไม่ให้เต็มดิสก์

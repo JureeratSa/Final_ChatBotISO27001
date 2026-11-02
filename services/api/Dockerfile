@@ -23,8 +23,8 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
 # setuptools ต้อง < 82 ตามที่ torch 2.12 กำหนด
 RUN pip install --upgrade "pip>=26.2" "setuptools>=78.1.1,<82"
 
-# SQL Server (เตรียมไว้ — ยังใช้ TiDB): build ด้วย --build-arg WITH_MSSQL=true เพื่อติดตั้ง Microsoft ODBC Driver 18
-# + pyodbc/aioodbc แล้วตั้ง DB_ENGINE=mssql ใน services/api/.env (ดู docs/SQLSERVER_MIGRATION.md)
+# SQL Server (ฐานข้อมูลที่ใช้จริง): docker-compose.yml ส่ง WITH_MSSQL=true ให้แล้ว → ติดตั้ง Microsoft ODBC Driver 18
+# + pyodbc/aioodbc (คู่กับ DB_ENGINE=mssql ใน services/api/.env — ดู docs/SQLSERVER_MIGRATION.md)
 ARG WITH_MSSQL=false
 COPY requirements-mssql.txt /tmp/
 RUN if [ "$WITH_MSSQL" = "true" ]; then \

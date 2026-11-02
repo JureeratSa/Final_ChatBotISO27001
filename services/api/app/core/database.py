@@ -1,5 +1,5 @@
 """
-เชื่อมต่อฐานข้อมูล (async SQLAlchemy) — TiDB Cloud (MySQL) เป็นค่าเริ่มต้น, SQL Server เมื่อตั้ง DB_ENGINE=mssql
+เชื่อมต่อฐานข้อมูล (async SQLAlchemy) — SQL Server เมื่อตั้ง DB_ENGINE=mssql (ใช้งานจริง), TiDB Cloud (MySQL) เมื่อเป็น mysql
 endpoint ขอ session ผ่าน Depends(get_db) — จบ request แล้ว commit ให้อัตโนมัติ (error = rollback)
 """
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core import mssql_types  # noqa: F401  — String/Text เป็น NVARCHAR บน SQL Server (ไม่มีผลกับ MySQL)
 
 # ─── 1. Async Database Engine ──────────────────────────────────────────────────
-# ตั้งค่า Connection Pool และเปิดใช้งาน SSL สำหรับ TiDB Serverless
+# ตั้งค่า Connection Pool (TiDB ต้องเปิด SSL ผ่าน connect_args)
 # - pool_size=10: จำนวน Connection หลักที่เปิดค้างไว้ใน Pool
 # - max_overflow=20: จำนวน Connection ชั่วคราวที่เปิดเพิ่มได้เมื่อมี Request หนาแน่น
 # - pool_pre_ping=True: ทดสอบ Ping ตรวจสอบ Connection ก่อนส่งให้ Query ป้องกัน Connection หลุด

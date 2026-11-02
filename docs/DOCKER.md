@@ -19,7 +19,7 @@
 | `backend` | `127.0.0.1:8000` เท่านั้น | FastAPI + ChromaDB (ฝังใน process) + BM25 + bge-m3 + Tesseract |
 
 - **ChromaDB ไม่ได้เป็น container แยก** ระบบใช้ `chromadb.PersistentClient` (ไลบรารีที่อ่าน/เขียนไฟล์) จึงอยู่ใน container `backend` ไปด้วย ข้อมูลเก็บใน volume `chroma`
-- **TiDB Cloud ยังเป็นฐานข้อมูลหลักตามเดิม** — ไม่มี container ฐานข้อมูล
+- **ฐานข้อมูลคือ Microsoft SQL Server ของโรงพยาบาล** (ตั้งแต่ 2026-11-02) — ไม่มี container ฐานข้อมูล; image ของ backend build พร้อม ODBC Driver 18 (`WITH_MSSQL: "true"` ใน docker-compose.yml)
 - backend รัน **worker เดียว** เท่านั้น (ดัชนีค้นหาและสถานะ rebuild อยู่ในหน่วยความจำของ process) ห้ามเพิ่ม `--workers`
 - port ชนกับ dev server (`infra/scripts/dev.py`) — ปิดตัวนั้นก่อน
 

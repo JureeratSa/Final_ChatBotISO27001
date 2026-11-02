@@ -1,7 +1,7 @@
 # TUH Chatbot AI — Project Instructions
 
 แชทบอทของงานสารสนเทศ โรงพยาบาลธรรมศาสตร์เฉลิมพระเกียรติ ประกอบด้วย 3 ส่วน:
-- **Backend** (`services/api/`) — FastAPI + TiDB Cloud (MySQL) ผ่าน SQLAlchemy async + JWT Auth, RAG อยู่ใน `services/api/app/rag/`
+- **Backend** (`services/api/`) — FastAPI + Microsoft SQL Server ผ่าน SQLAlchemy async + JWT Auth, RAG อยู่ใน `services/api/app/rag/`
 - **UserWeb** (`apps/chat-web/`) — React + Vite แชทบอทที่ผู้ใช้ทั่วไป/บุคลากรเห็น
 - **AdminWeb** (`apps/admin-web/`) — React + Vite ระบบหลังบ้านสำหรับแอดมิน
 
@@ -26,7 +26,9 @@ python infra/scripts/dev.py admin    # admin-web   → http://localhost:5174
 Backend ต้องมี `services/api/.env` ก่อน start (คัดลอกจาก `.env.example`) ไม่มีค่า default ของ secret ใดๆ ในโค้ด
 
 ## กฎที่ต้องยึดถือเสมอ
-1. **Database**: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น (`services/api/app/core/database.py`) — ห้ามใช้ SQLite/PostgreSQL (SQL Server เตรียมไว้แล้วแต่ยังไม่ใช้ ดู docs/SQLSERVER_MIGRATION.md) เปลี่ยน schema ต้องผ่าน Alembic migration เสมอ (`alembic revision --autogenerate` → ตรวจไฟล์ → `alembic upgrade head`) ห้ามแก้ schema ตรงๆ
+1. **Database**: Microsoft SQL Server (`DB_ENGINE=mssql`, ย้ายจาก TiDB Cloud เมื่อ 2026-11-02) ผ่าน async SQLAlchemy เท่านั้น (`services/api/app/core/database.py`) — ห้ามใช้ SQLite/PostgreSQL; TiDB (`DB_ENGINE=mysql`) ยังรองรับไว้เพื่อย้อนกลับเท่านั้น ดู [docs/SQLSERVER_MIGRATION.md](docs/SQLSERVER_MIGRATION.md) เปลี่ยน schema ต้องผ่าน Alembic migration เสมอ (`alembic revision --autogenerate` → ตรวจไฟล์ → `alembic upgrade head`) ห้ามแก้ schema ตรงๆ
+   - **ฐานข้อมูลใช้ร่วมกับระบบอื่น** — แชทบอทเป็นเจ้าของแค่ 10 ตารางใน `app/models/models.py` (+ `alembic_version`) **ห้ามอ่าน/แก้/ลบตารางอื่นเด็ดขาด** (`alembic/env.py` ตั้ง `include_object` ไว้ไม่ให้ autogenerate เสนอ drop ตารางของคนอื่น — ห้ามเอาออก)
+   - ข้อความต้องเป็น `NVARCHAR` และต่อด้วย `use_setinputsizes=False` (`settings.DB_ENGINE_OPTIONS`) ไม่งั้นภาษาไทยกลายเป็น `????`; เวลาเก็บเป็น `DATETIMEOFFSET` แบบ UTC (`func.now()` ถูกแปลงเป็น `SYSDATETIMEOFFSET()` ใน `app/core/mssql_types.py`)
 2. **RAG Pipeline**: รักษา HybridRetriever เดิมไว้ทุกกรณี (ChromaDB เก็บ dense vector, embed ด้วย `BAAI/bge-m3` + BM25 (lexical) + Weighted RRF, โค้ดอยู่ที่ `services/api/app/rag/` — `retriever.py` (ค้นหา), `indexer.py` (สร้างดัชนี), `answer.py` (ตอบ), `ocr.py`; FAISS ถูกเอาออกแล้ว) ห้ามแก้ pipeline นี้โดยไม่จำเป็นและไม่ได้รับอนุญาต
 3. **UI/UX**: ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ UserWeb (แชทบอท, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน — AdminWeb แก้ได้อิสระกว่าตาม scope ที่ได้รับ
 4. **Security**: JWT access token อายุ 15 นาที — ห้ามลดค่า (ไม่มี refresh token: AdminWeb ล็อกอินที่ `/api/admin/login` ซึ่งออกแค่ access token มาตั้งแต่ต้น ส่วน `/api/auth/login`+`/refresh` ที่ไม่มีใครเรียกถูกลบไปตอนจัดระเบียบ); secret (`DB_PASSWORD`, `JWT_SECRET_KEY` ฯลฯ) ต้องมาจาก `.env`/env var เท่านั้น ห้าม hardcode ค่าจริงลงไฟล์ที่ track ใน git (เคยมี production password หลุดมาจากจุดนี้มาก่อน); input ที่ render เป็น HTML ต้องผ่าน `services/api/app/utils/sanitize.py`
@@ -44,7 +46,7 @@ Backend ต้องมี `services/api/.env` ก่อน start (คัดล�
 | `business-analyst` | เก็บ requirement, ตรวจว่า feature ตอบโจทย์ธุรกิจโรงพยาบาลฯ |
 | `hr-team-standards` | ปรับมาตรฐาน workflow/documentation ของโปรเจกต์ |
 | `frontend-dev` | งาน React/Vite ใน UserWeb หรือ AdminWeb ที่มี scope ชัดเจนแล้ว |
-| `backend-dev` | งาน FastAPI/API endpoint/TiDB schema ที่มี scope ชัดเจนแล้ว |
+| `backend-dev` | งาน FastAPI/API endpoint/SQL Server schema ที่มี scope ชัดเจนแล้ว |
 | `tech-lead` | รีวิวโค้ด/สถาปัตยกรรมก่อน merge breaking change, ตัดสินใจ technical direction |
 | `senior-dev` | งาน full-stack ข้ามชั้น (frontend+backend พร้อมกัน), performance, test coverage |
 | `security-engineer` | ตรวจ/แพตช์ security ของ API (auth, rate limit, input validation, CORS) |
