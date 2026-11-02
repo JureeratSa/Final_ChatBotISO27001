@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
 
-    engine = create_engine(settings.DATABASE_URL_SYNC)
+    engine = create_engine(settings.DATABASE_URL_SYNC, **settings.DB_ENGINE_OPTIONS)
     with engine.connect() as conn:
         known = set(conn.execute(select(Document.filename)).scalars().all())
     engine.dispose()

@@ -5,6 +5,7 @@ import ไฟล์นี้ครั้งเดียว (database.py ทำ�
 """
 from sqlalchemy import String, Text
 from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql import functions
 
 
 @compiles(String, "mssql")
@@ -19,3 +20,10 @@ def _string_as_nvarchar(type_, compiler, **kw):
 @compiles(Text, "mssql")
 def _text_as_nvarchar_max(type_, compiler, **kw):
     return "NVARCHAR(max)"
+
+
+# func.now() บน SQL Server ปกติเป็น CURRENT_TIMESTAMP = นาฬิกาเครื่องเซิร์ฟเวอร์ (เวลาไทย) แต่ไม่มี timezone
+# พอเก็บลง DATETIMEOFFSET จึงกลายเป็น "เวลาไทย +00:00" (ช้าไป 7 ชั่วโมง) — ใช้ SYSDATETIMEOFFSET() ที่มี timezone ติดมาแทน
+@compiles(functions.now, "mssql")
+def _now_with_offset(element, compiler, **kw):
+    return "SYSDATETIMEOFFSET()"

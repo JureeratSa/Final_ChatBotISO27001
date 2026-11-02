@@ -38,7 +38,7 @@ async def get_or_create_settings_row(db: AsyncSession) -> SystemSettings:
 @contextmanager
 def sync_connection():
     # เรียกไม่บ่อย (ต้น/ท้าย rebuild) — เปิด engine ใหม่ทุกครั้ง ไม่ต้องเก็บไว้ข้าม thread
-    engine = create_engine(settings.DATABASE_URL_SYNC)
+    engine = create_engine(settings.DATABASE_URL_SYNC, **settings.DB_ENGINE_OPTIONS)
     try:
         with engine.begin() as conn:
             yield conn
