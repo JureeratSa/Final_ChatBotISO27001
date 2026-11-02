@@ -64,7 +64,15 @@ def remember_running_images() -> None:
             print(f"  {service}: ไม่ได้รันอยู่ — ไม่มีของให้ย้อนกลับ")
             continue
         image_id = run(["docker", "inspect", "-f", "{{.Image}}", cid])
-        run(["docker", "image", "tag", image_id, f"{PROJECT}-{service}:rollback"])
+        try:
+            run(["docker", "image", "tag", image_id, f"{PROJECT}-{service}:rollback"])
+            continue
+        except DeployError:
+            pass
+        # image ของ container ถูกลบไปแล้ว (build ใหม่ทับโดยไม่ได้สลับ — containerd ลบ image ที่ไม่มีชื่อทิ้ง)
+        # → ใช้ :latest ก่อน build รอบนี้เป็นจุดย้อนกลับแทน
+        print(f"  ⚠ {service}: ไม่เหลือ image ที่รันอยู่ — ใช้ {PROJECT}-{service}:latest (ก่อน build) เป็นจุดย้อนกลับ")
+        run(["docker", "image", "tag", f"{PROJECT}-{service}:latest", f"{PROJECT}-{service}:rollback"])
 
 
 def wait_healthy() -> None:
