@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # ─── ฐานข้อมูล ───────────────────────────────────────────────────────────
-    # "mysql" = TiDB Cloud (ใช้งานอยู่), "mssql" = SQL Server (เตรียมไว้ — docs/SQLSERVER_MIGRATION.md)
+    # "mssql" = SQL Server (ใช้งานจริงตั้งแต่ 2026-11-02), "mysql" = TiDB Cloud (เผื่อย้อนกลับ) — docs/SQLSERVER_MIGRATION.md
     DB_ENGINE: str = "mysql"
     DB_HOST: str
     DB_PORT: int = 4000                      # TiDB = 4000, SQL Server = 1433

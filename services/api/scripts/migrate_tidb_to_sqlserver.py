@@ -1,5 +1,5 @@
 """
-ย้ายข้อมูลทุกตารางจาก TiDB (MySQL) ไป Microsoft SQL Server — เตรียมไว้ ยังไม่ได้ใช้จริง
+ย้ายข้อมูลทุกตารางจาก TiDB (MySQL) ไป Microsoft SQL Server — ใช้ย้ายจริงไปแล้วเมื่อ 2026-11-02
 ขั้นตอนเต็มอยู่ที่ docs/SQLSERVER_MIGRATION.md
 
     cd services/api

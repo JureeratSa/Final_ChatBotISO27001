@@ -8,7 +8,7 @@
 | เว็บแชทบอท (บุคลากรใช้) | `apps/chat-web` | React + Vite + Tailwind |
 | เว็บแอดมิน (จัดการเอกสาร/ดูสถิติ) | `apps/admin-web` | React + Vite + Tailwind |
 | Backend API + ระบบค้นหา (RAG) | `services/api` | FastAPI, SQLAlchemy (async), ChromaDB, BM25 |
-| ฐานข้อมูล | TiDB Cloud (MySQL) | — |
+| ฐานข้อมูล | Microsoft SQL Server (ย้ายจาก TiDB Cloud เมื่อ 2 พ.ย. 2569) | — |
 
 ## โครงสร้างโปรเจกต์
 
@@ -105,7 +105,10 @@ alembic revision --autogenerate -m "อธิบายสั้นๆ ว่า�
 # ตรวจไฟล์ที่ได้ใน alembic/versions/ ก่อนเสมอ
 alembic upgrade head
 ```
-ดู revision ปัจจุบัน: `alembic current` — เตรียมย้ายไป SQL Server: [docs/SQLSERVER_MIGRATION.md](docs/SQLSERVER_MIGRATION.md)
+ดู revision ปัจจุบัน: `alembic current` — เรื่องเฉพาะของ SQL Server: [docs/SQLSERVER_MIGRATION.md](docs/SQLSERVER_MIGRATION.md)
+
+⚠️ ฐานข้อมูล SQL Server **ใช้ร่วมกับระบบอื่น** — แชทบอทเป็นเจ้าของเฉพาะตารางใน `models.py` ห้ามแตะตารางอื่นเด็ดขาด
+(Alembic ถูกตั้งไม่ให้เสนอ drop ตารางที่ไม่ใช่ของเราแล้ว แต่ตรวจไฟล์ migration ทุกครั้งก่อน upgrade)
 
 ## ความปลอดภัย (สรุป)
 
