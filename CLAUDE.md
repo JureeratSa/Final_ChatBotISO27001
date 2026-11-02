@@ -11,6 +11,7 @@
 ```bash
 docker compose up -d --build     # https://<host>/ (chat-web), /admin/ (admin-web), /api/ (services/api) ผ่าน Caddy
 ```
+อัปเดตหลัง merge เข้า main ใช้ `python infra/scripts/deploy.py` (ตรวจ + build + สลับ + rollback อัตโนมัติ; ไม่รัน migration ให้เอง) — CI (GitHub Actions) + CD ดู [docs/CICD.md](docs/CICD.md)
 port 5173/5174/8080 บนเครื่องเป็นตัว redirect ไป HTTPS; backend เปิดเฉพาะ `127.0.0.1:8000` (รายละเอียด TLS/CA ใน docs/DOCKER.md)
 ข้อมูล (ChromaDB, bm25.pkl, sample_chunks.json, uploads, โมเดล) อยู่ใน Docker volume `tuh-chatbot_*` ไม่ใช่โฟลเดอร์ `uploads/`/`index_db/` บนไดรฟ์ Z: — รายละเอียดใน [docs/DOCKER.md](docs/DOCKER.md)
 XAMPP เลิกใช้แล้ว (Apache ต้องปิดไว้ เพราะ port 8080 เป็นของ redirect)

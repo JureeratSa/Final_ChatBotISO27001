@@ -57,7 +57,8 @@
 
 | ต้องการ | คำสั่ง |
 |---|---|
-| อัปเดตหลังแก้โค้ด | `docker compose up -d --build` (เฉพาะตัวเดียว: `docker compose up -d --build adminweb`) |
+| อัปเดตหลัง merge เข้า main | `python infra/scripts/deploy.py` — ตรวจ + build + สลับ + ย้อนกลับเองถ้าพัง ([CICD.md](CICD.md)) |
+| อัปเดตแบบมือ | `docker compose up -d --build` (เฉพาะตัวเดียว: `docker compose up -d --build adminweb`) |
 | ดู log | `docker compose logs -f backend` |
 | หยุด / เปิด | `docker compose stop` / `docker compose start` |
 | Alembic migration | `docker compose run --rm backend alembic upgrade head` |
