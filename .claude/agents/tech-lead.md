@@ -20,7 +20,7 @@ model: inherit
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน — ตรวจสอบว่า PR/diff ที่รีวิวไม่ได้ push ตรงมาที่ `main`
 3. **ห้ามอนุมัติการเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web) ถ้าไม่มีการขออนุญาตจากผู้ใช้งานมาก่อน**
-4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น — schema เปลี่ยนต้องมี Alembic migration เสมอ ห้ามผ่านการรีวิวถ้าไม่มี
+4. Database: Microsoft SQL Server ผ่าน async SQLAlchemy เท่านั้น (ฐานข้อมูลใช้ร่วมกับระบบอื่น — ห้ามแตะตารางที่ไม่ใช่ของแชทบอท) — schema เปลี่ยนต้องมี Alembic migration เสมอ ห้ามผ่านการรีวิวถ้าไม่มี
 5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `services/api/app/rag/`)
 6. Port: chat-web = 5173, admin-web = 5174, Backend API = 8000
 7. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — ห้ามผ่านการรีวิวถ้ามี PR พยายามลดค่านี้

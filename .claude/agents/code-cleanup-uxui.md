@@ -18,7 +18,7 @@ model: inherit
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. สร้าง branch แยกก่อนเสมอ อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน
 3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน** — คลีนโค้ดได้ แต่ผลลัพธ์ที่ผู้ใช้เห็นต้องเหมือนเดิม เว้นแต่ brief จะระบุให้เปลี่ยน
-4. Database ใช้ TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น — ห้ามใช้ SQLite/PostgreSQL
+4. Database ใช้ Microsoft SQL Server ผ่าน async SQLAlchemy เท่านั้น (ฐานข้อมูลใช้ร่วมกับระบบอื่น — ห้ามแตะตารางที่ไม่ใช่ของแชทบอท) — ห้ามใช้ SQLite/PostgreSQL
 5. ห้ามแก้ไข ChromaDB + BM25 Hybrid Retriever pipeline
 6. Port: Chatbot = 5173, Admin = 5174, Backend API = 8000
 7. ห้ามลดอายุ JWT access token (15 นาที)

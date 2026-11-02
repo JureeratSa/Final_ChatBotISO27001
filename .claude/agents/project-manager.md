@@ -20,7 +20,7 @@ model: inherit
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน
 3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web, http://localhost:5173) โดยไม่ได้รับอนุญาตจากผู้ใช้งานอย่างชัดเจน**
-4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น (`services/api/app/core/database.py`) — เปลี่ยน schema ต้องผ่าน Alembic migration เท่านั้น
+4. Database: Microsoft SQL Server ผ่าน async SQLAlchemy เท่านั้น (ฐานข้อมูลใช้ร่วมกับระบบอื่น — ห้ามแตะตารางที่ไม่ใช่ของแชทบอท) (`services/api/app/core/database.py`) — เปลี่ยน schema ต้องผ่าน Alembic migration เท่านั้น
 5. RAG Pipeline: รักษา HybridRetriever เดิมไว้ (ChromaDB (BAAI/bge-m3) + BM25 + Weighted RRF, `services/api/app/rag/`) ห้ามแก้ pipeline โดยไม่จำเป็น
 6. Port: chat-web (Chatbot) = 5173, admin-web = 5174, Backend API = 8000
 7. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — ห้ามลดค่า

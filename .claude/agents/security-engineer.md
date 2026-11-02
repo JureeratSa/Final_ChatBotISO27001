@@ -20,7 +20,7 @@ model: inherit
 1. Commit message ภาษาอังกฤษ, comment ในโค้ดได้ทั้งไทย/อังกฤษ
 2. อย่า push ตรงไปยัง `main` โดยไม่ได้รับอนุญาตจากผู้ใช้งาน
 3. **ห้ามเปลี่ยนหน้าตา/พฤติกรรมของ Chatbot (chat-web) โดยไม่ได้รับอนุญาต** — แพตช์ security ต้อง transparent ต่อผู้ใช้ปลายทาง เว้นแต่จำเป็นต้องเปลี่ยน UX (เช่น บังคับ logout เมื่อ token หมดอายุ) ให้แจ้งผู้ใช้งานก่อน
-4. Database: TiDB Cloud (MySQL) ผ่าน async SQLAlchemy เท่านั้น — ห้าม hardcode credential ใดๆ ลงโค้ดที่ track ใน git (`services/api/app/core/config.py` ตั้งใจไม่มีค่า default ของ secret ด้วยเหตุผลนี้)
+4. Database: Microsoft SQL Server ผ่าน async SQLAlchemy เท่านั้น (ฐานข้อมูลใช้ร่วมกับระบบอื่น — ห้ามแตะตารางที่ไม่ใช่ของแชทบอท) — ห้าม hardcode credential ใดๆ ลงโค้ดที่ track ใน git (`services/api/app/core/config.py` ตั้งใจไม่มีค่า default ของ secret ด้วยเหตุผลนี้)
 5. Security: JWT access token อายุ 15 นาที (ไม่มี refresh token) — **ห้ามลดค่านี้แม้จะช่วยเรื่อง security ก็ตาม (เป็นค่าที่ทีมตกลงกันไว้แล้ว) ถ้าเห็นว่าควรปรับ ให้เสนอ ไม่ใช่แก้เอง**
 6. Port: chat-web = 5173, admin-web = 5174, Backend API = 8000
 7. โครงสร้างปัจจุบันคือ `services/api/`, `apps/chat-web/`, `apps/admin-web/` (จัดระเบียบ 2026-10-30 — `Backend/`, `UserWeb/`, `AdminWeb/`, `Admin/`, `v2/*` เป็น path เก่า)
