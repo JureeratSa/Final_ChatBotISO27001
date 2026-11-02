@@ -21,6 +21,9 @@ services:
   backend:
     build:
       context: ./services/api
+      args:
+        # ติดตั้ง ODBC Driver 18 + pyodbc/aioodbc สำหรับ SQL Server (DB_ENGINE=mssql ใน services/api/.env)
+        WITH_MSSQL: "true"
     env_file: services/api/.env
     environment:
       # ทับค่า path ของเครื่อง Windows ใน services/api/.env ด้วย path ใน container

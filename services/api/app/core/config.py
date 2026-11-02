@@ -106,6 +106,13 @@ class Settings(BaseSettings):
             return self._mssql_url("pyodbc")
         return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
+    @property
+    def DB_ENGINE_OPTIONS(self) -> dict:
+        """ส่งให้ create_engine / create_async_engine ทุกที่
+        SQL Server: ปิด setinputsizes — ไม่งั้น String ถูกส่งเป็น VARCHAR แล้วภาษาไทยที่บันทึกทีละแถวกลายเป็น ????
+        (collation ของ DB ไม่ใช่ภาษาไทย ทดสอบแล้ว 2026-11-02)"""
+        return {"use_setinputsizes": False} if self.DB_ENGINE == "mssql" else {}
+
     def _mssql_url(self, driver: str) -> str:
         from sqlalchemy.engine import URL
         return URL.create(

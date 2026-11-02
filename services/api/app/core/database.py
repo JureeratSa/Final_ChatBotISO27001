@@ -21,7 +21,8 @@ engine = create_async_engine(
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    connect_args={} if settings.DB_ENGINE == "mssql" else {"ssl": True}
+    connect_args={} if settings.DB_ENGINE == "mssql" else {"ssl": True},
+    **settings.DB_ENGINE_OPTIONS,
 )
 
 # ─── 2. Async Session Factory ──────────────────────────────────────────────────

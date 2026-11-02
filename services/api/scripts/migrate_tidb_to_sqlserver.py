@@ -20,6 +20,7 @@
 import argparse
 import os
 import sys
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, func, select, text
 
@@ -29,6 +30,12 @@ from app.core.database import Base
 from app.models import models  # noqa: F401
 
 BATCH = 500
+
+
+def _utc_aware(row) -> dict:
+    """TiDB คืนเวลาแบบไม่มี timezone (เป็น UTC) — ติด UTC ให้ ไม่งั้นรันบนเครื่อง Windows แล้วถูกตีความเป็นเวลาไทย"""
+    return {k: v.replace(tzinfo=timezone.utc) if isinstance(v, datetime) and v.tzinfo is None else v
+            for k, v in row.items()}
 
 
 def _identity_column(table):
@@ -47,7 +54,8 @@ def main():
 
     tables = Base.metadata.sorted_tables
     source = create_engine(settings.DATABASE_URL_SYNC)  # แบบเดียวกับ rebuild_service ที่ใช้กับ TiDB อยู่
-    target = create_engine(args.target, fast_executemany=True)
+    # use_setinputsizes=False: ตารางที่มีแถวเดียว (settings, forms) ถูก insert ทีละแถว — ไม่ปิด = ภาษาไทยกลายเป็น ????
+    target = create_engine(args.target, fast_executemany=True, use_setinputsizes=False)
 
     with source.connect() as src:
         counts = {t.name: src.execute(select(func.count()).select_from(t)).scalar() for t in tables}
@@ -75,7 +83,7 @@ def main():
                 chunk = rows.fetchmany(BATCH)
                 if not chunk:
                     break
-                dst.execute(table.insert(), [dict(r) for r in chunk])
+                dst.execute(table.insert(), [_utc_aware(r) for r in chunk])
                 moved += len(chunk)
             if identity is not None:
                 dst.execute(text(f"SET IDENTITY_INSERT {table.name} OFF"))
