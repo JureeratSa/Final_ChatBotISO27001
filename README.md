@@ -70,6 +70,7 @@ docker compose up -d --build
 ```
 เปิดใช้งานที่ `https://<ชื่อเครื่อง>/` (แชทบอท) และ `https://<ชื่อเครื่อง>/admin/` (แอดมิน)
 รายละเอียด (HTTPS, ใบรับรอง, volume, สำรองข้อมูล) อยู่ใน [docs/DOCKER.md](docs/DOCKER.md)
+อัปเดตระบบหลัง merge เข้า main: `python infra/scripts/deploy.py` (ตรวจ + build + สลับ + ย้อนกลับเองถ้าพัง) — CI/CD ทั้งหมดอยู่ใน [docs/CICD.md](docs/CICD.md)
 
 ### Dev (ปิด Docker ก่อน เพราะใช้ port เดียวกัน)
 
