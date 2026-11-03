@@ -117,7 +117,12 @@ def record(commit: str, result: str) -> None:
 
 
 def deploy(args) -> str:
-    step("1. ตรวจโฟลเดอร์ repo")
+    step("1. ตรวจ Docker และโฟลเดอร์ repo")
+    try:
+        run(["docker", "info", "--format", "{{.ServerVersion}}"])
+    except DeployError:
+        # เช่น เครื่องรีบูตแล้ว Docker Desktop ไม่ได้เปิดเอง — แชทบอทหยุดอยู่ ต้องเปิด Docker Desktop ก่อน
+        raise DeployError("Docker ไม่ได้ทำงาน — เปิด Docker Desktop แล้วรอให้ container ขึ้นก่อน deploy") from None
     branch = run(GIT + ["branch", "--show-current"])
     if dirty := run(GIT + ["status", "--porcelain", "--untracked-files=no"]):
         raise DeployError(f"มีไฟล์ที่แก้ค้างไว้ — commit หรือเก็บก่อน deploy:\n{dirty}")
